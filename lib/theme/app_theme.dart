@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 class AppTheme {
   static ThemeData themeData() => ThemeData(
     useMaterial3: true,
@@ -18,18 +17,23 @@ class AppTheme {
     colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
 
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent, // transparent app bar
+      elevation: 0,
       scrolledUnderElevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle(
-        systemNavigationBarColor: Colors.white,
-        systemNavigationBarIconBrightness: Brightness.dark,
-        statusBarColor: Colors.transparent,
-        statusBarBrightness: Brightness.light,
-        statusBarIconBrightness: Brightness.dark,
+        // Status bar
+        statusBarColor: Colors.transparent, // fully transparent
+        statusBarIconBrightness: Brightness.light, // white icons (Android)
+        statusBarBrightness: Brightness.dark, // white icons (iOS)
+
+        // Navigation bar
+        systemNavigationBarColor: Colors.black, // or AppColors.bg
+        systemNavigationBarIconBrightness: Brightness.light, // white icons
       ),
     ),
   );
 }
+
 
 class AppColors {
   static const Color primary = Color(0xFF3B82F6);

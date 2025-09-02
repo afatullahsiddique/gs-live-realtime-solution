@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/svg.dart';
 import 'login_cubit.dart';
 import 'login_state.dart';
 
@@ -35,66 +37,75 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => LoginCubit(),
-      child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-              stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: Colors.black,
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
+        child: Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
+                stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: BlocConsumer<LoginCubit, LoginState>(
-              listener: (context, state) {
-                if (state.error.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.error),
-                      backgroundColor: Colors.red.shade400,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
-                }
-                if (state.isSuccess) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Login Successful!'),
-                      backgroundColor: Colors.green.shade400,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
-                }
-              },
-              builder: (context, state) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      // Logo Section
-                      _buildLogo(),
-                      const SizedBox(height: 40),
-
-                      // Welcome Text
-                      _buildWelcomeText(),
-                      const SizedBox(height: 40),
-
-                      // Tab Bar
-                      _buildTabBar(),
-                      const SizedBox(height: 30),
-
-                      // Tab Content
-                      Expanded(
-                        child: TabBarView(controller: _tabController, children: [_buildPhoneTab(context, state), _buildUserIdTab(context, state)]),
+            child: SafeArea(
+              child: BlocConsumer<LoginCubit, LoginState>(
+                listener: (context, state) {
+                  if (state.error.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(state.error),
+                        backgroundColor: Colors.red.shade400,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  }
+                  if (state.isSuccess) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Login Successful!'),
+                        backgroundColor: Colors.green.shade400,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        // Logo Section
+                        _buildLogo(),
+                        const SizedBox(height: 40),
+
+                        // Welcome Text
+                        _buildWelcomeText(),
+                        const SizedBox(height: 40),
+
+                        // Tab Bar
+                        _buildTabBar(),
+                        const SizedBox(height: 30),
+
+                        // Tab Content
+                        Expanded(
+                          child: TabBarView(controller: _tabController, children: [_buildPhoneTab(context, state), _buildUserIdTab(context, state)]),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -172,7 +183,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             keyboardType: TextInputType.phone,
           ),
           const SizedBox(height: 30),
-          _buildLoginButton(context, 'Sign In with Phone', state.isLoading, () => context.read<LoginCubit>().loginWithPhone(_phoneController.text)),
+          _buildLoginButton(
+            context,
+            'Sign In with Phone',
+            state.isLoading && state.method == LoginMethod.phone,
+            () => context.read<LoginCubit>().loginWithPhone(_phoneController.text),
+          ),
           const SizedBox(height: 30),
           _buildSocialButtons(context, state),
         ],
@@ -197,7 +213,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           _buildLoginButton(
             context,
             'Sign In',
-            state.isLoading,
+            state.isLoading && state.method == LoginMethod.credentials,
             () => context.read<LoginCubit>().loginWithCredentials(_userIdController.text, _passwordController.text),
           ),
           const SizedBox(height: 30),
@@ -273,20 +289,20 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         const SizedBox(height: 20),
         _buildSocialButton(
           'Continue with Google',
-          Icons.g_mobiledata_rounded,
           Colors.white,
           Colors.black87,
           () => context.read<LoginCubit>().loginWithGoogle(),
-          state.isLoading,
+          state.isLoading && state.method == LoginMethod.google,
+          iconPath: 'assets/icons/ic_google.svg',
         ),
         const SizedBox(height: 16),
         _buildSocialButton(
           'Continue with Facebook',
-          Icons.facebook_rounded,
           const Color(0xFF1877F2),
           Colors.white,
           () => context.read<LoginCubit>().loginWithFacebook(),
-          state.isLoading,
+          state.isLoading && state.method == LoginMethod.facebook,
+          icon: Icons.facebook_rounded,
         ),
         const SizedBox(height: 40),
         _buildSignUpText(),
@@ -320,13 +336,21 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     );
   }
 
-  Widget _buildSocialButton(String text, IconData icon, Color backgroundColor, Color textColor, VoidCallback onPressed, bool isLoading) {
+  Widget _buildSocialButton(
+    String text,
+    Color backgroundColor,
+    Color textColor,
+    VoidCallback onPressed,
+    bool isLoading, {
+    IconData? icon,
+    String? iconPath,
+  }) {
     return Container(
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: backgroundColor,
+        color: isLoading ? backgroundColor.withOpacity(.5) : backgroundColor,
         border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
         boxShadow: [BoxShadow(color: backgroundColor.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
       ),
@@ -335,15 +359,27 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: isLoading ? null : onPressed,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Icon(icon, color: textColor, size: 24),
-              const SizedBox(width: 12),
-              Text(
-                text,
-                style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600),
+              // Normal content
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon != null ? Icon(icon, color: textColor, size: 28) : SvgPicture.asset(iconPath!, width: 28, height: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    text,
+                    style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
+
+              // Loading indicator (on top of content)
+              if (isLoading)
+                Center(
+                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.pink)),
+                ),
             ],
           ),
         ),

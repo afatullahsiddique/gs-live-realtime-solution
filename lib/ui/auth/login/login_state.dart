@@ -1,18 +1,8 @@
 import 'package:equatable/equatable.dart';
 
-enum LoginStatus {
-  initial,
-  loading,
-  success,
-  failure,
-}
+enum LoginStatus { initial, loading, success, failure }
 
-enum LoginMethod {
-  phone,
-  credentials,
-  google,
-  facebook,
-}
+enum LoginMethod { phone, credentials, google, facebook }
 
 class LoginState extends Equatable {
   const LoginState({
@@ -34,19 +24,14 @@ class LoginState extends Equatable {
   final User? user;
 
   bool get isLoading => status == LoginStatus.loading;
+
   bool get isSuccess => status == LoginStatus.success;
+
   bool get isFailure => status == LoginStatus.failure;
+
   bool get isInitial => status == LoginStatus.initial;
 
-  LoginState copyWith({
-    LoginStatus? status,
-    LoginMethod? method,
-    String? phoneNumber,
-    String? userId,
-    String? password,
-    String? error,
-    User? user,
-  }) {
+  LoginState copyWith({LoginStatus? status, LoginMethod? method, String? phoneNumber, String? userId, String? password, String? error, User? user}) {
     return LoginState(
       status: status ?? this.status,
       method: method ?? this.method,
@@ -59,25 +44,11 @@ class LoginState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
-    status,
-    method,
-    phoneNumber,
-    userId,
-    password,
-    error,
-    user,
-  ];
+  List<Object?> get props => [status, method, phoneNumber, userId, password, error, user];
 }
 
 class User extends Equatable {
-  const User({
-    required this.id,
-    required this.name,
-    required this.email,
-    this.avatar,
-    this.phoneNumber,
-  });
+  const User({required this.id, required this.name, required this.email, this.avatar, this.phoneNumber});
 
   final String id;
   final String name;
@@ -85,13 +56,7 @@ class User extends Equatable {
   final String? avatar;
   final String? phoneNumber;
 
-  User copyWith({
-    String? id,
-    String? name,
-    String? email,
-    String? avatar,
-    String? phoneNumber,
-  }) {
+  User copyWith({String? id, String? name, String? email, String? avatar, String? phoneNumber}) {
     return User(
       id: id ?? this.id,
       name: name ?? this.name,
