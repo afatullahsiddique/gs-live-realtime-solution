@@ -13,10 +13,7 @@ class ChangePasswordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => ChangePasswordCubit(),
-      child: const _ChangePasswordView(),
-    );
+    return BlocProvider(create: (_) => ChangePasswordCubit(), child: const _ChangePasswordView());
   }
 }
 
@@ -30,13 +27,7 @@ class _ChangePasswordView extends StatelessWidget {
     return Scaffold(
       body: Container(
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: AppColors.backgroundGradient,
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -49,24 +40,14 @@ class _ChangePasswordView extends StatelessWidget {
                       context.pop();
                     },
                     child: Padding(
-                      padding: const EdgeInsets.only(
-                        top: 12,
-                        bottom: 12,
-                        right: 12,
-                      ),
+                      padding: const EdgeInsets.only(top: 12, bottom: 12, right: 12),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SvgPicture.asset("assets/icons/back.svg"),
                           SizedBox(width: 4),
-                          Text(
-                            "Change password",
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                          Text("Change password", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ),
@@ -79,14 +60,7 @@ class _ChangePasswordView extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 0,
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 0, blurRadius: 20, offset: const Offset(0, 4))],
                     ),
                     child: Column(
                       children: [
@@ -100,9 +74,7 @@ class _ChangePasswordView extends StatelessWidget {
                                   hintText: "enter a new password",
                                   obscureText: !state.passwordVisibility,
                                   prefixIcon: Icons.password,
-                                  suffixIcon: state.passwordVisibility
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
+                                  suffixIcon: state.passwordVisibility ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                                   onSuffixTap: () {
                                     cubit.togglePasswordVisibility();
                                   },
@@ -113,9 +85,7 @@ class _ChangePasswordView extends StatelessWidget {
                                   hintText: "re-enter password",
                                   obscureText: !state.passwordConfirmVisibility,
                                   prefixIcon: Icons.password,
-                                  suffixIcon: state.passwordConfirmVisibility
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
+                                  suffixIcon: state.passwordConfirmVisibility ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                                   onSuffixTap: () {
                                     cubit.toggleConfirmPasswordVisibility();
                                   },
@@ -128,23 +98,10 @@ class _ChangePasswordView extends StatelessWidget {
                         BlocConsumer<ChangePasswordCubit, ChangePasswordState>(
                           listener: (context, state) {
                             if (state.status == ChangePasswordStatus.failure) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    state.error ?? 'ChangePassword failed',
-                                  ),
-                                ),
-                              );
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error ?? 'ChangePassword failed')));
                               cubit.reset();
-                            } else if (state.status ==
-                                ChangePasswordStatus.success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    "Password updated successfully!",
-                                  ),
-                                ),
-                              );
+                            } else if (state.status == ChangePasswordStatus.success) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Password updated successfully!")));
                               context.go(Routes.login.path);
                             }
                           },
@@ -154,8 +111,7 @@ class _ChangePasswordView extends StatelessWidget {
                               onPressed: () {
                                 cubit.updatePassword();
                               },
-                              isLoading:
-                                  state.status == ChangePasswordStatus.loading,
+                              isLoading: state.status == ChangePasswordStatus.loading,
                             );
                           },
                         ),

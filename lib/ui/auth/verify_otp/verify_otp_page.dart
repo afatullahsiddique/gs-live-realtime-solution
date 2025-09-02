@@ -31,11 +31,7 @@ class _VerifyOTPView extends StatelessWidget {
       body: Container(
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: AppColors.backgroundGradient,
-          ),
+          gradient: AppColors.backgroundGradient,
         ),
         child: SafeArea(
           child: Padding(

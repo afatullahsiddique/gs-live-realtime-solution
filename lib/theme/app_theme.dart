@@ -42,25 +42,63 @@ class AppColors {
   static const Color text = Color(0xFF1E1E1E);
   static const Color textLight = Color(0xFF616161);
 
-  static const List<Color> backgroundGradient = [
-    // Color(0xFF1D4ED8), // Royal Blue
-    // Color(0xFF9333EA), // Magenta Purple
-    // Color(0xFFF97316), // Warm Orange
+  // Primary colors
+  static const Color black = Colors.black;
+  static const Color white = Colors.white;
 
-    // Color(0xFF2563EB), // Ocean Blue
-    // Color(0xFF4ADE80), // Mint Green
-    // Color(0xFFC084FC), // Lavender
+  static Color pinkLight = Colors.pink.shade300;
+  static Color pinkDark = Colors.pink.shade500;
+  static Color pink400 = Colors.pink.shade400;
+  static Color pink600 = Colors.pink.shade600;
 
-    Color(0xFF224CD3), // Strong Blue
-    Color(0xFF06B6D4), // Bright Cyan
-    Color(0xFFA21CAF), // Neon Purple
+  // Background gradient
+  static const LinearGradient backgroundGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF000000),
+      Color(0xFF1a0a0a),
+      Color(0xFF2d1b2b),
+      Color(0xFF4a2c4a),
+      Color(0xFFff6b9d),
+    ],
+    stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+  );
 
-    // Color(0xFF0EA5E9), // Sky Blue
-    // Color(0xFF14B8A6), // Aqua Green
-    // Color(0xFF84CC16), // Lime Green
+  // Logo gradient
+  static LinearGradient logoGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [pinkLight, pinkDark],
+  );
 
-    // Color(0xFF2563EB), // Blue
-    // Color(0xFF06B6D4), // Teal
-    // Color(0xFFA855F7), // Violet
+  // Tab indicator gradient
+  static LinearGradient tabIndicatorGradient =
+  LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
+
+  // Button gradient
+  static LinearGradient buttonGradient =
+  LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
+
+  // Shadows
+  static List<BoxShadow> logoShadow = [
+    BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
   ];
+
+  static List<BoxShadow> buttonShadow = [
+    BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
+  ];
+
+  // Input decoration colors
+  static Color inputBorderColor = Colors.pink.withOpacity(0.3);
+  static Color inputBackground = Colors.black.withOpacity(0.2);
+
+  // Divider gradients
+  static Gradient dividerLeft = LinearGradient(colors: [Colors.transparent, Colors.white.withOpacity(0.3)]);
+  static Gradient dividerRight = LinearGradient(colors: [Colors.white.withOpacity(0.3), Colors.transparent]);
+
+  // Shader for texts
+  static Shader textGradientShader(Rect bounds) {
+    return LinearGradient(colors: [pinkLight, pinkDark]).createShader(bounds);
+  }
 }

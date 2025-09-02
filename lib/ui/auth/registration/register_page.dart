@@ -29,11 +29,7 @@ class _RegisterView extends StatelessWidget {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: AppColors.backgroundGradient,
-          ),
+          gradient: AppColors.backgroundGradient,
         ),
         child: SafeArea(
           child: Center(
