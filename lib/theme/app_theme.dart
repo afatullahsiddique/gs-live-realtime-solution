@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 class AppTheme {
   static ThemeData themeData() => ThemeData(
     useMaterial3: true,
@@ -8,10 +9,7 @@ class AppTheme {
     applyElevationOverlayColor: false,
 
     // Apply Google Fonts Inter everywhere
-    textTheme: GoogleFonts.interTextTheme().apply(
-      bodyColor: AppColors.text,
-      displayColor: AppColors.text,
-    ),
+    textTheme: GoogleFonts.interTextTheme().apply(bodyColor: AppColors.text, displayColor: AppColors.text),
 
     scaffoldBackgroundColor: AppColors.bg,
     colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
@@ -22,21 +20,24 @@ class AppTheme {
       scrolledUnderElevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle(
         // Status bar
-        statusBarColor: Colors.transparent, // fully transparent
-        statusBarIconBrightness: Brightness.light, // white icons (Android)
-        statusBarBrightness: Brightness.dark, // white icons (iOS)
+        statusBarColor: Colors.transparent,
+        // fully transparent
+        statusBarIconBrightness: Brightness.light,
+        // white icons (Android)
+        statusBarBrightness: Brightness.dark,
+        // white icons (iOS)
 
         // Navigation bar
-        systemNavigationBarColor: Colors.black, // or AppColors.bg
+        systemNavigationBarColor: Colors.black,
+        // or AppColors.bg
         systemNavigationBarIconBrightness: Brightness.light, // white icons
       ),
     ),
   );
 }
 
-
 class AppColors {
-  static const Color primary = Color(0xFF3B82F6);
+  static Color primary = pinkDark;
   static const Color primaryLight = Color(0xFFDAE3F1);
   static const Color bg = Color(0xFFFFFFFF);
   static const Color text = Color(0xFF1E1E1E);
@@ -55,39 +56,23 @@ class AppColors {
   static const LinearGradient backgroundGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [
-      Color(0xFF000000),
-      Color(0xFF1a0a0a),
-      Color(0xFF2d1b2b),
-      Color(0xFF4a2c4a),
-      Color(0xFFff6b9d),
-    ],
+    colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
     stops: [0.0, 0.3, 0.6, 0.8, 1.0],
   );
 
   // Logo gradient
-  static LinearGradient logoGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [pinkLight, pinkDark],
-  );
+  static LinearGradient logoGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [pinkLight, pinkDark]);
 
   // Tab indicator gradient
-  static LinearGradient tabIndicatorGradient =
-  LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
+  static LinearGradient tabIndicatorGradient = LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
 
   // Button gradient
-  static LinearGradient buttonGradient =
-  LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
+  static LinearGradient buttonGradient = LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
 
   // Shadows
-  static List<BoxShadow> logoShadow = [
-    BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
-  ];
+  static List<BoxShadow> logoShadow = [BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))];
 
-  static List<BoxShadow> buttonShadow = [
-    BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
-  ];
+  static List<BoxShadow> buttonShadow = [BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6))];
 
   // Input decoration colors
   static Color inputBorderColor = Colors.pink.withOpacity(0.3);

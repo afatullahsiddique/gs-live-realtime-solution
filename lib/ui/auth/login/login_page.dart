@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/svg.dart';
-import '../../../theme/app_theme.dart';
+import 'package:go_router/go_router.dart';
 import 'login_cubit.dart';
 import 'login_state.dart';
+
+import '../../../navigation/routes.dart';
+import '../../../theme/app_theme.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -63,14 +66,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     );
                   }
                   if (state.isSuccess) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Login Successful!'),
-                        backgroundColor: Colors.green.shade400,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
+                    // ScaffoldMessenger.of(context).showSnackBar(
+                    //   SnackBar(
+                    //     content: const Text('Login Successful!'),
+                    //     backgroundColor: Colors.green.shade400,
+                    //     behavior: SnackBarBehavior.floating,
+                    //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    //   ),
+                    // );
+                    context.go(Routes.home.path);
                   }
                 },
                 builder: (context, state) {
@@ -158,7 +162,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           _buildInputField(
             controller: _phoneController,
             label: 'Phone Number',
-            hint: '+1 (555) 123-4567',
+            hint: '01XXXXXXXXX',
             icon: Icons.phone_rounded,
             keyboardType: TextInputType.phone,
           ),
