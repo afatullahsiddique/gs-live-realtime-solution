@@ -1,4 +1,5 @@
 import 'package:cute_live/ui/auth/registration/register_page.dart';
+import 'package:cute_live/ui/streaming/audio_room_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -14,12 +15,7 @@ import '../ui/home/home_page.dart';
 import '../ui/main_page.dart';
 
 class MyRouter {
-  static final publicRoutes = {
-    Routes.login.path,
-    Routes.forgetPassword.path,
-    Routes.verifyOTP.path,
-    Routes.changePassword.path,
-  };
+  static final publicRoutes = {Routes.login.path, Routes.forgetPassword.path, Routes.verifyOTP.path, Routes.changePassword.path};
 
   static final router = GoRouter(
     debugLogDiagnostics: true,
@@ -50,10 +46,7 @@ class MyRouter {
         routes: [
           GoRoute(
             path: Routes.home.path,
-            pageBuilder: (context, state) => NoTransitionPage<void>(
-              key: state.pageKey,
-              child: HomePage(),
-            ),
+            pageBuilder: (context, state) => NoTransitionPage<void>(key: state.pageKey, child: HomePage()),
           ),
           GoRoute(
             path: Routes.offer.path,
@@ -96,6 +89,16 @@ class MyRouter {
             ),
           ),
         ],
+      ),
+      GoRoute(
+        path: Routes.audioRoom.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: AudioRoomPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
       ),
       GoRoute(
         path: Routes.login.path,
@@ -151,51 +154,27 @@ class MyRouter {
     errorPageBuilder: (context, state) => MaterialPage<void>(
       key: state.pageKey,
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.red,
-          title: const Text("Error 404"),
-        ),
+        appBar: AppBar(backgroundColor: Colors.red, title: const Text("Error 404")),
         body: const Center(child: Text("Page not found.")),
       ),
     ),
   );
 }
 
-Widget customPopTransition(
-  BuildContext context,
-  Animation<double> animation,
-  Animation<double> secondaryAnimation,
-  Widget child,
-) {
+Widget customPopTransition(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
   return ScaleTransition(
-    scale: Tween<double>(
-      begin: 0.95,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: animation, curve: Curves.ease)),
+    scale: Tween<double>(begin: 0.95, end: 1.0).animate(CurvedAnimation(parent: animation, curve: Curves.ease)),
     child: child,
   );
 }
 
-Widget customSlideTransition(
-  BuildContext context,
-  Animation<double> animation,
-  Animation<double> secondaryAnimation,
-  Widget child,
-) {
+Widget customSlideTransition(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
   return SlideTransition(
-    position: Tween<Offset>(
-      begin: const Offset(1, 0),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: animation, curve: Curves.decelerate)),
+    position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.decelerate)),
     child: child,
   );
 }
 
-Widget noTransition(
-  BuildContext context,
-  Animation<double> animation,
-  Animation<double> secondaryAnimation,
-  Widget child,
-) {
+Widget noTransition(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
   return child;
 }

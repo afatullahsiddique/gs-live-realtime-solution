@@ -1,8 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/view_count.dart';
+import '../../../navigation/routes.dart';
 import '../home_page.dart';
 import 'live_animation.dart';
 
@@ -36,8 +38,8 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        if(!widget.streamer.isVideo){
-
+        if (!widget.streamer.isVideo) {
+          context.go(Routes.audioRoom.path);
         }
       },
       child: Container(

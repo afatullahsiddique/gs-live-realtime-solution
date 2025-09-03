@@ -5,6 +5,7 @@ enum Routes {
   verifyOTP,
   changePassword,
   home,
+  audioRoom,
   offer,
   qrCode,
   history,
@@ -26,6 +27,8 @@ extension RoutesExtension on Routes {
         return '/changePassword';
       case Routes.home:
         return '/home';
+      case Routes.audioRoom:
+        return '/audioRoom';
       case Routes.offer:
         return '/offer';
       case Routes.qrCode:
