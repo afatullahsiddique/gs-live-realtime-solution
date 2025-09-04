@@ -6,10 +6,12 @@ enum Routes {
   changePassword,
   home,
   audioRoom,
+  status,
   offer,
   qrCode,
   history,
   more,
+  profile,
 }
 
 extension RoutesExtension on Routes {
@@ -27,6 +29,8 @@ extension RoutesExtension on Routes {
         return '/changePassword';
       case Routes.home:
         return '/home';
+      case Routes.status:
+        return '/status';
       case Routes.audioRoom:
         return '/audioRoom';
       case Routes.offer:
@@ -37,6 +41,8 @@ extension RoutesExtension on Routes {
         return '/history';
       case Routes.more:
         return '/more';
+      case Routes.profile:
+        return '/profile';
     }
   }
 }

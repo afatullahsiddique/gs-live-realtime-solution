@@ -36,7 +36,7 @@ class _MainPageState extends State<MainPage> {
         context.push(Routes.home.path);
         break;
       case 1:
-        context.push(Routes.home.path);
+        context.push(Routes.status.path);
         break;
       case 2:
         context.go(Routes.home.path);
@@ -45,7 +45,7 @@ class _MainPageState extends State<MainPage> {
         context.push(Routes.home.path);
         break;
       case 4:
-        context.push(Routes.home.path);
+        context.push(Routes.profile.path);
         break;
     }
   }

@@ -19,7 +19,12 @@ class _MyBottomNavBarState extends State<MyBottomNavBar> with TickerProviderStat
   final List<NavBarItem> _navItems = [
     NavBarItem(icon: Icons.home_rounded, activeIcon: Icons.home_rounded, label: 'Home'),
     NavBarItem(icon: Icons.favorite_outline_rounded, activeIcon: Icons.favorite_rounded, label: 'Live'),
-    NavBarItem(icon: Icons.add_circle_outline_rounded, activeIcon: Icons.add_circle_rounded, label: 'Create', isCenter: true),
+    NavBarItem(
+      icon: Icons.add_circle_outline_rounded,
+      activeIcon: Icons.add_circle_rounded,
+      label: 'Create',
+      isCenter: true,
+    ),
     NavBarItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Inbox'),
     NavBarItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profile'),
   ];
@@ -27,14 +32,23 @@ class _MyBottomNavBarState extends State<MyBottomNavBar> with TickerProviderStat
   @override
   void initState() {
     super.initState();
-    _animationControllers = List.generate(_navItems.length, (index) => AnimationController(duration: const Duration(milliseconds: 200), vsync: this));
+    _animationControllers = List.generate(
+      _navItems.length,
+      (index) => AnimationController(duration: const Duration(milliseconds: 200), vsync: this),
+    );
 
     _scaleAnimations = _animationControllers
-        .map((controller) => Tween<double>(begin: 1.0, end: 1.2).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)))
+        .map(
+          (controller) =>
+              Tween<double>(begin: 1.0, end: 1.2).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)),
+        )
         .toList();
 
     _glowAnimations = _animationControllers
-        .map((controller) => Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)))
+        .map(
+          (controller) =>
+              Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)),
+        )
         .toList();
 
     // Animate the initially selected item
@@ -69,8 +83,8 @@ class _MyBottomNavBarState extends State<MyBottomNavBar> with TickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 90,
-      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+      height: 80,
+      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 0),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
@@ -176,7 +190,9 @@ class _MyBottomNavBarState extends State<MyBottomNavBar> with TickerProviderStat
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isSelected ? Colors.white : Colors.white.withOpacity(0.3),
-                        boxShadow: isSelected ? [BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 8, spreadRadius: 1)] : null,
+                        boxShadow: isSelected
+                            ? [BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 8, spreadRadius: 1)]
+                            : null,
                       ),
                     ),
                   ],

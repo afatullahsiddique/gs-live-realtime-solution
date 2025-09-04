@@ -39,7 +39,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
     return GestureDetector(
       onTap: () {
         if (!widget.streamer.isVideo) {
-          context.go(Routes.audioRoom.path);
+          context.push(Routes.audioRoom.path);
         }
       },
       child: Container(

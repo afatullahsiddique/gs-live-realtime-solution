@@ -1,4 +1,5 @@
 import 'package:cute_live/ui/auth/registration/register_page.dart';
+import 'package:cute_live/ui/status/status_page.dart';
 import 'package:cute_live/ui/streaming/audio_room_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -13,6 +14,7 @@ import 'package:cute_live/ui/auth/verify_otp/verify_otp_page.dart';
 import '../data/local/secure_storage/secure_storage.dart';
 import '../ui/home/home_page.dart';
 import '../ui/main_page.dart';
+import '../ui/profile/profile_page.dart';
 
 class MyRouter {
   static final publicRoutes = {Routes.login.path, Routes.forgetPassword.path, Routes.verifyOTP.path, Routes.changePassword.path};
@@ -49,10 +51,10 @@ class MyRouter {
             pageBuilder: (context, state) => NoTransitionPage<void>(key: state.pageKey, child: HomePage()),
           ),
           GoRoute(
-            path: Routes.offer.path,
+            path: Routes.status.path,
             pageBuilder: (context, state) => CustomTransitionPage<void>(
               key: state.pageKey,
-              child: const Scaffold(body: Center(child: Text("offers"))),
+              child: StatusPage(),
               transitionsBuilder: customPopTransition,
               transitionDuration: const Duration(milliseconds: 300),
               reverseTransitionDuration: const Duration(milliseconds: 100),
@@ -79,10 +81,10 @@ class MyRouter {
             ),
           ),
           GoRoute(
-            path: Routes.more.path,
+            path: Routes.profile.path,
             pageBuilder: (context, state) => CustomTransitionPage<void>(
               key: state.pageKey,
-              child: const Scaffold(body: Center(child: Text("more"))),
+              child: ProfilePage(),
               transitionsBuilder: customPopTransition,
               transitionDuration: const Duration(milliseconds: 200),
               reverseTransitionDuration: const Duration(milliseconds: 100),

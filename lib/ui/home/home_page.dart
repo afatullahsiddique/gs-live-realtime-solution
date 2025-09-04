@@ -3,8 +3,6 @@ import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
-import '../../core/utils/view_count.dart';
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -113,10 +111,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildStreamersGrid('Popular'),
-                    _buildStreamersGrid('Freshers'),
-                    _buildStreamersGrid('Party'),
-                    _buildStreamersGrid('PK'),
+                    SingleChildScrollView(child: _buildPopularGrid()),
+                    SingleChildScrollView(child: _buildFresherGrid()),
+                    SingleChildScrollView(child: _buildStreamersGrid('Party')),
+                    SingleChildScrollView(child: _buildStreamersGrid('PK')),
                   ],
                 ),
               ),
@@ -141,7 +139,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]),
-                  boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
+                  boxShadow: [
+                    BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
+                  ],
                 ),
                 child: ClipOval(
                   child: Image.network(
@@ -158,7 +158,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ShaderMask(
-                    shaderCallback: (bounds) => LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
+                    shaderCallback: (bounds) =>
+                        LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
                     child: const Text(
                       'John Doe',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
@@ -231,29 +232,121 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (category == "Freshers")
           CarouselBanner(
             imageUrls: BannerUrls.liveStreamingBanners,
-            height: 180,
+            height: 120,
             autoPlayDuration: const Duration(seconds: 4),
             onBannerTap: (index) {
               // Handle banner tap
               print('Banner $index tapped');
             },
           ),
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: GridView.builder(
-              padding: const EdgeInsets.only(top: 16, bottom: 16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: .9,
-              ),
-              itemCount: _streamers.length,
-              itemBuilder: (context, index) {
-                return AnimatedStreamerCard(streamer: _streamers[index]);
-              },
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            // Add this line
+            physics: const NeverScrollableScrollPhysics(),
+            // Add this line
+            padding: const EdgeInsets.only(top: 10, bottom: 10),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: .9,
             ),
+            itemCount: _streamers.length,
+            itemBuilder: (context, index) {
+              return AnimatedStreamerCard(streamer: _streamers[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFresherGrid() {
+    return Column(
+      children: [
+        CarouselBanner(
+          imageUrls: BannerUrls.liveStreamingBanners,
+          height: 120,
+          autoPlayDuration: const Duration(seconds: 4),
+          onBannerTap: (index) {
+            // Handle banner tap
+            print('Banner $index tapped');
+          },
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            // Add this line
+            physics: const NeverScrollableScrollPhysics(),
+            // Add this line
+            padding: const EdgeInsets.only(top: 16, bottom: 16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: .9,
+            ),
+            itemCount: _streamers.length,
+            itemBuilder: (context, index) {
+              return AnimatedStreamerCard(streamer: _streamers[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopularGrid() {
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            // Add this line
+            physics: const NeverScrollableScrollPhysics(),
+            // Add this line
+            padding: const EdgeInsets.only(top: 16, bottom: 16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: .9,
+            ),
+            itemCount: 2,
+            itemBuilder: (context, index) {
+              return AnimatedStreamerCard(streamer: _streamers[index]);
+            },
+          ),
+        ),
+        CarouselBanner(
+          imageUrls: BannerUrls.liveStreamingBanners,
+          height: 120,
+          autoPlayDuration: const Duration(seconds: 4),
+          onBannerTap: (index) {
+            // Handle banner tap
+            print('Banner $index tapped');
+          },
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(top: 10, bottom: 10),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: .9,
+            ),
+            itemCount: _streamers.length - 2,
+            itemBuilder: (context, index) {
+              return AnimatedStreamerCard(streamer: _streamers[index + 2]);
+            },
           ),
         ),
       ],

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
@@ -61,17 +62,36 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
   ];
 
   final List<ChatMessage> _messages = [
-    ChatMessage(username: 'Emma Rose', message: 'Great session! 🎵', timestamp: DateTime.now().subtract(const Duration(minutes: 2))),
-    ChatMessage(username: 'Alex Chen', message: 'Love this song!', timestamp: DateTime.now().subtract(const Duration(minutes: 1))),
-    ChatMessage(username: 'Sophie Kim', message: 'Can you play more jazz?', timestamp: DateTime.now().subtract(const Duration(seconds: 30))),
-    ChatMessage(username: 'Jake Wilson', message: '🔥🔥🔥', timestamp: DateTime.now().subtract(const Duration(seconds: 15))),
+    ChatMessage(
+      username: 'Emma Rose',
+      message: 'Great session! 🎵',
+      timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
+    ),
+    ChatMessage(
+      username: 'Alex Chen',
+      message: 'Love this song!',
+      timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
+    ),
+    ChatMessage(
+      username: 'Sophie Kim',
+      message: 'Can you play more jazz?',
+      timestamp: DateTime.now().subtract(const Duration(seconds: 30)),
+    ),
+    ChatMessage(
+      username: 'Jake Wilson',
+      message: '🔥🔥🔥',
+      timestamp: DateTime.now().subtract(const Duration(seconds: 15)),
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
     _pulseController.repeat(reverse: true);
   }
 
@@ -104,10 +124,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      _buildAchievementChips(),
-                      const SizedBox(height: 30),
+                      // _buildAchievementChips(),
+                      const SizedBox(height: 10),
                       _buildStreamerProfile(),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 20),
                       _buildSeatsGrid(),
                       const SizedBox(height: 30),
                     ],
@@ -125,9 +145,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
 
   Widget _buildAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.only(left: 0, right: 16, top: 16, bottom: 16),
       child: Row(
         children: [
+          IconButton(
+            icon: const Icon(CupertinoIcons.back, size: 28, color: Colors.pink),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
           // Profile Picture
           Container(
             width: 35,
@@ -156,7 +180,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
+                  shaderCallback: (bounds) =>
+                      LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
                   child: Text(
                     _streamer.name,
                     style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
@@ -175,7 +200,9 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              gradient: _streamer.isFollowing ? null : LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]),
+              gradient: _streamer.isFollowing
+                  ? null
+                  : LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]),
               color: _streamer.isFollowing ? Colors.grey.shade700 : null,
               border: Border.all(color: _streamer.isFollowing ? Colors.grey.shade600 : Colors.transparent, width: 1),
             ),
@@ -194,7 +221,12 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
-          _buildAchievementChip(icon: Icons.diamond_rounded, count: _streamer.diamonds, color: Colors.cyan, label: 'Diamonds'),
+          _buildAchievementChip(
+            icon: Icons.diamond_rounded,
+            count: _streamer.diamonds,
+            color: Colors.cyan,
+            label: 'Diamonds',
+          ),
           const SizedBox(width: 12),
           _buildAchievementChip(icon: Icons.star_rounded, count: _streamer.stars, color: Colors.amber, label: 'Stars'),
         ],
@@ -202,7 +234,12 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
     );
   }
 
-  Widget _buildAchievementChip({required IconData icon, required int count, required Color color, required String label}) {
+  Widget _buildAchievementChip({
+    required IconData icon,
+    required int count,
+    required Color color,
+    required String label,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -238,8 +275,12 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
                 height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500, Colors.purple.shade400]),
-                  boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 8))],
+                  gradient: LinearGradient(
+                    colors: [Colors.pink.shade300, Colors.pink.shade500, Colors.purple.shade400],
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 8)),
+                  ],
                 ),
                 padding: const EdgeInsets.all(4),
                 child: ClipOval(
@@ -248,7 +289,9 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800])),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
+                        ),
                         child: const Icon(Icons.person, color: Colors.white, size: 60),
                       );
                     },
@@ -258,9 +301,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]).createShader(bounds),
+          shaderCallback: (bounds) =>
+              LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]).createShader(bounds),
           child: Text(
             _streamer.name,
             style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
@@ -271,126 +315,95 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
   }
 
   Widget _buildSeatsGrid() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          crossAxisSpacing: 10, // Reduced spacing
-          mainAxisSpacing: 10, // Reduced spacing
-          childAspectRatio: 0.9, // Adjusted for a slightly taller, smaller card
-        ),
-        itemCount: _seats.length,
-        itemBuilder: (context, index) {
-          return _buildSeat(_seats[index]);
-        },
-      ),
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(mainAxisExtent: 100, maxCrossAxisExtent: 110),
+      itemCount: _seats.length,
+      itemBuilder: (context, index) {
+        return _buildCircularSeat(_seats[index]);
+      },
     );
   }
 
-  Widget _buildSeat(SeatModel seat) {
+  // The individual seat widget, now a compact circle
+  Widget _buildCircularSeat(SeatModel seat) {
     final bool isEmpty = seat.user == null;
 
     return GestureDetector(
       onTap: () {
         // Handle seat tap
       },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12), // Reduced border radius
-          gradient: isEmpty
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.black.withOpacity(0.3), Colors.pink.withOpacity(0.1)],
-                )
-              : LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.pink.shade800.withOpacity(0.3), Colors.purple.shade800.withOpacity(0.3)],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5), // Adjust spacing between circles
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 55, // Sized for a circular shape
+              height: 55,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: isEmpty
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.black.withOpacity(0.3), Colors.pink.withOpacity(0.1)],
+                      )
+                    : LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.pink.shade800.withOpacity(0.3), Colors.purple.shade800.withOpacity(0.3)],
+                      ),
+                border: Border.all(
+                  color: isEmpty
+                      ? Colors.pink.withOpacity(0.2)
+                      : seat.isSpeaking
+                      ? Colors.green.shade400
+                      : Colors.pink.withOpacity(0.4),
+                  width: seat.isSpeaking ? 3 : 2,
                 ),
-          border: Border.all(
-            color: isEmpty
-                ? Colors.pink.withOpacity(0.2)
-                : seat.isSpeaking
-                ? Colors.green.shade400
-                : Colors.pink.withOpacity(0.4),
-            width: seat.isSpeaking ? 2 : 1,
-          ),
-          boxShadow: [
-            if (seat.isSpeaking)
-              BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 0)) // Reduced blur
-            else if (!isEmpty)
-              BoxShadow(color: Colors.pink.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 3)), // Reduced blur/offset
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (isEmpty) ...[
-                        Container(
-                          width: 32,
-                          // Reduced size
-                          height: 32,
-                          // Reduced size
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.pink.withOpacity(0.4), width: 2),
-                          ),
-                          child: Icon(Icons.event_seat, color: Colors.pink.shade300, size: 20), // Reduced icon size
-                        ),
-                      ] else ...[
-                        Container(
-                          width: 38, // Reduced size
-                          height: 38, // Reduced size
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: seat.isSpeaking ? Colors.green.shade400 : Colors.pink.withOpacity(0.5), width: 2),
-                          ),
-                          child: ClipOval(
-                            child: Image.network(
-                              seat.user!.avatar,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.grey.shade600, Colors.grey.shade700])),
-                                  child: const Icon(Icons.person, color: Colors.white, size: 18), // Reduced icon size
-                                );
-                              },
+                boxShadow: [
+                  if (seat.isSpeaking)
+                    BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10)
+                  else if (!isEmpty)
+                    BoxShadow(color: Colors.pink.withOpacity(0.2), blurRadius: 8),
+                ],
+              ),
+              child: ClipOval(
+                child: isEmpty
+                    ? Icon(Icons.event_seat, color: Colors.pink.shade300, size: 28)
+                    : Image.network(
+                        seat.user!.avatar,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [Colors.grey.shade600, Colors.grey.shade700]),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          seat.user!.name,
-                          style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w500), // Reduced font size
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                Text(
-                  '${seat.id}',
-                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w700), // Reduced font size
-                ),
-                SizedBox(height: 8),
-              ],
+                            child: const Icon(Icons.person, color: Colors.white, size: 28),
+                          );
+                        },
+                      ),
+              ),
             ),
-          ),
+            const SizedBox(height: 4),
+            if (!isEmpty)
+              SizedBox(
+                width: 60,
+                child: Text(
+                  seat.user!.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            Text(
+              '${seat.id}',
+              style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
       ),
     );
@@ -442,7 +455,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
 
   Widget _buildChatInput() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16),
       child: Row(
         children: [
           Expanded(

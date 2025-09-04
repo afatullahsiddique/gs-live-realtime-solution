@@ -7,7 +7,13 @@ class CarouselBanner extends StatefulWidget {
   final Duration autoPlayDuration;
   final Function(int)? onBannerTap;
 
-  const CarouselBanner({super.key, required this.imageUrls, this.height = 150, this.autoPlayDuration = const Duration(seconds: 4), this.onBannerTap});
+  const CarouselBanner({
+    super.key,
+    required this.imageUrls,
+    this.height = 150,
+    this.autoPlayDuration = const Duration(seconds: 4),
+    this.onBannerTap,
+  });
 
   @override
   State<CarouselBanner> createState() => _CarouselBannerState();
@@ -21,7 +27,7 @@ class _CarouselBannerState extends State<CarouselBanner> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.85);
+    _pageController = PageController(viewportFraction: 1);
     _startAutoPlay();
   }
 
@@ -32,7 +38,11 @@ class _CarouselBannerState extends State<CarouselBanner> {
       } else {
         _currentIndex = 0;
       }
-      _pageController.animateToPage(_currentIndex, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+      _pageController.animateToPage(
+        _currentIndex,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     });
   }
 
@@ -57,7 +67,7 @@ class _CarouselBannerState extends State<CarouselBanner> {
 
     return Container(
       height: widget.height,
-      margin: const EdgeInsets.symmetric(vertical: 16),
+      margin: const EdgeInsets.symmetric(vertical: 10),
       child: PageView.builder(
         controller: _pageController,
         onPageChanged: _onPageChanged,
@@ -69,7 +79,9 @@ class _CarouselBannerState extends State<CarouselBanner> {
               margin: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))],
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8)),
+                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
@@ -90,7 +102,13 @@ class _CarouselBannerState extends State<CarouselBanner> {
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: Colors.grey.shade800,
-                          child: Center(child: Icon(Icons.image_not_supported_outlined, color: Colors.white.withOpacity(0.5), size: 40)),
+                          child: Center(
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.white.withOpacity(0.5),
+                              size: 40,
+                            ),
+                          ),
                         );
                       },
                     ),
