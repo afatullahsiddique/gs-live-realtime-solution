@@ -2,6 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../navigation/routes.dart';
+import '../../theme/app_theme.dart';
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -20,99 +26,14 @@ class _ProfilePageState extends State<ProfilePage> {
     followers: 15420,
     following: 892,
     diamonds: 23750,
-    stars: 12680,
+    beans: 12680,
   );
-
-  final List<ProfileButton> _profileButtons = [
-    ProfileButton(
-      title: 'Top Up',
-      icon: Icons.account_balance_wallet_rounded,
-      color: Colors.green,
-      gradientColors: [Color(0xFF4CAF50), Color(0xFF45a049)],
-    ),
-    ProfileButton(
-      title: 'Earnings',
-      icon: Icons.trending_up_rounded,
-      color: Colors.amber,
-      gradientColors: [Color(0xFFFFB300), Color(0xFFFFA000)],
-    ),
-    ProfileButton(
-      title: 'VIP',
-      icon: Icons.diamond_rounded,
-      color: Colors.purple,
-      gradientColors: [Color(0xFF9C27B0), Color(0xFF7B1FA2)],
-      isPremium: true,
-    ),
-    ProfileButton(
-      title: 'Store',
-      icon: Icons.shopping_bag_rounded,
-      color: Colors.blue,
-      gradientColors: [Color(0xFF2196F3), Color(0xFF1976D2)],
-    ),
-    ProfileButton(
-      title: 'My Bag',
-      icon: Icons.shopping_basket_rounded,
-      color: Colors.indigo,
-      gradientColors: [Color(0xFF3F51B5), Color(0xFF303F9F)],
-    ),
-    ProfileButton(
-      title: 'My Level',
-      icon: Icons.military_tech_rounded,
-      color: Colors.orange,
-      gradientColors: [Color(0xFFFF9800), Color(0xFFF57400)],
-    ),
-    ProfileButton(
-      title: 'Support',
-      icon: Icons.support_agent_rounded,
-      color: Colors.teal,
-      gradientColors: [Color(0xFF009688), Color(0xFF00796B)],
-    ),
-    ProfileButton(
-      title: 'Blocked',
-      icon: Icons.block_rounded,
-      color: Colors.red,
-      gradientColors: [Color(0xFFF44336), Color(0xFFD32F2F)],
-    ),
-    ProfileButton(
-      title: 'My Invites',
-      icon: Icons.group_add_rounded,
-      color: Colors.cyan,
-      gradientColors: [Color(0xFF00BCD4), Color(0xFF0097A7)],
-    ),
-    ProfileButton(
-      title: 'Profile Visitors',
-      icon: Icons.visibility_rounded,
-      color: Colors.pink,
-      gradientColors: [Color(0xFFE91E63), Color(0xFFC2185B)],
-    ),
-    ProfileButton(
-      title: 'Apply Hosting',
-      icon: Icons.live_tv_rounded,
-      color: Colors.deepPurple,
-      gradientColors: [Color(0xFF673AB7), Color(0xFF512DA8)],
-      isPremium: true,
-    ),
-    ProfileButton(
-      title: 'Apply Agency',
-      icon: Icons.business_rounded,
-      color: Colors.brown,
-      gradientColors: [Color(0xFF795548), Color(0xFF5D4037)],
-      isPremium: true,
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-            stops: [0.0, 0.3, 0.6, 0.8, 1.0],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -328,48 +249,62 @@ class _ProfilePageState extends State<ProfilePage> {
           label: 'Diamonds',
         ),
         const SizedBox(width: 16),
-        _buildAchievementChip(icon: Icons.star_rounded, count: _userProfile.stars, color: Colors.amber, label: 'Stars'),
+        _buildAchievementChip(
+          assetIcon: 'assets/icons/beans.svg',
+          count: _userProfile.beans,
+          color: Colors.amber,
+          label: 'Beans',
+          onTap: () {
+            context.push(Routes.topUp.path);
+          },
+        ),
       ],
     );
   }
 
   Widget _buildAchievementChip({
-    required IconData icon,
+    IconData? icon,
+    String? assetIcon,
     required int count,
     required Color color,
     required String label,
+    void Function()? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        color: Colors.black.withOpacity(0.3),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _formatNumber(count),
-                    style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    label,
-                    style: TextStyle(color: color.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25),
+          color: Colors.black.withOpacity(0.3),
+          border: Border.all(color: color.withOpacity(0.4), width: 1),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) Icon(icon, color: color, size: 24),
+                if (assetIcon != null) SvgPicture.asset(assetIcon, color: color, width: 24),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatNumber(count),
+                      style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      label,
+                      style: TextStyle(color: color.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -377,62 +312,53 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildButtonsGrid() {
+    final buttons = [
+      ProfileButton(
+        title: 'Top Up',
+        icon: Icons.account_balance_wallet_rounded,
+        onTap: () {
+          context.push(Routes.topUp.path);
+        },
+      ),
+      ProfileButton(
+        title: 'Earnings',
+        icon: Icons.trending_up_rounded,
+        onTap: () {
+          context.push(Routes.earnings.path);
+        },
+      ),
+      ProfileButton(title: 'VIP', icon: Icons.diamond_rounded),
+      ProfileButton(
+        title: 'Store',
+        icon: Icons.shopping_bag_rounded,
+        onTap: () {
+          context.push(Routes.store.path);
+        },
+      ),
+      ProfileButton(title: 'My Bag', icon: Icons.shopping_basket_rounded),
+      ProfileButton(title: 'My Level', icon: Icons.military_tech_rounded),
+      ProfileButton(title: 'Support', icon: Icons.support_agent_rounded),
+      ProfileButton(title: 'Blocked', icon: Icons.block_rounded),
+      ProfileButton(title: 'My Invites', icon: Icons.group_add_rounded),
+      ProfileButton(title: 'Profile Visitors', icon: Icons.visibility_rounded),
+      ProfileButton(title: 'Apply Hosting', icon: Icons.live_tv_rounded),
+      ProfileButton(title: 'Apply Agency', icon: Icons.business_rounded),
+    ];
+
     return GridView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: buttons.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.0,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 2.3,
       ),
-      itemCount: _profileButtons.length,
       itemBuilder: (context, index) {
-        return _buildProfileButton(_profileButtons[index]);
+        final button = buttons[index];
+        return button;
       },
-    );
-  }
-
-  Widget _buildProfileButton(ProfileButton button) {
-    return GestureDetector(
-      onTap: () {
-        // Handle button tap
-        print('${button.title} tapped');
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: button.color.withOpacity(0.9),
-          boxShadow: [
-            BoxShadow(color: button.color.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6)),
-            if (button.isPremium)
-              BoxShadow(color: Colors.pink.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 0)),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-            child: Container(
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), color: button.color),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(button.icon, color: Colors.white, size: 32),
-                  const SizedBox(height: 8),
-                  Text(
-                    button.title,
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -447,6 +373,49 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
+class ProfileButton extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const ProfileButton({Key? key, required this.title, required this.icon, this.onTap}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap:
+          onTap ??
+          () {
+            debugPrint('$title tapped');
+          },
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          color: Colors.transparent,
+          border: Border.all(color: const Color(0xFF5E4710), width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(icon, color: const Color(0xFFCA9B34), size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // Data Models
 class UserProfile {
   final String name;
@@ -457,7 +426,7 @@ class UserProfile {
   final int followers;
   final int following;
   final int diamonds;
-  final int stars;
+  final int beans;
 
   UserProfile({
     required this.name,
@@ -468,22 +437,6 @@ class UserProfile {
     required this.followers,
     required this.following,
     required this.diamonds,
-    required this.stars,
-  });
-}
-
-class ProfileButton {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final List<Color> gradientColors;
-  final bool isPremium;
-
-  ProfileButton({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.gradientColors,
-    this.isPremium = false,
+    required this.beans,
   });
 }

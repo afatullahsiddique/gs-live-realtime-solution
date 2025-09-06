@@ -12,6 +12,9 @@ enum Routes {
   history,
   more,
   profile,
+  topUp,
+  earnings,
+  store,
 }
 
 extension RoutesExtension on Routes {
@@ -43,6 +46,12 @@ extension RoutesExtension on Routes {
         return '/more';
       case Routes.profile:
         return '/profile';
+      case Routes.topUp:
+        return '/topUp';
+      case Routes.earnings:
+        return '/earnings';
+      case Routes.store:
+        return '/store';
     }
   }
 }

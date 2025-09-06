@@ -1,6 +1,8 @@
 import 'package:cute_live/ui/auth/registration/register_page.dart';
+import 'package:cute_live/ui/earnings/earnings_page.dart';
 import 'package:cute_live/ui/status/status_page.dart';
 import 'package:cute_live/ui/streaming/audio_room_page.dart';
+import 'package:cute_live/ui/top_up/top_up_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -15,9 +17,15 @@ import '../data/local/secure_storage/secure_storage.dart';
 import '../ui/home/home_page.dart';
 import '../ui/main_page.dart';
 import '../ui/profile/profile_page.dart';
+import '../ui/store/store_page.dart';
 
 class MyRouter {
-  static final publicRoutes = {Routes.login.path, Routes.forgetPassword.path, Routes.verifyOTP.path, Routes.changePassword.path};
+  static final publicRoutes = {
+    Routes.login.path,
+    Routes.forgetPassword.path,
+    Routes.verifyOTP.path,
+    Routes.changePassword.path,
+  };
 
   static final router = GoRouter(
     debugLogDiagnostics: true,
@@ -103,6 +111,36 @@ class MyRouter {
         ),
       ),
       GoRoute(
+        path: Routes.topUp.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: TopUpPage(beansCount: 12745),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.earnings.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: EarningsPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.store.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: StorePage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
         path: Routes.login.path,
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
@@ -163,20 +201,38 @@ class MyRouter {
   );
 }
 
-Widget customPopTransition(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+Widget customPopTransition(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
   return ScaleTransition(
     scale: Tween<double>(begin: 0.95, end: 1.0).animate(CurvedAnimation(parent: animation, curve: Curves.ease)),
     child: child,
   );
 }
 
-Widget customSlideTransition(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+Widget customSlideTransition(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
   return SlideTransition(
-    position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.decelerate)),
+    position: Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: animation, curve: Curves.decelerate)),
     child: child,
   );
 }
 
-Widget noTransition(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+Widget noTransition(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
   return child;
 }
