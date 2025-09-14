@@ -15,6 +15,8 @@ enum Routes {
   topUp,
   earnings,
   store,
+  myBag,
+  myLevel,
 }
 
 extension RoutesExtension on Routes {
@@ -52,6 +54,10 @@ extension RoutesExtension on Routes {
         return '/earnings';
       case Routes.store:
         return '/store';
+      case Routes.myBag:
+        return '/my-bag';
+      case Routes.myLevel:
+        return '/my-level';
     }
   }
 }

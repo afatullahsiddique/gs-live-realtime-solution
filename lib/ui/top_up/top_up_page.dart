@@ -30,7 +30,7 @@ class TopUpPage extends StatelessWidget {
                       onPressed: () => Navigator.of(context).maybePop(),
                     ),
                     Text(
-                      'Profile',
+                      'Top up',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,

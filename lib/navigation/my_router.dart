@@ -1,6 +1,7 @@
 import 'package:cute_live/ui/auth/registration/register_page.dart';
 import 'package:cute_live/ui/earnings/earnings_page.dart';
 import 'package:cute_live/ui/status/status_page.dart';
+import 'package:cute_live/ui/store-bag/mybag_page.dart';
 import 'package:cute_live/ui/streaming/audio_room_page.dart';
 import 'package:cute_live/ui/top_up/top_up_page.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +17,9 @@ import 'package:cute_live/ui/auth/verify_otp/verify_otp_page.dart';
 import '../data/local/secure_storage/secure_storage.dart';
 import '../ui/home/home_page.dart';
 import '../ui/main_page.dart';
+import '../ui/my_level/my_level_page.dart';
 import '../ui/profile/profile_page.dart';
-import '../ui/store/store_page.dart';
+import '../ui/store-bag/store_page.dart';
 
 class MyRouter {
   static final publicRoutes = {
@@ -135,6 +137,26 @@ class MyRouter {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: StorePage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.myBag.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: MyBagPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.myLevel.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: MyLevelPage(),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),

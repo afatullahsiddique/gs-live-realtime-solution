@@ -335,8 +335,20 @@ class _ProfilePageState extends State<ProfilePage> {
           context.push(Routes.store.path);
         },
       ),
-      ProfileButton(title: 'My Bag', icon: Icons.shopping_basket_rounded),
-      ProfileButton(title: 'My Level', icon: Icons.military_tech_rounded),
+      ProfileButton(
+        title: 'My Bag',
+        icon: Icons.shopping_basket_rounded,
+        onTap: () {
+          context.push(Routes.myBag.path);
+        },
+      ),
+      ProfileButton(
+        title: 'My Level',
+        icon: Icons.military_tech_rounded,
+        onTap: () {
+          context.push(Routes.myLevel.path);
+        },
+      ),
       ProfileButton(title: 'Support', icon: Icons.support_agent_rounded),
       ProfileButton(title: 'Blocked', icon: Icons.block_rounded),
       ProfileButton(title: 'My Invites', icon: Icons.group_add_rounded),
