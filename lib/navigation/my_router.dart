@@ -15,6 +15,7 @@ import 'package:cute_live/ui/auth/login/login_page.dart';
 import 'package:cute_live/ui/auth/verify_otp/verify_otp_page.dart';
 
 import '../data/local/secure_storage/secure_storage.dart';
+import '../ui/feedback/feedback_page.dart';
 import '../ui/home/home_page.dart';
 import '../ui/main_page.dart';
 import '../ui/my_level/my_level_page.dart';
@@ -157,6 +158,16 @@ class MyRouter {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: MyLevelPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.feedback.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: FeedbackPage(),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),

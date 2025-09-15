@@ -349,7 +349,13 @@ class _ProfilePageState extends State<ProfilePage> {
           context.push(Routes.myLevel.path);
         },
       ),
-      ProfileButton(title: 'Support', icon: Icons.support_agent_rounded),
+      ProfileButton(
+        title: 'Support',
+        icon: Icons.support_agent_rounded,
+        onTap: () {
+          context.push(Routes.feedback.path);
+        },
+      ),
       ProfileButton(title: 'Blocked', icon: Icons.block_rounded),
       ProfileButton(title: 'My Invites', icon: Icons.group_add_rounded),
       ProfileButton(title: 'Profile Visitors', icon: Icons.visibility_rounded),

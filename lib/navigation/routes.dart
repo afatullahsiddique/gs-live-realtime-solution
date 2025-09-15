@@ -17,6 +17,7 @@ enum Routes {
   store,
   myBag,
   myLevel,
+  feedback,
 }
 
 extension RoutesExtension on Routes {
@@ -58,6 +59,8 @@ extension RoutesExtension on Routes {
         return '/my-bag';
       case Routes.myLevel:
         return '/my-level';
+      case Routes.feedback:
+        return '/feedback';
     }
   }
 }
