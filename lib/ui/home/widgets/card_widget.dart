@@ -47,7 +47,8 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-            if (widget.streamer.isPremium) BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 0)),
+            if (widget.streamer.isPremium)
+              BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 0)),
           ],
         ),
         // Use AnimatedBuilder to rebuild just the glowing part
@@ -66,7 +67,12 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
                     ? LinearGradient(
                         begin: begin,
                         end: end,
-                        colors: [Colors.pink.shade300, Colors.purple.shade400, Colors.pink.shade500, Colors.orange.shade400],
+                        colors: [
+                          Colors.pink.shade300,
+                          Colors.purple.shade400,
+                          Colors.pink.shade500,
+                          Colors.orange.shade400,
+                        ],
                       )
                     : null,
               ),
@@ -139,7 +145,11 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
                                           const SizedBox(width: 4),
                                           Text(
                                             formatViewCount(widget.streamer.viewCount),
-                                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -172,7 +182,11 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
                                   ),
                                   child: Text(
                                     widget.streamer.name,
-                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,

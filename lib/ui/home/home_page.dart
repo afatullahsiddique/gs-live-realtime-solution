@@ -1,3 +1,4 @@
+import 'package:cute_live/ui/home/tabs/party_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '1',
       name: 'Emma Rose',
+      bio: 'Playing the latest RPGs and open-world adventures. Join the journey!',
       viewCount: 1234,
       imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
       isPremium: true,
@@ -26,6 +28,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '2',
       name: 'Alex Chen',
+      bio: 'Interactive art streams and digital painting. Let\'s create together!',
       viewCount: 987,
       imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
       isPremium: true,
@@ -34,6 +37,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '3',
       name: 'Sophie Kim',
+      bio: 'Live music sessions and acoustic covers. Request your favorite songs!',
       viewCount: 2156,
       imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
       isPremium: false,
@@ -42,6 +46,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '4',
       name: 'Ryan Miller',
+      bio: 'Competitive gaming and esports analysis. Let\'s talk strategy!',
       viewCount: 754,
       imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
       isPremium: false,
@@ -50,6 +55,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '5',
       name: 'Luna Park',
+      bio: 'Variety streamer and chill vibes. We play a little bit of everything!',
       viewCount: 3421,
       imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
       isPremium: false,
@@ -57,6 +63,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '6',
       name: 'Jake Wilson',
+      bio: 'Casual commentary and retro games. Nostalgia trips are our specialty.',
       viewCount: 892,
       imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
       isPremium: false,
@@ -64,6 +71,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '7',
       name: 'Mia Johnson',
+      bio: 'Fitness and wellness coaching. Let\'s work out and get healthy together.',
       viewCount: 1567,
       imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
       isPremium: false,
@@ -72,6 +80,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     StreamerModel(
       id: '8',
       name: 'Chris Brown',
+      bio: 'DIY and home improvement projects. From wood carving to furniture flips.',
       viewCount: 445,
       imageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',
       isPremium: false,
@@ -113,7 +122,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   children: [
                     SingleChildScrollView(child: _buildPopularGrid()),
                     SingleChildScrollView(child: _buildFresherGrid()),
-                    SingleChildScrollView(child: _buildStreamersGrid('Party')),
+                    PartyTab(streamers: _streamers),
                     SingleChildScrollView(child: _buildStreamersGrid('PK')),
                   ],
                 ),
@@ -358,6 +367,7 @@ class StreamerModel {
   final String id;
   final String name;
   final String imageUrl;
+  final String bio;
   final int viewCount;
   final bool isPremium;
   final bool isVideo;
@@ -366,6 +376,7 @@ class StreamerModel {
     required this.id,
     required this.name,
     required this.imageUrl,
+    required this.bio,
     required this.viewCount,
     this.isPremium = false,
     this.isVideo = true,
