@@ -21,7 +21,7 @@ class _ProfilePageState extends State<ProfilePage> {
     name: 'Luna Park',
     id: '123456789',
     country: 'South Korea',
-    profileImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+    profileImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
     friends: 2847,
     followers: 15420,
     following: 892,

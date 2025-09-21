@@ -1,4 +1,5 @@
 import 'package:cute_live/ui/home/tabs/party_tab.dart';
+import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
 import 'package:flutter/material.dart';
@@ -123,7 +124,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     SingleChildScrollView(child: _buildPopularGrid()),
                     SingleChildScrollView(child: _buildFresherGrid()),
                     PartyTab(streamers: _streamers),
-                    SingleChildScrollView(child: _buildStreamersGrid('PK')),
+                    PKTab(streamers: _streamers),
                   ],
                 ),
               ),

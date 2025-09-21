@@ -265,41 +265,66 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
   Widget _buildStreamerProfile() {
     return Column(
       children: [
-        AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _pulseAnimation.value,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [Colors.pink.shade300, Colors.pink.shade500, Colors.purple.shade400],
+        Stack(
+          children: [
+            Positioned(
+              top: 0,
+              bottom: 0,
+              child: Transform.translate(
+                offset: const Offset(120, 0),
+                child: Container(
+                  width: 55,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.transparent,
+                    border: Border.all(color: Colors.pink.shade400, width: 2),
+                    boxShadow: [
+                      BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 8)),
-                  ],
-                ),
-                padding: const EdgeInsets.all(4),
-                child: ClipOval(
-                  child: Image.network(
-                    _streamer.profileImage,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
-                        ),
-                        child: const Icon(Icons.person, color: Colors.white, size: 60),
-                      );
-                    },
-                  ),
+                  child: const Center(child: Icon(Icons.event_seat, color: Colors.white, size: 28)),
                 ),
               ),
-            );
-          },
+            ),
+
+            AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _pulseAnimation.value,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Colors.pink.shade300, Colors.pink.shade500, Colors.purple.shade400],
+                      ),
+                      boxShadow: [
+                        BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 25, offset: const Offset(0, 8)),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: ClipOval(
+                      child: Image.network(
+                        _streamer.profileImage,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
+                            ),
+                            child: const Icon(Icons.person, color: Colors.white, size: 60),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         ShaderMask(
