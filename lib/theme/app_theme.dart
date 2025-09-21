@@ -61,7 +61,11 @@ class AppColors {
   );
 
   // Logo gradient
-  static LinearGradient logoGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [pinkLight, pinkDark]);
+  static LinearGradient logoGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [pinkLight, pinkDark],
+  );
 
   // Tab indicator gradient
   static LinearGradient tabIndicatorGradient = LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
@@ -70,9 +74,13 @@ class AppColors {
   static LinearGradient buttonGradient = LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]);
 
   // Shadows
-  static List<BoxShadow> logoShadow = [BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))];
+  static List<BoxShadow> logoShadow = [
+    BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
+  ];
 
-  static List<BoxShadow> buttonShadow = [BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6))];
+  static List<BoxShadow> buttonShadow = [
+    BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
+  ];
 
   // Input decoration colors
   static Color inputBorderColor = Colors.pink.withOpacity(0.3);
