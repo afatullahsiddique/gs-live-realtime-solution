@@ -18,6 +18,9 @@ enum Routes {
   myBag,
   myLevel,
   feedback,
+  vip,
+  myInvites,
+  visitors,
 }
 
 extension RoutesExtension on Routes {
@@ -61,6 +64,12 @@ extension RoutesExtension on Routes {
         return '/my-level';
       case Routes.feedback:
         return '/feedback';
+      case Routes.vip:
+        return '/vip';
+      case Routes.myInvites:
+        return '/myInvites';
+      case Routes.visitors:
+        return '/visitors';
     }
   }
 }

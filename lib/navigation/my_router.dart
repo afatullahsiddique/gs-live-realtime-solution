@@ -1,9 +1,12 @@
 import 'package:cute_live/ui/auth/registration/register_page.dart';
 import 'package:cute_live/ui/earnings/earnings_page.dart';
+import 'package:cute_live/ui/my_invites/my_invites_page.dart';
+import 'package:cute_live/ui/profile_visitors/profile_visitors_page.dart';
 import 'package:cute_live/ui/status/status_page.dart';
 import 'package:cute_live/ui/store-bag/mybag_page.dart';
-import 'package:cute_live/ui/streaming/audio_room_page.dart';
+import 'package:cute_live/ui/streaming/audio_room_page_v2.dart';
 import 'package:cute_live/ui/top_up/top_up_page.dart';
+import 'package:cute_live/ui/vip_page/vip_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -107,7 +110,7 @@ class MyRouter {
         path: Routes.audioRoom.path,
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
-          child: AudioRoomPage(),
+          child: AudioRoomPage(roomID: '1', userID: '2',userName: 'Riad'),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),
@@ -128,6 +131,36 @@ class MyRouter {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: EarningsPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.vip.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: VIPPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.myInvites.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: MyInvitesPage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.visitors.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: ProfileVisitorsPage(),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),

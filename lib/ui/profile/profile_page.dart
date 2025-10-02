@@ -33,7 +33,14 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
+            stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+          ),
+        ),
         child: SafeArea(
           child: Column(
             children: [
@@ -327,7 +334,13 @@ class _ProfilePageState extends State<ProfilePage> {
           context.push(Routes.earnings.path);
         },
       ),
-      ProfileButton(title: 'VIP', icon: Icons.diamond_rounded),
+      ProfileButton(
+        title: 'VIP',
+        icon: Icons.diamond_rounded,
+        onTap: () {
+          context.push(Routes.vip.path);
+        },
+      ),
       ProfileButton(
         title: 'Store',
         icon: Icons.shopping_bag_rounded,
@@ -357,8 +370,20 @@ class _ProfilePageState extends State<ProfilePage> {
         },
       ),
       ProfileButton(title: 'Blocked', icon: Icons.block_rounded),
-      ProfileButton(title: 'My Invites', icon: Icons.group_add_rounded),
-      ProfileButton(title: 'Profile Visitors', icon: Icons.visibility_rounded),
+      ProfileButton(
+        title: 'My Invites',
+        icon: Icons.group_add_rounded,
+        onTap: () {
+          context.push(Routes.myInvites.path);
+        },
+      ),
+      ProfileButton(
+        title: 'Profile Visitors',
+        icon: Icons.visibility_rounded,
+        onTap: () {
+          context.push(Routes.visitors.path);
+        },
+      ),
       ProfileButton(title: 'Apply Hosting', icon: Icons.live_tv_rounded),
       ProfileButton(title: 'Apply Agency', icon: Icons.business_rounded),
     ];
