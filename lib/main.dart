@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -5,11 +6,14 @@ import 'package:cute_live/theme/app_theme.dart';
 
 import 'core/cubits/app_cubit.dart';
 import 'di/get_it.dart';
+import 'firebase_options.dart';
 import 'navigation/my_router.dart';
+import 'navigation/routes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await registerDI();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const MyApp());
 }

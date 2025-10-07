@@ -3,7 +3,14 @@ import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:ui';
+
+import '../../core/cubits/app_cubit.dart';
+import '../../navigation/routes.dart';
+import 'home_cubit.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -102,33 +109,47 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-            stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+    return BlocProvider(
+      create: (context) => HomeCubit()..init(),
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
+              stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildAppBar(),
-              _buildTabBar(),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    SingleChildScrollView(child: _buildPopularGrid()),
-                    SingleChildScrollView(child: _buildFresherGrid()),
-                    PartyTab(streamers: _streamers),
-                    PKTab(streamers: _streamers),
-                  ],
-                ),
-              ),
-            ],
+          child: SafeArea(
+            child: BlocBuilder<HomeCubit, HomeState>(
+              builder: (context, state) {
+                if (state.isLoading) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                if (state.user != null) {
+                  return Column(
+                    children: [
+                      _buildAppBar(),
+                      _buildTabBar(),
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            SingleChildScrollView(child: _buildPopularGrid()),
+                            SingleChildScrollView(child: _buildFresherGrid()),
+                            PartyTab(streamers: _streamers),
+                            PKTab(streamers: _streamers),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  return Center(child: Text("User not found!"));
+                }
+              },
+            ),
           ),
         ),
       ),
@@ -136,74 +157,86 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildAppBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          // Profile Section
-          Row(
+    return Builder(
+      builder: (context) {
+        final cubit = context.read<HomeCubit>();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
             children: [
-              Container(
-                width: 45,
-                height: 45,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]),
-                  boxShadow: [
-                    BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.network(
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(Icons.person, color: Colors.white, size: 24);
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Profile Section
+              Row(
                 children: [
-                  ShaderMask(
-                    shaderCallback: (bounds) =>
-                        LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
-                    child: const Text(
-                      'John Doe',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  Container(
+                    width: 45,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]),
+                      boxShadow: [
+                        BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.network(
+                        cubit.state.user?.avatar ??
+                            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.person, color: Colors.white, size: 24);
+                        },
+                      ),
                     ),
                   ),
-                  Text(
-                    'ID: 123456789',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.w400),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ShaderMask(
+                        shaderCallback: (bounds) =>
+                            LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
+                        child: Text(
+                          cubit.state.user?.name ?? "Unknown",
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Text(
+                        'ID: 123456789',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+
+              const Spacer(),
+
+              // Settings Icon
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.black.withOpacity(0.2),
+                  border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.settings_rounded, color: Colors.pink.shade300, size: 20),
+                  onPressed: () {
+                    final appCubit = GetIt.I<AppCubit>();
+                    appCubit.logout();
+                    context.go(Routes.login.path);
+                  },
+                ),
+              ),
             ],
           ),
-
-          const Spacer(),
-
-          // Settings Icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.black.withOpacity(0.2),
-              border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-            ),
-            child: IconButton(
-              icon: Icon(Icons.settings_rounded, color: Colors.pink.shade300, size: 20),
-              onPressed: () {
-                // Navigate to settings
-              },
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -328,7 +361,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
             itemCount: 2,
             itemBuilder: (context, index) {
-              return AnimatedStreamerCard(streamer: _streamers[index]);
+              return AnimatedStreamerCard(streamer: _streamers[index], index: index);
             },
           ),
         ),

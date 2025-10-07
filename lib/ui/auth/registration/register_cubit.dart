@@ -1,8 +1,8 @@
 import 'package:bloc/bloc.dart';
 import 'package:get_it/get_it.dart';
-import 'package:cute_live/data/local/secure_storage/user_secure_storage_extension.dart';
 
 import '../../../data/local/secure_storage/secure_storage.dart';
+import '../login/login_state.dart';
 
 part 'register_state.dart';
 
@@ -48,11 +48,7 @@ class RegisterCubit extends Cubit<RegisterState> {
   }
 
   void toggleConfirmPasswordVisibility() {
-    emit(
-      state.copyWith(
-        confirmPasswordVisibility: !state.confirmPasswordVisibility,
-      ),
-    );
+    emit(state.copyWith(confirmPasswordVisibility: !state.confirmPasswordVisibility));
   }
 
   void toggleAcceptTerms() {
@@ -112,9 +108,7 @@ class RegisterCubit extends Cubit<RegisterState> {
   Future<void> register() async {
     final validationError = _validateForm();
     if (validationError != null) {
-      emit(
-        state.copyWith(status: RegisterStatus.failure, error: validationError),
-      );
+      emit(state.copyWith(status: RegisterStatus.failure, error: validationError));
       return;
     }
 
@@ -128,17 +122,20 @@ class RegisterCubit extends Cubit<RegisterState> {
       // For now, we'll simulate a successful registration
 
       // Save user data to secure storage
-      await secureStorage.setIsLoggedIn(true);
+      await secureStorage.setUser(
+        User(
+          id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+          name: 'Phone User',
+          email: 'phone@example.com',
+          phoneNumber: "01712345678",
+          avatar: 'https://via.placeholder.com/150',
+        ),
+      );
       // You can save other user data as needed
 
       emit(state.copyWith(status: RegisterStatus.success));
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: RegisterStatus.failure,
-          error: 'Registration failed. Please try again.',
-        ),
-      );
+      emit(state.copyWith(status: RegisterStatus.failure, error: 'Registration failed. Please try again.'));
     }
   }
 }

@@ -11,7 +11,7 @@ class LoginState extends Equatable {
     this.phoneNumber = '',
     this.userId = '',
     this.password = '',
-    this.error = '',
+    this.error,
     this.user,
   });
 
@@ -20,7 +20,7 @@ class LoginState extends Equatable {
   final String phoneNumber;
   final String userId;
   final String password;
-  final String error;
+  final String? error;
   final User? user;
 
   bool get isLoading => status == LoginStatus.loading;
@@ -38,7 +38,7 @@ class LoginState extends Equatable {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       userId: userId ?? this.userId,
       password: password ?? this.password,
-      error: error ?? this.error,
+      error: error,
       user: user ?? this.user,
     );
   }
@@ -48,7 +48,13 @@ class LoginState extends Equatable {
 }
 
 class User extends Equatable {
-  const User({required this.id, required this.name, required this.email, this.avatar, this.phoneNumber});
+  const User({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.avatar,
+    this.phoneNumber,
+  });
 
   final String id;
   final String name;
@@ -56,7 +62,33 @@ class User extends Equatable {
   final String? avatar;
   final String? phoneNumber;
 
-  User copyWith({String? id, String? name, String? email, String? avatar, String? phoneNumber}) {
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      avatar: json['avatar'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'avatar': avatar,
+      'phoneNumber': phoneNumber,
+    };
+  }
+
+  User copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? avatar,
+    String? phoneNumber,
+  }) {
     return User(
       id: id ?? this.id,
       name: name ?? this.name,

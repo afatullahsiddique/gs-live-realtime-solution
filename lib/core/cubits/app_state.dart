@@ -1,12 +1,18 @@
 part of 'app_cubit.dart';
 
 class AppState extends Equatable {
-  const AppState();
+  final User? user;
+
+  const AppState({this.user});
 
   @override
-  List<Object> get props => [];
+  List<Object> get props => [?user];
 
-  AppState copyWith() {
-    return AppState();
+  AppState copyWith({User? user}) {
+    return AppState(user: user ?? this.user);
+  }
+
+  removeUser() {
+    return AppState(user: null);
   }
 }

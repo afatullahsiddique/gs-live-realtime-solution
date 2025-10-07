@@ -10,7 +10,6 @@ import 'package:cute_live/ui/vip_page/vip_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cute_live/data/local/secure_storage/user_secure_storage_extension.dart';
 import 'package:cute_live/navigation/routes.dart';
 import 'package:cute_live/ui/auth/change_password/change_password_page.dart';
 import 'package:cute_live/ui/auth/forget_password/forget_password_page.dart';
@@ -35,12 +34,12 @@ class MyRouter {
 
   static final router = GoRouter(
     debugLogDiagnostics: true,
-    initialLocation: Routes.login.path,
+    initialLocation: Routes.home.path,
     redirect: (context, state) async {
       if (publicRoutes.any((route) => state.fullPath!.endsWith(route))) {
         return null;
       }
-      final isLoggedIn = await GetIt.I<SecureStorage>().getIsLoggedIn;
+      final isLoggedIn = await GetIt.I<SecureStorage>().isLoggedIn;
       if (!isLoggedIn) return Routes.login.path;
       return null;
     },

@@ -55,10 +55,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             child: SafeArea(
               child: BlocConsumer<LoginCubit, LoginState>(
                 listener: (context, state) {
-                  if (state.error.isNotEmpty) {
+                  if (state.error != null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(state.error),
+                        content: Text(state.error!),
                         backgroundColor: Colors.red.shade400,
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -66,14 +66,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     );
                   }
                   if (state.isSuccess) {
-                    // ScaffoldMessenger.of(context).showSnackBar(
-                    //   SnackBar(
-                    //     content: const Text('Login Successful!'),
-                    //     backgroundColor: Colors.green.shade400,
-                    //     behavior: SnackBarBehavior.floating,
-                    //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    //   ),
-                    // );
                     context.go(Routes.home.path);
                   }
                 },
@@ -90,7 +82,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         _buildTabBar(),
                         const SizedBox(height: 30),
                         Expanded(
-                          child: TabBarView(controller: _tabController, children: [_buildPhoneTab(context, state), _buildUserIdTab(context, state)]),
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [_buildPhoneTab(context, state), _buildUserIdTab(context, state)],
+                          ),
                         ),
                       ],
                     ),
@@ -108,7 +103,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     return Container(
       width: 120,
       height: 120,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), gradient: AppColors.logoGradient, boxShadow: AppColors.logoShadow),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: AppColors.logoGradient,
+        boxShadow: AppColors.logoShadow,
+      ),
       child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/images/logo.png')),
     );
   }
@@ -184,7 +183,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     return SingleChildScrollView(
       child: Column(
         children: [
-          _buildInputField(controller: _userIdController, label: 'User ID', hint: 'Enter your user ID', icon: Icons.person_rounded),
+          _buildInputField(
+            controller: _userIdController,
+            label: 'User ID',
+            hint: 'Enter your user ID',
+            icon: Icons.person_rounded,
+          ),
           const SizedBox(height: 20),
           _buildInputField(
             controller: _passwordController,
@@ -243,7 +247,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     return Container(
       width: double.infinity,
       height: 56,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: AppColors.buttonGradient, boxShadow: AppColors.buttonShadow),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: AppColors.buttonGradient,
+        boxShadow: AppColors.buttonShadow,
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -251,7 +259,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           onTap: isLoading ? null : onPressed,
           child: Center(
             child: isLoading
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  )
                 : Text(
                     text,
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
@@ -339,7 +351,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  icon != null ? Icon(icon, color: textColor, size: 28) : SvgPicture.asset(iconPath!, width: 28, height: 28),
+                  icon != null
+                      ? Icon(icon, color: textColor, size: 28)
+                      : SvgPicture.asset(iconPath!, width: 28, height: 28),
                   const SizedBox(width: 12),
                   Text(
                     text,
@@ -349,7 +363,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               ),
               if (isLoading)
                 const Center(
-                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.pink)),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 3, color: Colors.pink),
+                  ),
                 ),
             ],
           ),

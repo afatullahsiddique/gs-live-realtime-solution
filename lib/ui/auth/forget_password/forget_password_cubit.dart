@@ -1,6 +1,5 @@
 import 'package:bloc/bloc.dart';
 import 'package:get_it/get_it.dart';
-import 'package:cute_live/data/local/secure_storage/user_secure_storage_extension.dart';
 
 import '../../../data/local/secure_storage/secure_storage.dart';
 

@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "645699802815",
+    "project_id": "cute-live-app",
+    "storage_bucket": "cute-live-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:645699802815:android:527136b860cfab1ab7580a",
+        "android_client_info": {
+          "package_name": "com.cutelive.app.cute_live"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "645699802815-h0nltv1fakn5vjmppv6ts2r1q1n22l5p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cutelive.app.cute_live",
+            "certificate_hash": "a91fc39c29cfc9420f0502385856f0b799ec5d76"
+          }
+        },
+        {
+          "client_id": "645699802815-k86olmji8qdha8jrfnor3phdbp0sp72j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBuo5qrFOjutxhgSd4vl05iXkDpO58jlU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "645699802815-k86olmji8qdha8jrfnor3phdbp0sp72j.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "645699802815-1jggcnid488b836op4g2g4alicoa5te5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.cutelive.app.cuteLive"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,6 +1,7 @@
-import 'package:cute_live/data/local/secure_storage/user_secure_storage_extension.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../../data/local/secure_storage/secure_storage.dart';
 import 'login_state.dart';
 
@@ -8,6 +9,57 @@ class LoginCubit extends Cubit<LoginState> {
   LoginCubit() : super(const LoginState());
 
   final secureStorage = GetIt.I<SecureStorage>();
+  final _googleSignIn = GoogleSignIn.instance;
+  bool _isGoogleSignInInitialized = false;
+
+  Future<void> _initializeGoogleSignIn() async {
+    try {
+      await _googleSignIn.initialize(
+        // serverClientId: "645699802815-k86olmji8qdha8jrfnor3phdbp0sp72j.apps.googleusercontent.com",
+      );
+      _isGoogleSignInInitialized = true;
+    } catch (e) {
+      print('Failed to initialize Google Sign-In: $e');
+    }
+  }
+
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (!_isGoogleSignInInitialized) {
+      await _initializeGoogleSignIn();
+    }
+  }
+
+  Future<void> loginWithGoogle() async {
+    try {
+      await _ensureGoogleSignInInitialized();
+
+      // Authenticate with Google
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate(scopeHint: ['email', 'profile']);
+
+      // Get authorization for Firebase scopes if needed
+      final authClient = _googleSignIn.authorizationClient;
+      final authorization = await authClient.authorizationForScopes(['email']);
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: authorization?.accessToken,
+        idToken: googleUser.authentication.idToken,
+      );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final User? user = User(
+        id: userCredential.user!.uid,
+        name: userCredential.user!.displayName ?? "Unknown",
+        email: userCredential.user!.email!,
+        avatar: userCredential.user!.photoURL,
+      );
+      secureStorage.setUser(user!);
+      emit(state.copyWith(status: LoginStatus.success, user: user));
+    } catch (e) {
+      print(e.toString());
+      emit(state.copyWith(status: LoginStatus.failure, error: 'Google sign-in failed. Please try again.'));
+    }
+  }
 
   // Dummy API service simulation
   Future<void> _simulateApiCall() async {
@@ -34,7 +86,7 @@ class LoginCubit extends Cubit<LoginState> {
           phoneNumber: phoneNumber,
           avatar: 'https://via.placeholder.com/150',
         );
-        await secureStorage.setIsLoggedIn(true);
+        await secureStorage.setUser(user);
         emit(state.copyWith(status: LoginStatus.success, user: user));
       } else {
         emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid phone number. Please try again.'));
@@ -50,7 +102,15 @@ class LoginCubit extends Cubit<LoginState> {
       return;
     }
 
-    emit(state.copyWith(status: LoginStatus.loading, method: LoginMethod.credentials, userId: userId, password: password, error: ''));
+    emit(
+      state.copyWith(
+        status: LoginStatus.loading,
+        method: LoginMethod.credentials,
+        userId: userId,
+        password: password,
+        error: '',
+      ),
+    );
 
     try {
       await _simulateApiCall();
@@ -70,26 +130,6 @@ class LoginCubit extends Cubit<LoginState> {
       }
     } catch (e) {
       emit(state.copyWith(status: LoginStatus.failure, error: 'Network error. Please check your connection.'));
-    }
-  }
-
-  Future<void> loginWithGoogle() async {
-    emit(state.copyWith(status: LoginStatus.loading, method: LoginMethod.google, error: ''));
-
-    try {
-      await _simulateApiCall();
-
-      // Simulate successful Google login
-      final user = User(
-        id: 'google_${DateTime.now().millisecondsSinceEpoch}',
-        name: 'Google User',
-        email: 'google@gmail.com',
-        avatar: 'https://via.placeholder.com/150',
-      );
-
-      emit(state.copyWith(status: LoginStatus.success, user: user));
-    } catch (e) {
-      emit(state.copyWith(status: LoginStatus.failure, error: 'Google sign-in failed. Please try again.'));
     }
   }
 

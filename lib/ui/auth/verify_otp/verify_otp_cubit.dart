@@ -1,6 +1,5 @@
 import 'package:bloc/bloc.dart';
 import 'package:get_it/get_it.dart';
-import 'package:cute_live/data/local/secure_storage/user_secure_storage_extension.dart';
 
 import '../../../data/local/secure_storage/secure_storage.dart';
 
@@ -25,12 +24,7 @@ class VerifyOTPCubit extends Cubit<VerifyOTPState> {
     await Future.delayed(const Duration(seconds: 1));
 
     if (state.otp.length < 6) {
-      emit(
-        state.copyWith(
-          status: VerifyOTPStatus.failure,
-          error: "OTP must be at least 6 characters long",
-        ),
-      );
+      emit(state.copyWith(status: VerifyOTPStatus.failure, error: "OTP must be at least 6 characters long"));
       return;
     }
 

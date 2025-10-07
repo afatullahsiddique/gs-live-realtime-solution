@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/view_count.dart';
@@ -10,30 +11,15 @@ import 'live_animation.dart';
 
 class AnimatedStreamerCard extends StatefulWidget {
   final StreamerModel streamer;
+  final int? index;
 
-  const AnimatedStreamerCard({Key? key, required this.streamer}) : super(key: key);
+  const AnimatedStreamerCard({Key? key, required this.streamer, this.index}) : super(key: key);
 
   @override
   _AnimatedStreamerCardState createState() => _AnimatedStreamerCardState();
 }
 
-class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialize the animation controller to drive the gradient animation
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))
-      ..repeat(reverse: true); // This makes the animation repeat and reverse
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose(); // Important: Dispose of the controller to prevent memory leaks
-    super.dispose();
-  }
-
+class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -42,44 +28,16 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
           context.push(Routes.audioRoom.path);
         }
       },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-            if (widget.streamer.isPremium)
-              BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 0)),
-          ],
-        ),
-        // Use AnimatedBuilder to rebuild just the glowing part
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            // Animate the gradient's begin and end alignments
-            final double value = _controller.value;
-            final Alignment begin = Alignment(-1.0 + 2 * value, -1.0);
-            final Alignment end = Alignment(1.0 - 2 * value, 1.0);
-
-            return Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: widget.streamer.isPremium
-                    ? LinearGradient(
-                        begin: begin,
-                        end: end,
-                        colors: [
-                          Colors.pink.shade300,
-                          Colors.purple.shade400,
-                          Colors.pink.shade500,
-                          Colors.orange.shade400,
-                        ],
-                      )
-                    : null,
-              ),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: widget.streamer.isPremium ? const EdgeInsets.all(3.0) : EdgeInsets.zero,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(widget.streamer.isPremium ? 4 : 14),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -101,17 +59,10 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
                         },
                       ),
 
-                      // Gradient Overlay
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
-                          ),
-                        ),
-                      ),
+                      if (widget.index == 0)
+                        Positioned.fill(child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_1.svga", fit: BoxFit.cover,)),
+                      if (widget.index == 1)
+                        Positioned.fill(child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_2.svga")),
 
                       // Content
                       Padding(
@@ -171,26 +122,23 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
                             // Name
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.4),
-                                    border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.3),
+                                  border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
+                                ),
+                                child: Text(
+                                  widget.streamer.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  child: Text(
-                                    widget.streamer.name,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),
@@ -201,9 +149,9 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> with Single
                   ),
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
