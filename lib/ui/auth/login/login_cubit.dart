@@ -30,6 +30,7 @@ class LoginCubit extends Cubit<LoginState> {
   }
 
   Future<void> loginWithGoogle() async {
+    emit(state.copyWith(status: LoginStatus.loading, method: LoginMethod.google));
     try {
       await _ensureGoogleSignInInitialized();
 

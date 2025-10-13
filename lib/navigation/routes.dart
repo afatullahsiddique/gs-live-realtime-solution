@@ -21,6 +21,7 @@ enum Routes {
   vip,
   myInvites,
   visitors,
+  hostPage
 }
 
 extension RoutesExtension on Routes {
@@ -70,6 +71,10 @@ extension RoutesExtension on Routes {
         return '/myInvites';
       case Routes.visitors:
         return '/visitors';
+      case Routes.visitors:
+        return '/visitors';
+      case Routes.hostPage:
+        return '/hostPage';
     }
   }
 }

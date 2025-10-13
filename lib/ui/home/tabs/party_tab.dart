@@ -1,4 +1,5 @@
 import 'package:cute_live/ui/home/home_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,7 +35,14 @@ class PartyTab extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: GestureDetector(
             onTap: () {
-              context.push(Routes.audioRoom.path);
+              context.push(
+                Routes.audioRoom.path,
+                extra: {
+                  "roomId": 0,
+                  "name": FirebaseAuth.instance.currentUser?.displayName ?? "Unknown",
+                  "isHost": false,
+                },
+              );
             },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -159,7 +167,7 @@ class PartyTab extends StatelessWidget {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.network(
-                              streamer.imageUrl,
+                              streamer.imageUrl ?? "",
                               width: 80,
                               height: 80,
                               fit: BoxFit.cover,

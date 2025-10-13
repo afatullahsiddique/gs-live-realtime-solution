@@ -2,6 +2,7 @@ import 'package:cute_live/ui/home/tabs/party_tab.dart';
 import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -9,7 +10,9 @@ import 'package:go_router/go_router.dart';
 import 'dart:ui';
 
 import '../../core/cubits/app_cubit.dart';
+import '../../data/remote/firebase/room_services.dart';
 import '../../navigation/routes.dart';
+import '../../theme/app_theme.dart';
 import 'home_cubit.dart';
 
 class HomePage extends StatefulWidget {
@@ -59,40 +62,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
       isPremium: false,
       isVideo: true,
-    ),
-    StreamerModel(
-      id: '5',
-      name: 'Luna Park',
-      bio: 'Variety streamer and chill vibes. We play a little bit of everything!',
-      viewCount: 3421,
-      imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-      isPremium: false,
-    ),
-    StreamerModel(
-      id: '6',
-      name: 'Jake Wilson',
-      bio: 'Casual commentary and retro games. Nostalgia trips are our specialty.',
-      viewCount: 892,
-      imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-      isPremium: false,
-    ),
-    StreamerModel(
-      id: '7',
-      name: 'Mia Johnson',
-      bio: 'Fitness and wellness coaching. Let\'s work out and get healthy together.',
-      viewCount: 1567,
-      imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
-      isPremium: false,
-      isVideo: false,
-    ),
-    StreamerModel(
-      id: '8',
-      name: 'Chris Brown',
-      bio: 'DIY and home improvement projects. From wood carving to furniture flips.',
-      viewCount: 445,
-      imageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',
-      isPremium: false,
-    ),
+    )
   ];
 
   @override
@@ -113,42 +83,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       create: (context) => HomeCubit()..init(),
       child: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-              stops: [0.0, 0.3, 0.6, 0.8, 1.0],
-            ),
-          ),
+          decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
           child: SafeArea(
-            child: BlocBuilder<HomeCubit, HomeState>(
-              builder: (context, state) {
-                if (state.isLoading) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                if (state.user != null) {
-                  return Column(
+            child: Column(
+              children: [
+                _buildAppBar(),
+                _buildTabBar(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
                     children: [
-                      _buildAppBar(),
-                      _buildTabBar(),
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            SingleChildScrollView(child: _buildPopularGrid()),
-                            SingleChildScrollView(child: _buildFresherGrid()),
-                            PartyTab(streamers: _streamers),
-                            PKTab(streamers: _streamers),
-                          ],
-                        ),
-                      ),
+                      SingleChildScrollView(child: _buildPopularGrid()),
+                      SingleChildScrollView(child: _buildFresherGrid()),
+                      PartyTab(streamers: _streamers),
+                      PKTab(streamers: _streamers),
                     ],
-                  );
-                } else {
-                  return Center(child: Text("User not found!"));
-                }
-              },
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -159,7 +111,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildAppBar() {
     return Builder(
       builder: (context) {
-        final cubit = context.read<HomeCubit>();
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(
@@ -179,8 +130,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     ),
                     child: ClipOval(
                       child: Image.network(
-                        cubit.state.user?.avatar ??
-                            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+                        FirebaseAuth.instance.currentUser?.photoURL ?? "",
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(Icons.person, color: Colors.white, size: 24);
@@ -196,7 +146,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         shaderCallback: (bounds) =>
                             LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
                         child: Text(
-                          cubit.state.user?.name ?? "Unknown",
+                          FirebaseAuth.instance.currentUser?.displayName?? "Unknown",
                           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -269,43 +219,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildStreamersGrid(String category) {
-    return Column(
-      children: [
-        if (category == "Freshers")
-          CarouselBanner(
-            imageUrls: BannerUrls.liveStreamingBanners,
-            height: 120,
-            autoPlayDuration: const Duration(seconds: 4),
-            onBannerTap: (index) {
-              // Handle banner tap
-              print('Banner $index tapped');
-            },
-          ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            // Add this line
-            physics: const NeverScrollableScrollPhysics(),
-            // Add this line
-            padding: const EdgeInsets.only(top: 10, bottom: 10),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: .9,
-            ),
-            itemCount: _streamers.length,
-            itemBuilder: (context, index) {
-              return AnimatedStreamerCard(streamer: _streamers[index]);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildFresherGrid() {
     return Column(
       children: [
@@ -343,56 +256,91 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildPopularGrid() {
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            // Add this line
-            physics: const NeverScrollableScrollPhysics(),
-            // Add this line
-            padding: const EdgeInsets.only(top: 16, bottom: 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: .9,
+    return StreamBuilder(
+      stream: RoomService.getAllRooms(),
+      builder: (context, snapshot) {
+        final List<StreamerModel> streamers = [];
+        if (snapshot.hasError) {
+          print('Error: ${snapshot.error}');
+          return Text('Error loading rooms');
+        }
+
+        if (!snapshot.hasData) {
+          return Padding(
+            padding: const EdgeInsets.all(50),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        streamers.addAll(_streamers);
+        for (var doc in snapshot.data!.docs) {
+          var roomData = doc.data() as Map<String, dynamic>;
+          print('Room Name: ${roomData['roomName']}');
+          streamers.add(
+            StreamerModel(
+              id: doc.id,
+              name: roomData['hostName'],
+              bio: '',
+              viewCount: 987,
+              imageUrl: roomData['hostPicture'] ?? "",
+              isPremium: false,
+              isVideo: false,
             ),
-            itemCount: 2,
-            itemBuilder: (context, index) {
-              return AnimatedStreamerCard(streamer: _streamers[index], index: index);
-            },
-          ),
-        ),
-        CarouselBanner(
-          imageUrls: BannerUrls.liveStreamingBanners,
-          height: 120,
-          autoPlayDuration: const Duration(seconds: 4),
-          onBannerTap: (index) {
-            // Handle banner tap
-            print('Banner $index tapped');
-          },
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 10, bottom: 10),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: .9,
+          );
+        }
+
+        return Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: GridView.builder(
+                shrinkWrap: true,
+                // Add this line
+                physics: const NeverScrollableScrollPhysics(),
+                // Add this line
+                padding: const EdgeInsets.only(top: 16, bottom: 16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: .9,
+                ),
+                itemCount: 2,
+                itemBuilder: (context, index) {
+                  return AnimatedStreamerCard(streamer: streamers[index], index: index);
+                },
+              ),
             ),
-            itemCount: _streamers.length - 2,
-            itemBuilder: (context, index) {
-              return AnimatedStreamerCard(streamer: _streamers[index + 2]);
-            },
-          ),
-        ),
-      ],
+            CarouselBanner(
+              imageUrls: BannerUrls.liveStreamingBanners,
+              height: 120,
+              autoPlayDuration: const Duration(seconds: 4),
+              onBannerTap: (index) {
+                // Handle banner tap
+                print('Banner $index tapped');
+              },
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(top: 10, bottom: 10),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: .9,
+                ),
+                itemCount: streamers.length - 2,
+                itemBuilder: (context, index) {
+                  return AnimatedStreamerCard(streamer: streamers[index + 2]);
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -400,7 +348,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 class StreamerModel {
   final String id;
   final String name;
-  final String imageUrl;
+  final String? imageUrl;
   final String bio;
   final int viewCount;
   final bool isPremium;
@@ -409,7 +357,7 @@ class StreamerModel {
   const StreamerModel({
     required this.id,
     required this.name,
-    required this.imageUrl,
+    this.imageUrl,
     required this.bio,
     required this.viewCount,
     this.isPremium = false,

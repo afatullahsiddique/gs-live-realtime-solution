@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
@@ -25,7 +26,14 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
     return GestureDetector(
       onTap: () {
         if (!widget.streamer.isVideo) {
-          context.push(Routes.audioRoom.path);
+          context.push(
+            Routes.audioRoom.path,
+            extra: {
+              "roomId": widget.streamer.id,
+              "name": FirebaseAuth.instance.currentUser?.displayName ?? "Unknown",
+              "isHost": false,
+            },
+          );
         }
       },
       child: Stack(
@@ -43,7 +51,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                     children: [
                       // Background Image
                       Image.network(
-                        widget.streamer.imageUrl,
+                        widget.streamer.imageUrl??"",
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(

@@ -19,6 +19,7 @@ import 'package:cute_live/ui/auth/verify_otp/verify_otp_page.dart';
 import '../data/local/secure_storage/secure_storage.dart';
 import '../ui/feedback/feedback_page.dart';
 import '../ui/home/home_page.dart';
+import '../ui/host_page/host_page.dart';
 import '../ui/main_page.dart';
 import '../ui/my_level/my_level_page.dart';
 import '../ui/profile/profile_page.dart';
@@ -47,13 +48,13 @@ class MyRouter {
       ShellRoute(
         builder: (context, state, child) {
           int page = 0;
-          if (state.fullPath!.contains(Routes.offer.path)) {
+          if (state.fullPath!.contains(Routes.status.path)) {
             page = 1;
-          } else if (state.fullPath!.contains(Routes.qrCode.path)) {
+          } else if (state.fullPath!.contains(Routes.hostPage.path)) {
             page = 2;
-          } else if (state.fullPath!.contains(Routes.history.path)) {
-            page = 3;
-          } else if (state.fullPath!.contains(Routes.more.path)) {
+            // } else if (state.fullPath!.contains(Routes.home.path)) {
+            //   page = 3;
+          } else if (state.fullPath!.contains(Routes.profile.path)) {
             page = 4;
           }
           return MainPage(selectedPageNo: page, child: child);
@@ -74,12 +75,12 @@ class MyRouter {
             ),
           ),
           GoRoute(
-            path: Routes.qrCode.path,
+            path: Routes.hostPage.path,
             pageBuilder: (context, state) => CustomTransitionPage<void>(
               key: state.pageKey,
-              child: const Scaffold(body: Center(child: Text("qrCode"))),
+              child: HostPage(),
               transitionsBuilder: customPopTransition,
-              transitionDuration: const Duration(milliseconds: 200),
+              transitionDuration: const Duration(milliseconds: 300),
               reverseTransitionDuration: const Duration(milliseconds: 100),
             ),
           ),
@@ -109,7 +110,10 @@ class MyRouter {
         path: Routes.audioRoom.path,
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
-          child: AudioRoomPage(roomID: '1', userID: '2',userName: 'Riad'),
+          child: AudioRoomPage(
+              roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
+              isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool
+          ),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),

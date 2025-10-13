@@ -178,7 +178,7 @@ class PKTab extends StatelessWidget {
               padding: const EdgeInsets.all(3),
               child: ClipOval(
                 child: Image.network(
-                  streamer.imageUrl,
+                  streamer.imageUrl??"",
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
