@@ -62,7 +62,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
       isPremium: false,
       isVideo: true,
-    )
+    ),
   ];
 
   @override
@@ -146,7 +146,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         shaderCallback: (bounds) =>
                             LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
                         child: Text(
-                          FirebaseAuth.instance.currentUser?.displayName?? "Unknown",
+                          FirebaseAuth.instance.currentUser?.displayName ?? "Unknown",
                           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -285,6 +285,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               imageUrl: roomData['hostPicture'] ?? "",
               isPremium: false,
               isVideo: false,
+              isLocked: roomData['isLocked'],
             ),
           );
         }
@@ -353,6 +354,7 @@ class StreamerModel {
   final int viewCount;
   final bool isPremium;
   final bool isVideo;
+  final bool isLocked;
 
   const StreamerModel({
     required this.id,
@@ -362,5 +364,6 @@ class StreamerModel {
     required this.viewCount,
     this.isPremium = false,
     this.isVideo = true,
+    this.isLocked = false,
   });
 }

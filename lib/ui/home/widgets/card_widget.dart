@@ -115,6 +115,17 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     ),
                                   ),
                                 ),
+                                SizedBox(width: 8),
+
+                                if (widget.streamer.isLocked)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.6),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    child: const Icon(Icons.lock, color: Colors.white, size: 18),
+                                  ),
                                 const Spacer(),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),

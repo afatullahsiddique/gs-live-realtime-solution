@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
+import '../../../theme/app_theme.dart';
+
 class CarouselBanner extends StatefulWidget {
   final List<String> imageUrls;
   final double height;
@@ -88,10 +90,16 @@ class _CarouselBannerState extends State<CarouselBanner> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Background Image
-                    Image.asset(
+                    Image.network(
                       widget.imageUrls[index],
                       fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          color: Colors.grey.shade900,
+                          child: Center(child: CircularProgressIndicator(color: Colors.pink.shade300, strokeWidth: 2)),
+                        );
+                      },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: Colors.grey.shade800,
@@ -121,9 +129,9 @@ class _CarouselBannerState extends State<CarouselBanner> {
 // Sample banner URLs for your live streaming app
 class BannerUrls {
   static const List<String> liveStreamingBanners = [
-    'assets/banner/bd_admin.png',
-    'assets/banner/india_admin.png',
-    'assets/banner/india_admin_2.png',
-    'assets/banner/pak_admin.png',
+    'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80',
+    'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+    'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80',
+    'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&q=80',
   ];
 }

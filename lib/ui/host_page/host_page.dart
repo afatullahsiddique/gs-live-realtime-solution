@@ -1,5 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,7 +13,16 @@ class HostPage extends StatefulWidget {
 }
 
 class _HostPageState extends State<HostPage> {
-  bool isVideoParty = false; // false = voice party (default)
+  bool isVideoParty = false;
+
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    // NEW: Dispose the controller to prevent memory leaks
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,19 +32,11 @@ class _HostPageState extends State<HostPage> {
         child: SafeArea(
           child: Column(
             children: [
-              // App Bar
               _buildAppBar(),
-
               const Spacer(),
-
-              // Party Type Selection
               _buildPartyTypeSelector(),
-
               const Spacer(),
-
-              // Start Live Button
               _buildStartLiveButton(),
-
               const SizedBox(height: 40),
             ],
           ),
@@ -149,20 +148,8 @@ class _HostPageState extends State<HostPage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () async {
-            String roomId = await RoomService.createRoom();
-
-            if (!isVideoParty) {
-              context.pushReplacement(
-                Routes.audioRoom.path,
-                extra: {
-                  "roomId": roomId,
-                  "name": FirebaseAuth.instance.currentUser?.displayName ?? "Unknown",
-                  "isHost": true,
-                },
-              );
-            }
-          },
+          // MODIFIED: onTap now calls the new dialog method
+          onTap: _showCreateRoomDialog,
           borderRadius: BorderRadius.circular(30),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 18),
@@ -192,6 +179,76 @@ class _HostPageState extends State<HostPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _showCreateRoomDialog() async {
+    _passwordController.clear(); // Clear previous input
+
+    // NEW: Get a reference to the router BEFORE the dialog is even shown.
+    // This is the safest approach.
+    final router = GoRouter.of(context);
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        // Use a different name to avoid confusion
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2d1b2b),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Secure Your Room', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: _passwordController,
+            obscureText: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: "Password (optional)",
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.3))),
+              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Start Live', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                // Get the password before any async operations
+                final password = _passwordController.text.trim();
+
+                // Dismiss the dialog using its own context
+                Navigator.of(dialogContext).pop();
+
+                try {
+                  String roomId = await RoomService.createRoom(password: password.isNotEmpty ? password : null);
+
+                  // This check is still a crucial safety net!
+                  if (!mounted) return;
+
+                  if (!isVideoParty) {
+                    // Use the 'router' variable we saved earlier, NOT the context.
+                    router.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
+                  } else {
+                    // TODO: Implement navigation for Video Party
+                  }
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text("Error creating room: ${e.toString()}")));
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }

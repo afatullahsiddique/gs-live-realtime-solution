@@ -5,12 +5,14 @@ class RoomService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  static Future<String> createRoom() async {
+  static Future<String> createRoom({String? password}) async {
     final user = _auth.currentUser!;
     final roomRef = _firestore.collection('rooms').doc();
     final participantRef = roomRef.collection('room_participants').doc(user.uid);
 
     final batch = _firestore.batch();
+
+    final bool isLocked = password != null && password.isNotEmpty;
 
     batch.set(roomRef, {
       'hostId': user.uid,
@@ -19,15 +21,17 @@ class RoomService {
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
       'participantCount': 1,
-      'isMoveAllowed': true, // MODIFICATION: Added new field
+      'isMoveAllowed': true,
+      'isLocked': isLocked,
+      'password': isLocked ? password : null,
     });
 
     batch.set(participantRef, {
       'userId': user.uid,
       'userName': user.displayName ?? 'Anonymous',
       'userPicture': user.photoURL,
-      'isCoHost': true, // Host is implicitly a co-host
-      'seatNo': 0, // Host seat
+      'isCoHost': true,
+      'seatNo': 0,
       'joinedAt': FieldValue.serverTimestamp(),
       'isOnline': true,
       'isMuted': false,
@@ -133,40 +137,30 @@ class RoomService {
     });
   }
 
-  // MODIFICATION: Added a server-side check for the setting
   static Future<void> moveSeat(String roomId, int newSeatNo) async {
     final user = _auth.currentUser!;
     final roomRef = _firestore.collection('rooms').doc(roomId);
     final participantRef = roomRef.collection('room_participants').doc(user.uid);
 
-    // First, check the room's setting as a safeguard
     final roomDoc = await roomRef.get();
     if (roomDoc.exists && !(roomDoc.data()?['isMoveAllowed'] ?? true)) {
       throw Exception('Host has disabled moving seats.');
     }
 
-    // Then, query to see if the seat is occupied.
     final query = roomRef.collection('room_participants').where('seatNo', isEqualTo: newSeatNo);
     final snapshot = await query.get();
 
     if (snapshot.docs.isNotEmpty) {
       throw Exception('Seat is already occupied.');
     } else {
-      await participantRef.update({
-        'seatNo': newSeatNo,
-        'isCoHost': false,
-      });
+      await participantRef.update({'seatNo': newSeatNo, 'isCoHost': false});
     }
   }
 
-  // MODIFICATION: Added new method to toggle the setting
   static Future<void> toggleMoveAllowed(String roomId, bool isAllowed) async {
-    await _firestore.collection('rooms').doc(roomId).update({
-      'isMoveAllowed': isAllowed,
-    });
+    await _firestore.collection('rooms').doc(roomId).update({'isMoveAllowed': isAllowed});
   }
 
-  // --- Speaker Request Methods ---
   static Future<void> requestToBeSpeaker(String roomId) async {
     final user = _auth.currentUser!;
     await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(user.uid).set({
@@ -212,7 +206,6 @@ class RoomService {
     await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(requestId).delete();
   }
 
-  // --- Co-Host Request Methods ---
   static Future<void> requestToBeCoHost(String roomId) async {
     final user = _auth.currentUser!;
     await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(user.uid).set({
