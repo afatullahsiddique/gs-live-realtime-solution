@@ -1122,25 +1122,26 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     final int totalRequests = _coHostRequests.length + _speakerRequests.length;
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (widget.isHost)
             Padding(
-              padding: const EdgeInsets.only(right: 10.0),
+              padding: const EdgeInsets.only(right: 8.0),
               child: GestureDetector(
                 onTap: () => showRoomSettingsBottomSheet(context, roomId: widget.roomID, isMoveAllowed: _isMoveAllowed),
                 child: Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                  child: const Icon(CupertinoIcons.settings, color: Colors.white),
+                  child: const Icon(CupertinoIcons.settings, color: Colors.white, size: 22),
                 ),
               ),
             ),
           if (widget.isHost)
             Padding(
-              padding: const EdgeInsets.only(right: 10.0),
+              padding: const EdgeInsets.only(right: 8.0),
               child: GestureDetector(
                 onTap: () => showAllRequestsBottomSheet(
                   context,
@@ -1152,10 +1153,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                      child: const Icon(CupertinoIcons.person_add_solid, color: Colors.white),
+                      child: const Icon(CupertinoIcons.person_add_solid, color: Colors.white, size: 22),
                     ),
                     if (totalRequests > 0)
                       Positioned(
@@ -1176,7 +1177,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
             ),
           if (isSpeakerOrCoHost)
             Padding(
-              padding: const EdgeInsets.only(right: 10.0),
+              padding: const EdgeInsets.only(right: 8.0),
               child: GestureDetector(
                 onTap: () {
                   final newMuteState = !isCurrentlyMuted;
@@ -1184,43 +1185,75 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                   ZegoUIKit().turnMicrophoneOn(!newMuteState);
                 },
                 child: Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
                   child: Icon(
                     isCurrentlyMuted ? CupertinoIcons.mic_off : CupertinoIcons.mic_fill,
                     color: isCurrentlyMuted ? Colors.white : Colors.pink,
+                    size: 22,
                   ),
                 ),
               ),
             ),
-          // REMOVED: The listener's "Join Call" button was removed from here.
-          Expanded(
-            child: TextField(
-              controller: _chatController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Say something...',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                fillColor: Colors.black.withOpacity(0.2),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () {
+                // No implementation needed
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
+                child: const Icon(CupertinoIcons.smiley, color: Colors.white, size: 22),
               ),
-              onSubmitted: (_) => _sendMessage(),
             ),
           ),
-          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () {
+                // No implementation needed
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
+                child: const Icon(CupertinoIcons.gift_fill, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: TextField(
+                controller: _chatController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Say something...',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                  fillColor: Colors.black.withOpacity(0.2),
+                  filled: true,
+                  // Adjusted padding to center the text vertically
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: _sendMessage,
             child: Container(
-              width: 48,
-              height: 48,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]),
               ),
-              child: const Icon(Icons.send, color: Colors.white),
+              child: const Icon(Icons.send, color: Colors.white, size: 20),
             ),
           ),
         ],
