@@ -13,6 +13,7 @@ import 'bottomsheets/participants_bottomsheet.dart';
 import 'bottomsheets/requests_bottomsheet.dart';
 import 'bottomsheets/room_settings_bottomsheet.dart';
 
+// ... (CoHostRequest, SpeakerRequest, RoomParticipant, ChatMessage classes are unchanged)
 class CoHostRequest {
   final String requestId;
   final String userId;
@@ -164,6 +165,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     super.dispose();
   }
 
+  // ... (All initialization and dialog logic is unchanged)
   Future<void> _initialize() async {
     try {
       final roomDoc = await RoomService.getRoomInfo(widget.roomID);
@@ -297,7 +299,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     _roomSubscription = RoomService.getRoomStream(widget.roomID).listen((doc) {
       if (doc.exists && mounted) {
         setState(() {
-          // MODIFIED: Ensure roomData is updated to refresh UI elements like the lock icon
           roomData = doc.data() as Map<String, dynamic>;
           _participantCount = roomData['participantCount'] ?? 0;
           _isMoveAllowed = roomData['isMoveAllowed'] ?? true;
@@ -345,7 +346,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     }
   }
 
-  // NEW: Dialog for setting a new password.
   Future<void> _showSetPasswordDialog() async {
     final passwordController = TextEditingController();
     final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -401,7 +401,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
-  // NEW: Main dialog for managing room security.
   Future<void> _showPasswordManagementDialog() async {
     final bool isCurrentlyLocked = roomData['isLocked'] ?? false;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -522,7 +521,15 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                     children: [
                       _buildAppBar(),
                       Column(children: [const SizedBox(height: 10), _buildStreamerProfile(), _buildSeatsGrid()]),
-                      Expanded(child: _buildChatSection()),
+                      // MODIFIED: Wrapped the chat section in a Stack to allow for the button overlay
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            _buildChatSection(),
+                            _buildJoinCallOverlay(), // The new button
+                          ],
+                        ),
+                      ),
                       _buildChatInput(),
                     ],
                   )
@@ -573,7 +580,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
               ),
             ),
           ),
-          // MODIFIED: Added lock icon button for the host
           if (widget.isHost)
             IconButton(
               icon: Icon((roomData['isLocked'] ?? false) ? Icons.lock : Icons.lock_open, color: Colors.white, size: 24),
@@ -590,17 +596,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
-  // ... (The rest of your AudioRoomPage code remains unchanged)
-  // ... _buildStreamerProfile()
-  // ... _buildSeatsGrid()
-  // ... _buildEmptySeat()
-  // ... _buildOccupiedSeat()
-  // ... _buildAvatar()
-  // ... _defaultAvatarContent()
-  // ... _buildChatSection()
-  // ... _buildChatInput()
-  // ... _sendMessage()
-  // ... _sendJoinMessage()
+  // ... (Streamer Profile, Seats Grid, etc. are unchanged)
   Widget _buildStreamerProfile() {
     RoomParticipant? host;
     try {
@@ -826,7 +822,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
           if (isListener) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Tap the \'Join Call\' button below to request a seat.'),
+                content: Text('Tap the \'Join Call\' button to request a seat.'),
                 backgroundColor: Colors.pink,
               ),
             );
@@ -973,6 +969,66 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
+  // NEW WIDGET: The "Join Call" button as an overlay for guests.
+  Widget _buildJoinCallOverlay() {
+    final String currentUserId = _auth.currentUser!.uid;
+    RoomParticipant? currentUserParticipant;
+    try {
+      currentUserParticipant = _participants.firstWhere((p) => p.userId == currentUserId);
+    } catch (e) {
+      currentUserParticipant = null;
+    }
+    final bool isListener =
+        !widget.isHost &&
+        (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
+
+    return Visibility(
+      visible: isListener,
+      child: Positioned(
+        bottom: 8,
+        right: 24,
+        child: GestureDetector(
+          onTap: () async {
+            try {
+              await RoomService.requestToBeSpeaker(widget.roomID);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Request sent. Please wait for host approval.'),
+                    backgroundColor: Colors.pink,
+                  ),
+                );
+              }
+            } catch (e) {
+              debugPrint("Error requesting to be speaker: $e");
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+              }
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.3),
+              border: Border.all(color: Colors.pink, width: 1.5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              children: [
+                Icon(CupertinoIcons.phone_arrow_up_right, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'Join Call',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildChatSection() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1062,10 +1118,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         widget.isHost ||
         (currentUserParticipant != null && (currentUserParticipant.isCoHost || currentUserParticipant.seatNo > 0));
 
-    final bool isListener =
-        !widget.isHost &&
-        (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
-
     final bool isCurrentlyMuted = currentUserParticipant?.isMuted ?? true;
     final int totalRequests = _coHostRequests.length + _speakerRequests.length;
 
@@ -1142,44 +1194,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 ),
               ),
             ),
-          if (isListener)
-            Padding(
-              padding: const EdgeInsets.only(right: 10.0),
-              child: GestureDetector(
-                onTap: () async {
-                  try {
-                    await RoomService.requestToBeSpeaker(widget.roomID);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Request sent. Please wait for host approval.'),
-                          backgroundColor: Colors.pink,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint("Error requesting to be speaker: $e");
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-                    }
-                  }
-                },
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]),
-                    borderRadius: BorderRadius.circular(24.0),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'Join Call',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          // REMOVED: The listener's "Join Call" button was removed from here.
           Expanded(
             child: TextField(
               controller: _chatController,
