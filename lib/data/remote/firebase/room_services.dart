@@ -243,4 +243,20 @@ class RoomService {
   static Future<void> rejectCoHostRequest(String roomId, String requestId) async {
     await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(requestId).delete();
   }
+
+  // NEW METHOD: Set or change the password for a room
+  static Future<void> setOrChangeRoomPassword(String roomId, String password) async {
+    await _firestore.collection('rooms').doc(roomId).update({
+      'isLocked': true,
+      'password': password,
+    });
+  }
+
+  // NEW METHOD: Remove the password from a room, making it public
+  static Future<void> removeRoomPassword(String roomId) async {
+    await _firestore.collection('rooms').doc(roomId).update({
+      'isLocked': false,
+      'password': null,
+    });
+  }
 }

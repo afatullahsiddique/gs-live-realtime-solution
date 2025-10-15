@@ -285,7 +285,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               imageUrl: roomData['hostPicture'] ?? "",
               isPremium: false,
               isVideo: false,
-              isLocked: roomData['isLocked'],
+              isLocked: roomData['isLocked']?? false,
             ),
           );
         }

@@ -15,15 +15,6 @@ class HostPage extends StatefulWidget {
 class _HostPageState extends State<HostPage> {
   bool isVideoParty = false;
 
-  final TextEditingController _passwordController = TextEditingController();
-
-  @override
-  void dispose() {
-    // NEW: Dispose the controller to prevent memory leaks
-    _passwordController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,16 +42,16 @@ class _HostPageState extends State<HostPage> {
       child: Row(
         children: [
           IconButton(
-            icon: Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
             onPressed: () => context.go(Routes.home.path),
           ),
           const Spacer(),
-          Text(
+          const Text(
             'Start Hosting',
             style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const Spacer(),
-          const SizedBox(width: 48), // Balance the back button
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -148,8 +139,8 @@ class _HostPageState extends State<HostPage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          // MODIFIED: onTap now calls the new dialog method
-          onTap: _showCreateRoomDialog,
+          // MODIFIED: onTap now calls a direct creation method
+          onTap: _startLive,
           borderRadius: BorderRadius.circular(30),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 18),
@@ -165,11 +156,11 @@ class _HostPageState extends State<HostPage> {
                 BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 40, offset: const Offset(0, 15)),
               ],
             ),
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.fiber_manual_record, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Text(
                   'Start Live',
                   style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5),
@@ -182,73 +173,20 @@ class _HostPageState extends State<HostPage> {
     );
   }
 
-  Future<void> _showCreateRoomDialog() async {
-    _passwordController.clear(); // Clear previous input
+  Future<void> _startLive() async {
+    try {
+      String roomId = await RoomService.createRoom();
 
-    // NEW: Get a reference to the router BEFORE the dialog is even shown.
-    // This is the safest approach.
-    final router = GoRouter.of(context);
+      if (!mounted) return;
 
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        // Use a different name to avoid confusion
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2d1b2b),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Secure Your Room', style: TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: _passwordController,
-            obscureText: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: "Password (optional)",
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.3))),
-              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Start Live', style: TextStyle(color: Colors.white)),
-              onPressed: () async {
-                // Get the password before any async operations
-                final password = _passwordController.text.trim();
-
-                // Dismiss the dialog using its own context
-                Navigator.of(dialogContext).pop();
-
-                try {
-                  String roomId = await RoomService.createRoom(password: password.isNotEmpty ? password : null);
-
-                  // This check is still a crucial safety net!
-                  if (!mounted) return;
-
-                  if (!isVideoParty) {
-                    // Use the 'router' variable we saved earlier, NOT the context.
-                    router.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
-                  } else {
-                    // TODO: Implement navigation for Video Party
-                  }
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text("Error creating room: ${e.toString()}")));
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+      if (!isVideoParty) {
+        context.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
+      } else {
+        // TODO: Implement navigation for Video Party
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error creating room: ${e.toString()}")));
+    }
   }
 }

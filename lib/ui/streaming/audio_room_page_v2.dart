@@ -13,7 +13,6 @@ import 'bottomsheets/participants_bottomsheet.dart';
 import 'bottomsheets/requests_bottomsheet.dart';
 import 'bottomsheets/room_settings_bottomsheet.dart';
 
-// --- Data Models (CoHostRequest, SpeakerRequest, etc.) remain unchanged ---
 class CoHostRequest {
   final String requestId;
   final String userId;
@@ -139,7 +138,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
   @override
   void initState() {
     super.initState();
-    // MODIFIED: This method now handles the password check flow
     _initialize();
   }
 
@@ -153,7 +151,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     _chatController.dispose();
     _chatScrollController.dispose();
 
-    // Only perform DB actions if initialization was successful
     if (_isInitialized) {
       if (widget.isHost) {
         RoomService.deleteRoom(widget.roomID);
@@ -167,7 +164,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     super.dispose();
   }
 
-  // MODIFIED: This now handles the initial check and password dialog flow.
   Future<void> _initialize() async {
     try {
       final roomDoc = await RoomService.getRoomInfo(widget.roomID);
@@ -179,16 +175,12 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
 
       final bool isLocked = roomData['isLocked'] ?? false;
 
-      // If the room is locked and the user is a guest, show the password dialog.
       if (isLocked && !widget.isHost) {
         final bool? passwordCorrect = await _showPasswordDialog();
-        // If the password is correct, proceed with full initialization.
-        // Otherwise, the dialog will have already popped the page.
         if (passwordCorrect == true) {
           await _finishInitialization();
         }
       } else {
-        // If the room is not locked or the user is the host, initialize directly.
         await _finishInitialization();
       }
     } catch (e) {
@@ -200,7 +192,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     }
   }
 
-  // NEW: This method contains the main setup logic, to be called after the password check.
   Future<void> _finishInitialization() async {
     if (!await _checkAudioPermissions()) {
       if (mounted) context.pop();
@@ -208,8 +199,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     }
 
     await ZegoUIKit().init(
-      appID: 1738777063,
-      appSign: "1b5dbd4c4dac51d753a6a4eb7563490006a11a161c5133a4bb2f4727d5e34550",
+      appID: 1738777063, // Your App ID
+      appSign: "1b5dbd4c4dac51d753a6a4eb7563490006a11a161c5133a4bb2f4727d5e34550", // Your App Sign
       scenario: ZegoScenario.Default,
     );
 
@@ -221,9 +212,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     ZegoUIKit().setAudioOutputToSpeaker(true);
     ZegoUIKit().startPlayAllAudioVideo();
 
-    // Call joinRoom service for guests
     if (!widget.isHost) {
-      // NOTE: We no longer pass the password here, as it has already been validated.
       await RoomService.joinRoom(widget.roomID);
       _sendJoinMessage();
     }
@@ -232,14 +221,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     setState(() => _isInitialized = true);
   }
 
-  // NEW: Method to show the password dialog for guests.
   Future<bool?> _showPasswordDialog() async {
     final passwordController = TextEditingController();
     final completer = Completer<bool?>();
 
     showDialog<void>(
       context: context,
-      barrierDismissible: false, // Prevent dismissing by tapping outside
+      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         String? errorText;
         return StatefulBuilder(
@@ -251,7 +239,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
+                  const Text(
                     'This room is locked. Please enter the password to join.',
                     style: TextStyle(color: Colors.white70),
                   ),
@@ -286,17 +274,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                   ),
                   child: const Text('Enter', style: TextStyle(color: Colors.white)),
                   onPressed: () {
-                    print("entered: "+passwordController.text);
-                    print("actual: "+roomData['password']);
                     if (passwordController.text == roomData['password']) {
-                      print("password is correct");
                       Navigator.of(dialogContext).pop();
-                      completer.complete(true); // Signal success
+                      completer.complete(true);
                     } else {
-                      print("password is not same");
-                      setState(() {
-                        errorText = 'Incorrect password. Please try again.';
-                      });
+                      setState(() => errorText = 'Incorrect password. Please try again.');
                       passwordController.clear();
                     }
                   },
@@ -311,14 +293,14 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     return completer.future;
   }
 
-  /// Sets up Firestore and Zego streams to listen for real-time updates.
   void _setupListeners() {
     _roomSubscription = RoomService.getRoomStream(widget.roomID).listen((doc) {
       if (doc.exists && mounted) {
         setState(() {
-          final data = doc.data() as Map<String, dynamic>;
-          _participantCount = data['participantCount'] ?? 0;
-          _isMoveAllowed = data['isMoveAllowed'] ?? true;
+          // MODIFIED: Ensure roomData is updated to refresh UI elements like the lock icon
+          roomData = doc.data() as Map<String, dynamic>;
+          _participantCount = roomData['participantCount'] ?? 0;
+          _isMoveAllowed = roomData['isMoveAllowed'] ?? true;
         });
       } else {
         if (mounted) context.pop();
@@ -346,27 +328,123 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         }
       }).toList();
 
-      if (mounted) {
-        setState(() => _participants = updatedParticipants);
-      }
+      if (mounted) setState(() => _participants = updatedParticipants);
     });
 
     if (widget.isHost) {
       _speakerRequestsSubscription = RoomService.getSpeakerRequestsStream(widget.roomID).listen((snapshot) {
         if (mounted) {
-          setState(() {
-            _speakerRequests = snapshot.docs.map((doc) => SpeakerRequest.fromFirestore(doc)).toList();
-          });
+          setState(() => _speakerRequests = snapshot.docs.map((doc) => SpeakerRequest.fromFirestore(doc)).toList());
         }
       });
-
       _coHostRequestsSubscription = RoomService.getCoHostRequestsStream(widget.roomID).listen((snapshot) {
         if (mounted) {
-          setState(() {
-            _coHostRequests = snapshot.docs.map((doc) => CoHostRequest.fromFirestore(doc)).toList();
-          });
+          setState(() => _coHostRequests = snapshot.docs.map((doc) => CoHostRequest.fromFirestore(doc)).toList());
         }
       });
+    }
+  }
+
+  // NEW: Dialog for setting a new password.
+  Future<void> _showSetPasswordDialog() async {
+    final passwordController = TextEditingController();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2d1b2b),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Set Room Password', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: passwordController,
+            obscureText: true,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: "Enter new password",
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.3))),
+              focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.pink)),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Set Password', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                final password = passwordController.text.trim();
+                if (password.isEmpty) return;
+
+                Navigator.of(dialogContext).pop();
+                try {
+                  await RoomService.setOrChangeRoomPassword(widget.roomID, password);
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Password has been set.'), backgroundColor: Colors.green),
+                  );
+                } catch (e) {
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error setting password: $e')));
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // NEW: Main dialog for managing room security.
+  Future<void> _showPasswordManagementDialog() async {
+    final bool isCurrentlyLocked = roomData['isLocked'] ?? false;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    if (isCurrentlyLocked) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF2d1b2b),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Manage Password', style: TextStyle(color: Colors.white)),
+          content: const Text('This room is currently password protected.', style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              child: const Text('Remove Password', style: TextStyle(color: Colors.orangeAccent)),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                try {
+                  await RoomService.removeRoomPassword(widget.roomID);
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Room is now public.'), backgroundColor: Colors.green),
+                  );
+                } catch (e) {
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error removing password: $e')));
+                }
+              },
+            ),
+            TextButton(
+              child: const Text('Change Password', style: TextStyle(color: Colors.white)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _showSetPasswordDialog();
+              },
+            ),
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _showSetPasswordDialog();
     }
   }
 
@@ -441,13 +519,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
           child: SafeArea(
             child: _isInitialized
                 ? Column(
-              children: [
-                _buildAppBar(),
-                Column(children: [SizedBox(height: 10), _buildStreamerProfile(), _buildSeatsGrid()]),
-                Expanded(child: _buildChatSection()),
-                _buildChatInput(),
-              ],
-            )
+                    children: [
+                      _buildAppBar(),
+                      Column(children: [const SizedBox(height: 10), _buildStreamerProfile(), _buildSeatsGrid()]),
+                      Expanded(child: _buildChatSection()),
+                      _buildChatInput(),
+                    ],
+                  )
                 : const Center(child: CircularProgressIndicator(color: Colors.pink)),
           ),
         ),
@@ -495,6 +573,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
               ),
             ),
           ),
+          // MODIFIED: Added lock icon button for the host
+          if (widget.isHost)
+            IconButton(
+              icon: Icon((roomData['isLocked'] ?? false) ? Icons.lock : Icons.lock_open, color: Colors.white, size: 24),
+              onPressed: _showPasswordManagementDialog,
+              tooltip: 'Room Security',
+            ),
           IconButton(
             icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
             onPressed: _showExitConfirmationDialog,
@@ -505,6 +590,17 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
+  // ... (The rest of your AudioRoomPage code remains unchanged)
+  // ... _buildStreamerProfile()
+  // ... _buildSeatsGrid()
+  // ... _buildEmptySeat()
+  // ... _buildOccupiedSeat()
+  // ... _buildAvatar()
+  // ... _defaultAvatarContent()
+  // ... _buildChatSection()
+  // ... _buildChatInput()
+  // ... _sendMessage()
+  // ... _sendJoinMessage()
   Widget _buildStreamerProfile() {
     RoomParticipant? host;
     try {
@@ -549,10 +645,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 child: ClipOval(
                   child: imageUrl != null && imageUrl.isNotEmpty
                       ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 40),
-                  )
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 40),
+                        )
                       : const Icon(Icons.person, color: Colors.white, size: 40),
                 ),
               ),
@@ -599,13 +695,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
               onTap: coHost.userId != _auth.currentUser!.uid
                   ? null
                   : () async {
-                try {
-                  await RoomService.stepDownFromCoHost(widget.roomID);
-                  ZegoUIKit().turnMicrophoneOn(false);
-                } catch (e) {
-                  debugPrint("Error stepping down from co-host: $e");
-                }
-              },
+                      try {
+                        await RoomService.stepDownFromCoHost(widget.roomID);
+                        ZegoUIKit().turnMicrophoneOn(false);
+                      } catch (e) {
+                        debugPrint("Error stepping down from co-host: $e");
+                      }
+                    },
               child: buildStreamerSeat(
                 imageUrl: coHost.userPicture,
                 name: coHost.userName,
@@ -617,7 +713,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
             Builder(
               builder: (context) {
                 final currentUserParticipant = _participants.firstWhere(
-                      (p) => p.userId == _auth.currentUser!.uid,
+                  (p) => p.userId == _auth.currentUser!.uid,
                   orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
                 );
                 final bool canRequestCoHost = !widget.isHost && !currentUserParticipant.isCoHost;
@@ -625,25 +721,25 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                   onTap: !canRequestCoHost
                       ? null
                       : () async {
-                    try {
-                      await RoomService.requestToBeCoHost(widget.roomID);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Co-host request sent. Please wait for host approval.'),
-                            backgroundColor: Colors.pink,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      debugPrint("Error requesting to be co-host: $e");
-                      if (mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-                      }
-                    }
-                  },
+                          try {
+                            await RoomService.requestToBeCoHost(widget.roomID);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Co-host request sent. Please wait for host approval.'),
+                                  backgroundColor: Colors.pink,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint("Error requesting to be co-host: $e");
+                            if (mounted) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+                            }
+                          }
+                        },
                   child: Column(
                     children: [
                       Container(
@@ -780,13 +876,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
       onTap: !canLeaveSeat
           ? null
           : () async {
-        try {
-          await RoomService.leaveSeat(widget.roomID);
-          ZegoUIKit().turnMicrophoneOn(false);
-        } catch (e) {
-          debugPrint("Error leaving seat: $e");
-        }
-      },
+              try {
+                await RoomService.leaveSeat(widget.roomID);
+                ZegoUIKit().turnMicrophoneOn(false);
+              } catch (e) {
+                debugPrint("Error leaving seat: $e");
+              }
+            },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -800,22 +896,22 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 child: participant.zegoUser == null
                     ? _buildAvatar(participant)
                     : StreamBuilder<double>(
-                  stream: participant.zegoUser!.soundLevel,
-                  builder: (context, snapshot) {
-                    final isSpeaking = (snapshot.data ?? 0) > 10;
-                    return Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        _buildAvatar(participant, isSpeaking: isSpeaking),
-                        if (isSpeaking)
-                          Transform.scale(
-                            scale: 1.35,
-                            child: SVGAEasyPlayer(assetsName: "assets/svga/talking.svga", fit: BoxFit.cover),
-                          ),
-                      ],
-                    );
-                  },
-                ),
+                        stream: participant.zegoUser!.soundLevel,
+                        builder: (context, snapshot) {
+                          final isSpeaking = (snapshot.data ?? 0) > 10;
+                          return Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              _buildAvatar(participant, isSpeaking: isSpeaking),
+                              if (isSpeaking)
+                                Transform.scale(
+                                  scale: 1.35,
+                                  child: SVGAEasyPlayer(assetsName: "assets/svga/talking.svga", fit: BoxFit.cover),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
               ),
               if (participant.isMuted)
                 Positioned(
@@ -856,10 +952,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
       child: ClipOval(
         child: participant.userPicture != null && participant.userPicture!.isNotEmpty
             ? Image.network(
-          participant.userPicture!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _defaultAvatarContent(participant.userName),
-        )
+                participant.userPicture!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _defaultAvatarContent(participant.userName),
+              )
             : _defaultAvatarContent(participant.userName),
       ),
     );
@@ -887,7 +983,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         itemCount: _messages.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
-            return Padding(
+            return const Padding(
               padding: EdgeInsets.only(bottom: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -925,9 +1021,9 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                           BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
                         ],
                       ),
-                      child: Text(
+                      child: const Text(
                         "Lv 1",
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
@@ -964,11 +1060,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
 
     final bool isSpeakerOrCoHost =
         widget.isHost ||
-            (currentUserParticipant != null && (currentUserParticipant.isCoHost || currentUserParticipant.seatNo > 0));
+        (currentUserParticipant != null && (currentUserParticipant.isCoHost || currentUserParticipant.seatNo > 0));
 
     final bool isListener =
         !widget.isHost &&
-            (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
+        (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
 
     final bool isCurrentlyMuted = currentUserParticipant?.isMuted ?? true;
     final int totalRequests = _coHostRequests.length + _speakerRequests.length;
@@ -990,7 +1086,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 ),
               ),
             ),
-
           if (widget.isHost)
             Padding(
               padding: const EdgeInsets.only(right: 10.0),
@@ -1027,7 +1122,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 ),
               ),
             ),
-
           if (isSpeakerOrCoHost)
             Padding(
               padding: const EdgeInsets.only(right: 10.0),
@@ -1048,7 +1142,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 ),
               ),
             ),
-
           if (isListener)
             Padding(
               padding: const EdgeInsets.only(right: 10.0),
@@ -1087,7 +1180,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                 ),
               ),
             ),
-
           Expanded(
             child: TextField(
               controller: _chatController,
@@ -1104,7 +1196,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
             ),
           ),
           const SizedBox(width: 10),
-
           GestureDetector(
             onTap: _sendMessage,
             child: Container(
@@ -1145,7 +1236,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
   }
 
   void _sendJoinMessage() async {
-    final messageText = "Just joined the room!";
+    const messageText = "Just joined the room!";
     try {
       await ZegoUIKit().sendInRoomMessage(messageText);
     } catch (e) {
