@@ -24,6 +24,7 @@ import '../ui/main_page.dart';
 import '../ui/my_level/my_level_page.dart';
 import '../ui/profile/profile_page.dart';
 import '../ui/store-bag/store_page.dart';
+import '../ui/video_streaming/video_room_page.dart';
 
 class MyRouter {
   static final publicRoutes = {
@@ -113,6 +114,19 @@ class MyRouter {
           child: AudioRoomPage(
               roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
               isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool
+          ),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.videoRoom.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: VideoRoomPage(
+            roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
+            isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool,
           ),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),

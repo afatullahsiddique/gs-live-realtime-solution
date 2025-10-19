@@ -1,9 +1,32 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Permissions for Camera -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Permissions for Audio -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Permissions for Bluetooth (for headsets, etc.) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+
+    <!-- Feature declarations for Google Play Store filtering -->
+    <!-- This tells the store that camera is an optional feature -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+
+    <!-- This tells the store that microphone is an optional feature -->
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
 
     <application
         android:name="${applicationName}"

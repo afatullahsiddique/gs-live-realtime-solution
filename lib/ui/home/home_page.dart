@@ -1,3 +1,6 @@
+import 'dart:developer';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cute_live/ui/home/tabs/party_tab.dart';
 import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
@@ -7,10 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:rxdart/rxdart.dart';
 import 'dart:ui';
 
 import '../../core/cubits/app_cubit.dart';
 import '../../data/remote/firebase/room_services.dart';
+import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
 import 'home_cubit.dart';
@@ -24,6 +29,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late Stream<List<StreamerModel>> _allRoomsStream;
 
   // Dummy data for streamers
   final List<StreamerModel> _streamers = [
@@ -69,6 +75,53 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+
+    // Get the individual streams
+    final audioRoomsStream = RoomService.getAllRooms();
+    final videoRoomsStream = VideoRoomService.getAllRooms();
+
+    _allRoomsStream = CombineLatestStream.combine2(audioRoomsStream, videoRoomsStream, (
+        QuerySnapshot audioSnapshot,
+        QuerySnapshot videoSnapshot,
+        ) {
+      final List<StreamerModel> liveRooms = [];
+
+      for (var doc in audioSnapshot.docs) {
+        var roomData = doc.data() as Map<String, dynamic>;
+        liveRooms.add(
+          StreamerModel(
+            id: doc.id,
+            name: roomData['hostName'] ?? 'Unknown Host',
+            imageUrl: roomData['hostPicture'],
+            bio: '',
+            viewCount: roomData['participantCount'] ?? 0,
+            isVideo: false,
+            isLocked: roomData['isLocked'] ?? false,
+          ),
+        );
+      }
+
+      // Process video rooms from the videoSnapshot
+      for (var doc in videoSnapshot.docs) {
+        var roomData = doc.data() as Map<String, dynamic>;
+        liveRooms.add(
+          StreamerModel(
+            id: doc.id,
+            name: roomData['hostName'] ?? 'Unknown Host',
+            imageUrl: roomData['hostPicture'],
+            bio: '',
+            viewCount: roomData['participantCount'] ?? 0,
+            isVideo: true,
+            isLocked: roomData['isLocked'] ?? false,
+          ),
+        );
+      }
+
+      debugPrint("Processed ${liveRooms.length} active rooms in real-time.");
+      // Sort the combined list
+      liveRooms.sort((a, b) => b.viewCount.compareTo(a.viewCount));
+      return liveRooms;
+    });
   }
 
   @override
@@ -256,92 +309,79 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildPopularGrid() {
-    return StreamBuilder(
-      stream: RoomService.getAllRooms(),
-      builder: (context, snapshot) {
-        final List<StreamerModel> streamers = [];
-        if (snapshot.hasError) {
-          print('Error: ${snapshot.error}');
-          return Text('Error loading rooms');
-        }
-
-        if (!snapshot.hasData) {
-          return Padding(
-            padding: const EdgeInsets.all(50),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        streamers.addAll(_streamers);
-        for (var doc in snapshot.data!.docs) {
-          var roomData = doc.data() as Map<String, dynamic>;
-          print('Room Name: ${roomData['roomName']}');
-          streamers.add(
-            StreamerModel(
-              id: doc.id,
-              name: roomData['hostName'],
-              bio: '',
-              viewCount: 987,
-              imageUrl: roomData['hostPicture'] ?? "",
-              isPremium: false,
-              isVideo: false,
-              isLocked: roomData['isLocked']?? false,
+    return Column(
+      children: [
+        // Grid for your static dummy data
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(top: 10, bottom: 0),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: .9,
             ),
-          );
-        }
+            itemCount: 2,
+            // Showing first 2 static items
+            itemBuilder: (context, index) {
+              return AnimatedStreamerCard(streamer: _streamers[index], index: index);
+            },
+          ),
+        ),
+        // Your static banner
+        CarouselBanner(
+          imageUrls: BannerUrls.liveStreamingBanners,
+          height: 120,
+          autoPlayDuration: const Duration(seconds: 4),
+          onBannerTap: (index) {
+            print('Banner $index tapped');
+          },
+        ),
+        // This StreamBuilder now correctly receives and displays live updates
+        StreamBuilder<List<StreamerModel>>(
+          stream: _allRoomsStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              log("Error in StreamBuilder: ${snapshot.error}");
+              return Center(
+                child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
+              );
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const SizedBox.shrink(); // Show nothing if no live rooms
+            }
 
-        return Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              child: GridView.builder(
-                shrinkWrap: true,
-                // Add this line
-                physics: const NeverScrollableScrollPhysics(),
-                // Add this line
-                padding: const EdgeInsets.only(top: 16, bottom: 16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: .9,
-                ),
-                itemCount: 2,
-                itemBuilder: (context, index) {
-                  return AnimatedStreamerCard(streamer: streamers[index], index: index);
-                },
-              ),
-            ),
-            CarouselBanner(
-              imageUrls: BannerUrls.liveStreamingBanners,
-              height: 120,
-              autoPlayDuration: const Duration(seconds: 4),
-              onBannerTap: (index) {
-                // Handle banner tap
-                print('Banner $index tapped');
-              },
-            ),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
+            final liveRooms = snapshot.data!;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 10, bottom: 10),
+                padding: const EdgeInsets.only(top: 0, bottom: 10),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
                   childAspectRatio: .9,
                 ),
-                itemCount: streamers.length - 2,
+                itemCount: liveRooms.length,
                 itemBuilder: (context, index) {
-                  return AnimatedStreamerCard(streamer: streamers[index + 2]);
+                  return AnimatedStreamerCard(streamer: liveRooms[index]);
                 },
               ),
-            ),
-          ],
-        );
-      },
+            );
+          },
+        ),
+      ],
     );
   }
 }

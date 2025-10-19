@@ -34,6 +34,8 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
               "isHost": false,
             },
           );
+        } else {
+          context.push(Routes.videoRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
         }
       },
       child: Stack(
@@ -51,7 +53,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                     children: [
                       // Background Image
                       Image.network(
-                        widget.streamer.imageUrl??"",
+                        widget.streamer.imageUrl ?? "",
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
@@ -68,7 +70,9 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                       ),
 
                       if (widget.index == 0)
-                        Positioned.fill(child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_1.svga", fit: BoxFit.cover,)),
+                        Positioned.fill(
+                          child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_1.svga", fit: BoxFit.cover),
+                        ),
                       if (widget.index == 1)
                         Positioned.fill(child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_2.svga")),
 
@@ -116,7 +120,6 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                   ),
                                 ),
                                 SizedBox(width: 8),
-
                                 if (widget.streamer.isLocked)
                                   Container(
                                     decoration: BoxDecoration(

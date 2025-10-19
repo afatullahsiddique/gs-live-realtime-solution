@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/remote/firebase/room_services.dart';
+import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
 
@@ -51,7 +52,7 @@ class _HostPageState extends State<HostPage> {
             style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const Spacer(),
-          const SizedBox(width: 48),
+          const SizedBox(width: 48), // Balance the back button
         ],
       ),
     );
@@ -139,7 +140,6 @@ class _HostPageState extends State<HostPage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          // MODIFIED: onTap now calls a direct creation method
           onTap: _startLive,
           borderRadius: BorderRadius.circular(30),
           child: Container(
@@ -175,14 +175,16 @@ class _HostPageState extends State<HostPage> {
 
   Future<void> _startLive() async {
     try {
-      String roomId = await RoomService.createRoom();
-
-      if (!mounted) return;
-
-      if (!isVideoParty) {
-        context.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
+      if (isVideoParty) {
+        // Create a video room and navigate to the VideoRoomPage
+        String roomId = await VideoRoomService.createRoom();
+        if (!mounted) return;
+        context.pushReplacement(Routes.videoRoom.path, extra: {"roomId": roomId, "isHost": true});
       } else {
-        // TODO: Implement navigation for Video Party
+        // Create an audio room and navigate to the AudioRoomPage
+        String roomId = await RoomService.createRoom();
+        if (!mounted) return;
+        context.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
       }
     } catch (e) {
       if (!mounted) return;

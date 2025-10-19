@@ -21,7 +21,8 @@ enum Routes {
   vip,
   myInvites,
   visitors,
-  hostPage
+  hostPage,
+  videoRoom
 }
 
 extension RoutesExtension on Routes {
@@ -75,6 +76,8 @@ extension RoutesExtension on Routes {
         return '/visitors';
       case Routes.hostPage:
         return '/hostPage';
+      case Routes.videoRoom:
+        return '/videoRoom';
     }
   }
 }
