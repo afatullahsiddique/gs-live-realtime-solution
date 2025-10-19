@@ -14,6 +14,7 @@ import 'package:rxdart/rxdart.dart';
 import 'dart:ui';
 
 import '../../core/cubits/app_cubit.dart';
+import '../../data/remote/firebase/live_streaming_services.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
@@ -79,49 +80,76 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Get the individual streams
     final audioRoomsStream = RoomService.getAllRooms();
     final videoRoomsStream = VideoRoomService.getAllRooms();
+    final liveStreamsStream = LiveStreamService.getAllRooms(); // --- 3. GET NEW STREAM ---
 
-    _allRoomsStream = CombineLatestStream.combine2(audioRoomsStream, videoRoomsStream, (
-        QuerySnapshot audioSnapshot,
-        QuerySnapshot videoSnapshot,
-        ) {
-      final List<StreamerModel> liveRooms = [];
+    // --- 3. UPGRADE TO combine3 ---
+    _allRoomsStream = CombineLatestStream.combine3(
+        audioRoomsStream,
+        videoRoomsStream,
+        liveStreamsStream, // Add new stream
+            (
+            QuerySnapshot audioSnapshot,
+            QuerySnapshot videoSnapshot,
+            QuerySnapshot liveStreamSnapshot, // Add new snapshot
+            ) {
+          final List<StreamerModel> liveRooms = [];
 
-      for (var doc in audioSnapshot.docs) {
-        var roomData = doc.data() as Map<String, dynamic>;
-        liveRooms.add(
-          StreamerModel(
-            id: doc.id,
-            name: roomData['hostName'] ?? 'Unknown Host',
-            imageUrl: roomData['hostPicture'],
-            bio: '',
-            viewCount: roomData['participantCount'] ?? 0,
-            isVideo: false,
-            isLocked: roomData['isLocked'] ?? false,
-          ),
-        );
-      }
+          // Process audio rooms
+          for (var doc in audioSnapshot.docs) {
+            var roomData = doc.data() as Map<String, dynamic>;
+            liveRooms.add(
+              StreamerModel(
+                id: doc.id,
+                name: roomData['hostName'] ?? 'Unknown Host',
+                imageUrl: roomData['hostPicture'],
+                bio: '',
+                viewCount: roomData['participantCount'] ?? 0,
+                isVideo: false,
+                isLocked: roomData['isLocked'] ?? false,
+                isLiveStream: false, // --- 2. ADD NEW FLAG ---
+              ),
+            );
+          }
 
-      // Process video rooms from the videoSnapshot
-      for (var doc in videoSnapshot.docs) {
-        var roomData = doc.data() as Map<String, dynamic>;
-        liveRooms.add(
-          StreamerModel(
-            id: doc.id,
-            name: roomData['hostName'] ?? 'Unknown Host',
-            imageUrl: roomData['hostPicture'],
-            bio: '',
-            viewCount: roomData['participantCount'] ?? 0,
-            isVideo: true,
-            isLocked: roomData['isLocked'] ?? false,
-          ),
-        );
-      }
+          // Process video rooms
+          for (var doc in videoSnapshot.docs) {
+            var roomData = doc.data() as Map<String, dynamic>;
+            liveRooms.add(
+              StreamerModel(
+                id: doc.id,
+                name: roomData['hostName'] ?? 'Unknown Host',
+                imageUrl: roomData['hostPicture'],
+                bio: '',
+                viewCount: roomData['participantCount'] ?? 0,
+                isVideo: true,
+                isLocked: roomData['isLocked'] ?? false,
+                isLiveStream: false, // --- 2. ADD NEW FLAG ---
+              ),
+            );
+          }
 
-      debugPrint("Processed ${liveRooms.length} active rooms in real-time.");
-      // Sort the combined list
-      liveRooms.sort((a, b) => b.viewCount.compareTo(a.viewCount));
-      return liveRooms;
-    });
+          // --- 3. PROCESS NEW LIVE STREAMS ---
+          for (var doc in liveStreamSnapshot.docs) {
+            var roomData = doc.data() as Map<String, dynamic>;
+            liveRooms.add(
+              StreamerModel(
+                id: doc.id,
+                name: roomData['hostName'] ?? 'Unknown Host',
+                imageUrl: roomData['hostPicture'],
+                bio: '',
+                viewCount: roomData['participantCount'] ?? 0,
+                isVideo: true, // A live stream shows video
+                isLocked: roomData['isLocked'] ?? false,
+                isLiveStream: true, // --- 2. SET NEW FLAG ---
+              ),
+            );
+          }
+
+          debugPrint("Processed ${liveRooms.length} active rooms in real-time.");
+          // Sort the combined list
+          liveRooms.sort((a, b) => b.viewCount.compareTo(a.viewCount));
+          return liveRooms;
+        });
   }
 
   @override
@@ -386,6 +414,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 }
 
+// --- 2. MODIFY StreamerModel ---
 class StreamerModel {
   final String id;
   final String name;
@@ -395,6 +424,7 @@ class StreamerModel {
   final bool isPremium;
   final bool isVideo;
   final bool isLocked;
+  final bool isLiveStream; // --- ADDED THIS LINE ---
 
   const StreamerModel({
     required this.id,
@@ -405,5 +435,6 @@ class StreamerModel {
     this.isPremium = false,
     this.isVideo = true,
     this.isLocked = false,
+    this.isLiveStream = false, // --- ADDED THIS LINE (with default) ---
   });
 }

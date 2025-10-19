@@ -24,8 +24,19 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      // --- MODIFIED: Navigation Logic ---
       onTap: () {
-        if (!widget.streamer.isVideo) {
+        // 1. Check for Live Stream first
+        if (widget.streamer.isLiveStream) {
+          context.push(
+            Routes.liveStream.path, // Navigate to the new Live Stream page
+            extra: {"roomId": widget.streamer.id, "isHost": false},
+          );
+        }
+        // 2. Fallback to checking for Video vs Audio room
+        else if (widget.streamer.isVideo) {
+          context.push(Routes.videoRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
+        } else {
           context.push(
             Routes.audioRoom.path,
             extra: {
@@ -34,8 +45,6 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
               "isHost": false,
             },
           );
-        } else {
-          context.push(Routes.videoRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
         }
       },
       child: Stack(
@@ -82,7 +91,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // View Count
+                            // Top Row: View Count, Lock Icon, and Live Badge
                             Row(
                               children: [
                                 ClipRRect(
@@ -103,8 +112,6 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                             color: Colors.pink.shade300,
                                             size: widget.streamer.isVideo ? 14 : 16,
                                           ),
-                                          // const SizedBox(width: 4),
-                                          // Icon(Icons.visibility_rounded, color: Colors.grey, size: 14),
                                           const SizedBox(width: 4),
                                           Text(
                                             formatViewCount(widget.streamer.viewCount),
@@ -119,7 +126,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
                                 if (widget.streamer.isLocked)
                                   Container(
                                     decoration: BoxDecoration(
@@ -136,7 +143,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     borderRadius: BorderRadius.circular(8),
                                     gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.purple.shade400]),
                                   ),
-                                  child: const LiveWaveWidget(), // Replace Text with your custom widget
+                                  child: const LiveWaveWidget(),
                                 ),
                               ],
                             ),

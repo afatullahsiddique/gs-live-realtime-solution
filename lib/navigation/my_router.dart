@@ -1,5 +1,6 @@
 import 'package:cute_live/ui/auth/registration/register_page.dart';
 import 'package:cute_live/ui/earnings/earnings_page.dart';
+import 'package:cute_live/ui/live_streaming/live_room_page.dart';
 import 'package:cute_live/ui/my_invites/my_invites_page.dart';
 import 'package:cute_live/ui/profile_visitors/profile_visitors_page.dart';
 import 'package:cute_live/ui/status/status_page.dart';
@@ -125,6 +126,19 @@ class MyRouter {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: VideoRoomPage(
+            roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
+            isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool,
+          ),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.liveStream.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: LiveStreamPage(
             roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
             isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool,
           ),

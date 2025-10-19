@@ -1,10 +1,16 @@
+// lib/ui/host/host_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/remote/firebase/live_streaming_services.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
+
+// Enum to manage the selected party type
+enum PartyType { voice, video, stream }
 
 class HostPage extends StatefulWidget {
   const HostPage({super.key});
@@ -14,7 +20,8 @@ class HostPage extends StatefulWidget {
 }
 
 class _HostPageState extends State<HostPage> {
-  bool isVideoParty = false;
+  // Use the enum for state
+  PartyType _selectedPartyType = PartyType.voice;
 
   @override
   Widget build(BuildContext context) {
@@ -58,26 +65,36 @@ class _HostPageState extends State<HostPage> {
     );
   }
 
+  // --- MODIFIED: Party Type Selector ---
   Widget _buildPartyTypeSelector() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
+      margin: const EdgeInsets.symmetric(horizontal: 20), // Reduced horizontal margin to fit 3
       child: Row(
         children: [
           Expanded(
             child: _buildPartyOption(
               icon: Icons.mic_rounded,
               label: 'Voice Party',
-              isSelected: !isVideoParty,
-              onTap: () => setState(() => isVideoParty = false),
+              isSelected: _selectedPartyType == PartyType.voice,
+              onTap: () => setState(() => _selectedPartyType = PartyType.voice),
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: _buildPartyOption(
               icon: Icons.videocam_rounded,
               label: 'Video Party',
-              isSelected: isVideoParty,
-              onTap: () => setState(() => isVideoParty = true),
+              isSelected: _selectedPartyType == PartyType.video,
+              onTap: () => setState(() => _selectedPartyType = PartyType.video),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildPartyOption(
+              icon: Icons.cell_tower, // New icon for streaming
+              label: 'Live Stream',
+              isSelected: _selectedPartyType == PartyType.stream,
+              onTap: () => setState(() => _selectedPartyType = PartyType.stream),
             ),
           ),
         ],
@@ -96,15 +113,15 @@ class _HostPageState extends State<HostPage> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12), // Adjusted padding
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: isSelected
               ? LinearGradient(
-                  colors: [AppColors.pink400, AppColors.pink600],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
+            colors: [AppColors.pink400, AppColors.pink600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
               : null,
           color: isSelected ? null : Colors.black.withOpacity(0.3),
           border: Border.all(
@@ -118,15 +135,16 @@ class _HostPageState extends State<HostPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 50, color: isSelected ? Colors.white : Colors.white.withOpacity(0.6)),
+            Icon(icon, size: 40, color: isSelected ? Colors.white : Colors.white.withOpacity(0.6)), // Smaller icon
             const SizedBox(height: 12),
             Text(
               label,
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
-                fontSize: 16,
+                fontSize: 14, // Smaller text
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -135,6 +153,7 @@ class _HostPageState extends State<HostPage> {
   }
 
   Widget _buildStartLiveButton() {
+    // This widget remains unchanged
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 40),
       child: Material(
@@ -173,18 +192,28 @@ class _HostPageState extends State<HostPage> {
     );
   }
 
+  // --- MODIFIED: _startLive Method ---
   Future<void> _startLive() async {
     try {
-      if (isVideoParty) {
-        // Create a video room and navigate to the VideoRoomPage
-        String roomId = await VideoRoomService.createRoom();
-        if (!mounted) return;
-        context.pushReplacement(Routes.videoRoom.path, extra: {"roomId": roomId, "isHost": true});
-      } else {
-        // Create an audio room and navigate to the AudioRoomPage
-        String roomId = await RoomService.createRoom();
-        if (!mounted) return;
-        context.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
+      switch (_selectedPartyType) {
+        case PartyType.voice:
+          String roomId = await RoomService.createRoom();
+          if (!mounted) return;
+          context.pushReplacement(Routes.audioRoom.path, extra: {"roomId": roomId, "isHost": true});
+          break;
+        case PartyType.video:
+          String roomId = await VideoRoomService.createRoom();
+          if (!mounted) return;
+          context.pushReplacement(Routes.videoRoom.path, extra: {"roomId": roomId, "isHost": true});
+          break;
+        case PartyType.stream:
+          String roomId = await LiveStreamService.createRoom();
+          if (!mounted) return;
+          // **NOTE**: You must define this route in your GoRouter configuration.
+          // Example: '/live-stream'
+          // I'll assume you have a route constant for it like `Routes.liveStream.path`
+          context.pushReplacement(Routes.liveStream.path, extra: {"roomId": roomId, "isHost": true});
+          break;
       }
     } catch (e) {
       if (!mounted) return;
