@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../data/local/secure_storage/secure_storage.dart';
+import '../../../data/remote/firebase/profile_services.dart';
 import 'login_state.dart';
 
 class LoginCubit extends Cubit<LoginState> {
@@ -47,6 +48,11 @@ class LoginCubit extends Cubit<LoginState> {
       );
 
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      try {
+        await ProfileService.syncUserProfile();
+      } catch (profileError) {
+        print("Error syncing user profile: $profileError");
+      }
 
       final User? user = User(
         id: userCredential.user!.uid,

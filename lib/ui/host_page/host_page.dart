@@ -22,6 +22,7 @@ class HostPage extends StatefulWidget {
 class _HostPageState extends State<HostPage> {
   // Use the enum for state
   PartyType _selectedPartyType = PartyType.voice;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -113,15 +114,16 @@ class _HostPageState extends State<HostPage> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12), // Adjusted padding
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        // Adjusted padding
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: isSelected
               ? LinearGradient(
-            colors: [AppColors.pink400, AppColors.pink600],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
+                  colors: [AppColors.pink400, AppColors.pink600],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
               : null,
           color: isSelected ? null : Colors.black.withOpacity(0.3),
           border: Border.all(
@@ -153,39 +155,62 @@ class _HostPageState extends State<HostPage> {
   }
 
   Widget _buildStartLiveButton() {
-    // This widget remains unchanged
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 40),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: _startLive,
+          // 1. Disable button when loading
+          onTap: _isLoading ? null : _startLive,
           borderRadius: BorderRadius.circular(30),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 18),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(30),
-              gradient: LinearGradient(
-                colors: [AppColors.pink400, AppColors.pink600],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              boxShadow: [
-                BoxShadow(color: AppColors.primary.withOpacity(0.6), blurRadius: 25, offset: const Offset(0, 10)),
-                BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 40, offset: const Offset(0, 15)),
-              ],
+              // 3. Change gradient when loading
+              gradient: _isLoading
+                  ? LinearGradient(
+                      colors: [Colors.grey.shade700, Colors.grey.shade800],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    )
+                  : LinearGradient(
+                      colors: [AppColors.pink400, AppColors.pink600],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+              boxShadow: _isLoading
+                  ? null
+                  : [
+                      BoxShadow(color: AppColors.primary.withOpacity(0.6), blurRadius: 25, offset: const Offset(0, 10)),
+                      BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 40, offset: const Offset(0, 15)),
+                    ],
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.fiber_manual_record, color: Colors.white, size: 20),
-                SizedBox(width: 10),
-                Text(
-                  'Start Live',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                ),
-              ],
-            ),
+            // 2. Show loading indicator
+            child: _isLoading
+                ? const Center(
+                    child: SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                    ),
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.fiber_manual_record, color: Colors.white, size: 20),
+                      SizedBox(width: 10),
+                      Text(
+                        'Start Live',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -194,6 +219,12 @@ class _HostPageState extends State<HostPage> {
 
   // --- MODIFIED: _startLive Method ---
   Future<void> _startLive() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       switch (_selectedPartyType) {
         case PartyType.voice:
@@ -218,6 +249,9 @@ class _HostPageState extends State<HostPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error creating room: ${e.toString()}")));
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 }
