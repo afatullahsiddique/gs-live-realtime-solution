@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart';
+import '../../../data/remote/firebase/profile_services.dart';
 import '../video_room_page.dart';
 
 /// A bottom sheet that displays a list of all participants in the video room.
@@ -6,12 +9,14 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
   final List<VideoParticipant> participants;
   final String currentUserId;
   final String hostId; // To identify the host
+  final String roomId;
 
   const VideoParticipantsBottomSheet({
     super.key,
     required this.participants,
     required this.currentUserId,
     required this.hostId,
+    required this.roomId
   });
 
   @override
@@ -43,7 +48,7 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
             itemCount: sortedParticipants.length,
             itemBuilder: (context, index) {
               final participant = sortedParticipants[index];
-              return _buildParticipantTile(participant);
+              return _buildParticipantTile(context, participant);
             },
           ),
         ),
@@ -52,12 +57,22 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
   }
 
   /// Builds a single row for a participant in the list.
-  Widget _buildParticipantTile(VideoParticipant participant) {
-    // Determine the role for the subtitle
+  Widget _buildParticipantTile(BuildContext context, VideoParticipant participant) {
     final String role = participant.userId == hostId ? 'Host' : 'Participant';
     final bool isCurrentUser = participant.userId == currentUserId;
 
     return ListTile(
+      onTap: () {
+        // Close this bottom sheet first
+        Navigator.of(context).pop();
+        // Show the new profile bottom sheet
+        showProfileInfoBottomSheet(
+          context,
+          userId: participant.userId,
+          hostId: hostId,
+          roomId: roomId
+        );
+      },
       leading: CircleAvatar(
         backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
             ? NetworkImage(participant.userPicture!)
@@ -74,6 +89,43 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
         ),
       ),
       subtitle: Text(role, style: const TextStyle(color: Colors.white70)),
+      // --- Follow/Unfollow Button ---
+      trailing: isCurrentUser
+          ? null
+          : StreamBuilder<bool>(
+        stream: ProfileService.isFollowing(participant.userId),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const SizedBox(width: 80, child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))));
+          }
+
+          final bool isFollowing = snapshot.data ?? false;
+
+          return ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isFollowing ? Colors.grey.shade800 : Colors.pink,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            onPressed: () async {
+              try {
+                if (isFollowing) {
+                  await ProfileService.unfollowUser(participant.userId);
+                } else {
+                  await ProfileService.followUser(participant.userId);
+                }
+              } catch (e) {
+                debugPrint('Error following/unfollowing user: $e');
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              }
+            },
+            child: Text(isFollowing ? 'Following' : 'Follow'),
+          );
+        },
+      ),
     );
   }
 }
@@ -83,6 +135,7 @@ void showVideoParticipantsBottomSheet(BuildContext context, {
   required List<VideoParticipant> participants,
   required String currentUserId,
   required String hostId,
+  required String roomId
 }) {
   showModalBottomSheet(
     context: context,
@@ -95,6 +148,7 @@ void showVideoParticipantsBottomSheet(BuildContext context, {
           participants: participants,
           currentUserId: currentUserId,
           hostId: hostId,
+          roomId: roomId,
         ),
       );
     },

@@ -7,14 +7,10 @@ class _ToolItem {
   final IconData icon;
   final Color iconBgColor;
 
-  _ToolItem({
-    required this.label,
-    required this.icon,
-    required this.iconBgColor,
-  });
+  _ToolItem({required this.label, required this.icon, required this.iconBgColor});
 }
 
-final List<_ToolItem> _tools = [
+final List<_ToolItem> _hostTools = [
   _ToolItem(label: 'Share', icon: Icons.share, iconBgColor: Colors.blue.shade700),
   _ToolItem(label: 'Inbox', icon: CupertinoIcons.mail_solid, iconBgColor: Colors.red.shade700),
   _ToolItem(label: 'Invite PK', icon: Icons.people_outline, iconBgColor: Colors.orange.shade700),
@@ -26,19 +22,22 @@ final List<_ToolItem> _tools = [
   _ToolItem(label: 'Games', icon: Icons.games_outlined, iconBgColor: Colors.green.shade700),
   _ToolItem(label: 'Random PK', icon: Icons.shuffle, iconBgColor: Colors.deepOrange.shade600),
   _ToolItem(label: 'Block', icon: Icons.block, iconBgColor: Colors.grey.shade700),
-  _ToolItem(label: 'Voice', icon: Icons.record_voice_over_outlined, iconBgColor: Colors.lightBlue.shade700),
-  _ToolItem(label: 'Control', icon: Icons.settings_outlined, iconBgColor: Colors.blueGrey.shade600),
+  _ToolItem(label: 'Voice Control', icon: Icons.record_voice_over_outlined, iconBgColor: Colors.lightBlue.shade700),
+];
+
+final List<_ToolItem> _guestTools = [
+  _ToolItem(label: 'Share', icon: Icons.share, iconBgColor: Colors.blue.shade700),
+  _ToolItem(label: 'Inbox', icon: CupertinoIcons.mail_solid, iconBgColor: Colors.red.shade700),
+  _ToolItem(label: 'Speaker', icon: CupertinoIcons.speaker_2_fill, iconBgColor: Colors.blue.shade600),
+  _ToolItem(label: 'Games', icon: Icons.games_outlined, iconBgColor: Colors.green.shade700),
 ];
 
 class ToolsBottomSheet extends StatelessWidget {
   final List<PKInvite> pendingInvites;
   final String currentRoomId;
+  final bool isHost;
 
-  const ToolsBottomSheet({
-    super.key,
-    required this.pendingInvites,
-    required this.currentRoomId,
-  });
+  const ToolsBottomSheet({super.key, required this.pendingInvites, required this.currentRoomId, required this.isHost});
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +60,7 @@ class ToolsBottomSheet extends StatelessWidget {
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _tools.length,
+                itemCount: isHost ? _hostTools.length : _guestTools.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
                   crossAxisSpacing: 16.0,
@@ -69,17 +68,13 @@ class ToolsBottomSheet extends StatelessWidget {
                   childAspectRatio: 0.8,
                 ),
                 itemBuilder: (context, index) {
-                  final tool = _tools[index];
+                  final tool = isHost ? _hostTools[index] : _guestTools[index];
 
                   VoidCallback onTapLogic;
                   if (tool.label == 'Invite PK') {
                     onTapLogic = () {
                       Navigator.pop(context);
-                      showInvitePKBottomSheet(
-                        context,
-                        pendingInvites: pendingInvites,
-                        currentRoomId: currentRoomId,
-                      );
+                      showInvitePKBottomSheet(context, pendingInvites: pendingInvites, currentRoomId: currentRoomId);
                     };
                   } else {
                     onTapLogic = () {
@@ -140,19 +135,17 @@ class ToolsBottomSheet extends StatelessWidget {
 }
 
 void showToolsBottomSheet(
-    BuildContext context, {
-      required List<PKInvite> pendingInvites,
-      required String currentRoomId,
-    }) {
+  BuildContext context, {
+  required List<PKInvite> pendingInvites,
+  required String currentRoomId,
+  required bool isHost,
+}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF2d1b2b),
     isScrollControlled: true,
     builder: (context) {
-      return ToolsBottomSheet(
-        pendingInvites: pendingInvites,
-        currentRoomId: currentRoomId,
-      );
+      return ToolsBottomSheet(pendingInvites: pendingInvites, currentRoomId: currentRoomId, isHost: isHost);
     },
   );
 }

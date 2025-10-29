@@ -8,12 +8,12 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
 import '../../data/remote/firebase/room_services.dart';
+import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
+import '../video_streaming/bottomsheets/profile_info_bottomsheet.dart';
 import 'bottomsheets/participants_bottomsheet.dart';
 import 'bottomsheets/requests_bottomsheet.dart';
-import 'bottomsheets/room_settings_bottomsheet.dart';
 
-// ... (CoHostRequest, SpeakerRequest, RoomParticipant, ChatMessage classes are unchanged)
 class CoHostRequest {
   final String requestId;
   final String userId;
@@ -56,10 +56,10 @@ class RoomParticipant {
   final String userId;
   final String userName;
   final String? userPicture;
-  final int seatNo; // -1: listener, 0: host, >0: speaker seat
+  final int seatNo;
   final bool isCoHost;
   final bool isMuted;
-  final ZegoUIKitUser? zegoUser; // Holds live Zego data for sound level, etc.
+  final ZegoUIKitUser? zegoUser;
 
   RoomParticipant({
     required this.userId,
@@ -97,11 +97,12 @@ class RoomParticipant {
 }
 
 class ChatMessage {
+  final String userId;
   final String username;
   final String message;
   final DateTime timestamp;
 
-  ChatMessage({required this.username, required this.message, required this.timestamp});
+  ChatMessage({required this.userId, required this.username, required this.message, required this.timestamp});
 }
 
 class AudioRoomPage extends StatefulWidget {
@@ -114,7 +115,7 @@ class AudioRoomPage extends StatefulWidget {
   State<AudioRoomPage> createState() => _AudioRoomPageState();
 }
 
-class _AudioRoomPageState extends State<AudioRoomPage> {
+class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProviderStateMixin {
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -135,10 +136,46 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
   int _participantCount = 0;
   bool _isInitialized = false;
   bool _isMoveAllowed = true;
+  bool _isSeatApprovalRequired = true;
+
+  Duration welcomeTime = Duration(milliseconds: 6500);
+
+  Timer? _joinAnimationTimer;
+  String? _newJoinerName;
+
+  // Animation Variables
+  late AnimationController _joinAnimationController;
+  late Animation<Offset> _joinAnimationOffset;
 
   @override
   void initState() {
     super.initState();
+
+    _joinAnimationController = AnimationController(duration: welcomeTime, vsync: this);
+
+    _joinAnimationOffset = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(1.5, 0.0),
+          end: const Offset(0.0, 0.0),
+        ).chain(CurveTween(curve: Curves.linear)),
+        weight: 3.0, // 2 parts of the duration
+      ),
+      // Phase 2: Stay in center (1 second)
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.0, 0.0)),
+        weight: 3.0, // 3 part of the duration
+      ),
+      // Phase 3: Move out to left (2 seconds)
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.0, 0.0),
+          end: const Offset(-1.5, 0.0),
+        ).chain(CurveTween(curve: Curves.linear)),
+        weight: 2.0, // 2 parts of the duration
+      ),
+    ]).animate(_joinAnimationController);
+
     _initialize();
   }
 
@@ -151,6 +188,9 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     _coHostRequestsSubscription?.cancel();
     _chatController.dispose();
     _chatScrollController.dispose();
+    _joinAnimationTimer?.cancel();
+
+    _joinAnimationController.dispose();
 
     if (_isInitialized) {
       if (widget.isHost) {
@@ -165,7 +205,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     super.dispose();
   }
 
-  // ... (All initialization and dialog logic is unchanged)
   Future<void> _initialize() async {
     try {
       final roomDoc = await RoomService.getRoomInfo(widget.roomID);
@@ -302,6 +341,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
           roomData = doc.data() as Map<String, dynamic>;
           _participantCount = roomData['participantCount'] ?? 0;
           _isMoveAllowed = roomData['isMoveAllowed'] ?? true;
+          _isSeatApprovalRequired = roomData['isSeatApprovalRequired'] ?? true;
         });
       } else {
         if (mounted) context.pop();
@@ -311,7 +351,14 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     _messageSubscription = ZegoUIKit().getInRoomMessageStream().listen((message) {
       if (mounted) {
         setState(() {
-          _messages.add(ChatMessage(username: message.user.name, message: message.message, timestamp: DateTime.now()));
+          _messages.add(
+            ChatMessage(
+              userId: message.user.id,
+              username: message.user.name,
+              message: message.message,
+              timestamp: DateTime.now(),
+            ),
+          );
           _scrollToBottom();
         });
       }
@@ -329,6 +376,18 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         }
       }).toList();
 
+      if (_participants.isNotEmpty && _newJoinerName == null) {
+        final oldParticipantIds = _participants.map((p) => p.userId).toSet();
+        final newGuest = updatedParticipants.firstWhere(
+          (p) => !oldParticipantIds.contains(p.userId) && p.userId != _auth.currentUser!.uid,
+          orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
+        );
+
+        if (newGuest.userId.isNotEmpty) {
+          _showJoinAnimation(newGuest.userName);
+        }
+      }
+
       if (mounted) setState(() => _participants = updatedParticipants);
     });
 
@@ -344,6 +403,22 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         }
       });
     }
+  }
+
+  void _showJoinAnimation(String userName) {
+    _joinAnimationTimer?.cancel();
+
+    _joinAnimationController.forward(from: 0.0);
+
+    setState(() {
+      _newJoinerName = userName;
+    });
+
+    _joinAnimationTimer = Timer(welcomeTime, () {
+      setState(() {
+        _newJoinerName = null;
+      });
+    });
   }
 
   Future<void> _showSetPasswordDialog() async {
@@ -517,20 +592,18 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
           ),
           child: SafeArea(
             child: _isInitialized
-                ? Column(
+                ? Stack(
                     children: [
-                      _buildAppBar(),
-                      Column(children: [const SizedBox(height: 10), _buildStreamerProfile(), _buildSeatsGrid()]),
-                      // MODIFIED: Wrapped the chat section in a Stack to allow for the button overlay
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            _buildChatSection(),
-                            _buildJoinCallOverlay(), // The new button
-                          ],
-                        ),
+                      Column(
+                        children: [
+                          _buildAppBar(),
+                          _buildHostStatsRow(),
+                          Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
+                          Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
+                          _buildChatInput(),
+                        ],
                       ),
-                      _buildChatInput(),
+                      Center(child: _buildJoinAnimationOverlay()),
                     ],
                   )
                 : const Center(child: CircularProgressIndicator(color: Colors.pink)),
@@ -540,29 +613,145 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
-  Widget _buildAppBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0),
-      child: Row(
-        children: [
-          CircleAvatar(radius: 20, backgroundImage: NetworkImage(roomData['hostPicture'] ?? '')),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  roomData["hostName"],
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+  Widget _buildJoinAnimationOverlay() {
+    return Visibility(
+      visible: _newJoinerName != null,
+      child: Container(
+        width: double.infinity,
+        height: 60,
+        margin: EdgeInsets.zero,
+        child: Stack(
+          fit: StackFit.expand,
+          alignment: Alignment.center,
+          children: [
+            SVGAEasyPlayer(assetsName: "assets/svga/welcome.svga", fit: BoxFit.cover),
+            SlideTransition(
+              position: _joinAnimationOffset,
+              child: Center(
+                child: Text(
+                  '${_newJoinerName ?? ''} joined!',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    shadows: [BoxShadow(color: Colors.black54, blurRadius: 4, spreadRadius: 2)],
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text('ID: ${widget.roomID}', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    final String hostId = roomData['hostId'] ?? '';
+    final String currentUserId = _auth.currentUser?.uid ?? '';
+    final bool isGuest = !widget.isHost && hostId != currentUserId;
+
+    final guestParticipants = _participants.where((p) => p.userId != hostId).toList();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 6.0),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              if (hostId == currentUserId) return;
+              showProfileInfoBottomSheet(context, userId: hostId, hostId: hostId, roomId: widget.roomID);
+            },
+            child: Row(
+              children: [
+                CircleAvatar(radius: 20, backgroundImage: NetworkImage(roomData['hostPicture'] ?? '')),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      roomData["hostName"],
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // Follower Count
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: ProfileService.getUserProfileStream(hostId),
+                      builder: (context, snapshot) {
+                        int followCount = 0;
+                        if (snapshot.hasData && snapshot.data!.exists) {
+                          final data = snapshot.data!.data() as Map<String, dynamic>;
+                          followCount = data['followerCount'] ?? 0;
+                        }
+
+                        return Text(
+                          '$followCount Followers',
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
+
+          // Guest-only Follow Button
+          if (isGuest)
+            StreamBuilder<bool>(
+              stream: ProfileService.isFollowing(hostId),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+                final bool isFollowing = snapshot.data ?? false;
+                if (isFollowing) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: GestureDetector(
+                    onTap: () async {
+                      try {
+                        await ProfileService.followUser(hostId);
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      }
+                    },
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Colors.pink.shade400, Colors.pink.shade700],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Icon(Icons.add, color: Colors.white, size: 18),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          const Spacer(),
+
+          // Participant avatars
+          _buildParticipantAvatars(guestParticipants),
+
           GestureDetector(
             onTap: () {
-              showParticipantsBottomSheet(context, participants: _participants, currentUserId: _auth.currentUser!.uid);
+              showParticipantsBottomSheet(
+                context,
+                participants: _participants,
+                currentUserId: _auth.currentUser!.uid,
+                hostId: roomData['hostId'],
+                roomId: widget.roomID,
+              );
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -580,12 +769,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
               ),
             ),
           ),
-          if (widget.isHost)
-            IconButton(
-              icon: Icon((roomData['isLocked'] ?? false) ? Icons.lock : Icons.lock_open, color: Colors.white, size: 24),
-              onPressed: _showPasswordManagementDialog,
-              tooltip: 'Room Security',
-            ),
+
           IconButton(
             icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
             onPressed: _showExitConfirmationDialog,
@@ -596,7 +780,129 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
-  // ... (Streamer Profile, Seats Grid, etc. are unchanged)
+  // --- NEW WIDGET ---
+  Widget _buildStatChip(IconData icon, String label, Color iconColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- NEW WIDGET ---
+  Widget _buildHostStatsRow() {
+    final String hostId = roomData['hostId'] ?? '';
+    if (hostId.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16.0, 0, 8.0, 8.0),
+      child: Row(
+        children: [
+          StreamBuilder<DocumentSnapshot>(
+            stream: ProfileService.getUserProfileStream(hostId),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || !snapshot.data!.exists) {
+                return Row(
+                  children: [
+                    _buildStatChip(Icons.star_rounded, "...", Colors.grey.shade700),
+                    const SizedBox(width: 8),
+                    _buildStatChip(Icons.diamond_rounded, "...", Colors.grey.shade700),
+                  ],
+                );
+              }
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              final int starCount = data['starCount'] ?? 0;
+              final int diamondCount = data['diamondCount'] ?? 0;
+
+              return Row(
+                children: [
+                  _buildStatChip(Icons.star_rounded, starCount.toString(), Colors.yellow.shade700),
+                  const SizedBox(width: 8),
+                  _buildStatChip(Icons.diamond_rounded, diamondCount.toString(), Colors.cyan.shade300),
+                ],
+              );
+            },
+          ),
+
+          if (widget.isHost)
+            IconButton(
+              icon: Icon(
+                (roomData['isLocked'] ?? false) ? Icons.lock : Icons.lock_open,
+                color: (roomData['isLocked'] ?? false) ? Colors.pink : Colors.white,
+                size: 16,
+              ),
+              onPressed: _showPasswordManagementDialog,
+              tooltip: 'Room Security',
+            ),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  // --- NEW WIDGET ---
+  Widget _buildParticipantAvatars(List<RoomParticipant> participants) {
+    if (participants.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    const double avatarSize = 20.0;
+    const double overlap = 15.0; // Overlap size
+
+    final participantsToShow = participants.take(5).toList();
+
+    // Calculate total width
+    final double stackWidth = avatarSize + (participantsToShow.length - 1) * overlap;
+
+    return SizedBox(
+      width: stackWidth,
+      height: avatarSize,
+      child: Stack(
+        children: participantsToShow
+            .asMap()
+            .entries
+            .map((entry) {
+              final index = entry.key;
+              final participant = entry.value;
+              final double leftPosition = index * overlap;
+
+              return Positioned(
+                left: leftPosition,
+                child: Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1), // White border
+                  ),
+                  child: CircleAvatar(
+                    radius: (avatarSize / 2) - 1, // Adjust for border
+                    backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
+                        ? NetworkImage(participant.userPicture!)
+                        : null,
+                    child: (participant.userPicture == null || participant.userPicture!.isEmpty)
+                        ? const Icon(Icons.person, size: 12, color: Colors.white)
+                        : null,
+                  ),
+                ),
+              );
+            })
+            .toList()
+            .reversed // Show from front to back
+            .toList(),
+      ),
+    );
+  }
+
   Widget _buildStreamerProfile() {
     RoomParticipant? host;
     try {
@@ -679,18 +985,39 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildStreamerSeat(
-            imageUrl: roomData['hostPicture'],
-            name: roomData['hostName'],
-            isMuted: host?.isMuted ?? true,
-            isHost: true,
+          GestureDetector(
+            onTap: roomData['hostId'] == _auth.currentUser!.uid
+                ? null // It's me, do nothing
+                : () {
+                    showProfileInfoBottomSheet(
+                      context,
+                      userId: roomData['hostId'],
+                      hostId: roomData['hostId'],
+                      roomId: widget.roomID,
+                    );
+                  },
+            child: buildStreamerSeat(
+              imageUrl: roomData['hostPicture'],
+              name: roomData['hostName'],
+              isMuted: host?.isMuted ?? true,
+              isHost: true,
+            ),
           ),
           const SizedBox(width: 30),
           if (coHost != null)
             GestureDetector(
               onTap: coHost.userId != _auth.currentUser!.uid
-                  ? null
+                  ? () {
+                      // It's NOT me, show profile
+                      showProfileInfoBottomSheet(
+                        context,
+                        userId: coHost!.userId,
+                        hostId: roomData['hostId'],
+                        roomId: widget.roomID,
+                      );
+                    }
                   : () async {
+                      // It IS me, step down
                       try {
                         await RoomService.stepDownFromCoHost(widget.roomID);
                         ZegoUIKit().turnMicrophoneOn(false);
@@ -815,18 +1142,32 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     final bool isSpeakerOrCoHost =
         canInteract && (currentUserParticipant.seatNo > 0 || currentUserParticipant.isCoHost);
 
+    final bool showJoinIcon = !_isSeatApprovalRequired && isListener;
+
+    IconData icon = Icons.event_seat;
+    Color iconColor = canInteract ? Colors.pink : Colors.grey.shade800;
+
     return GestureDetector(
       onTap: () async {
         if (!canInteract) return;
+
         try {
           if (isListener) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tap the \'Join Call\' button to request a seat.'),
-                backgroundColor: Colors.pink,
-              ),
-            );
+            if (_isSeatApprovalRequired) {
+              // Old behavior: show snackbar
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tap the \'Join Call\' button to request a seat.'),
+                  backgroundColor: Colors.pink,
+                ),
+              );
+            } else {
+              // New behavior: take the seat directly
+              await RoomService.takeSeat(widget.roomID, seatNo);
+              ZegoUIKit().turnMicrophoneOn(true); // Turn on mic
+            }
           } else if (isSpeakerOrCoHost) {
+            // Old behavior: move seat
             if (_isMoveAllowed) {
               await RoomService.moveSeat(widget.roomID, seatNo);
             } else {
@@ -857,7 +1198,28 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.pink.withOpacity(0.2), width: 2),
             ),
-            child: Icon(Icons.event_seat, color: canInteract ? Colors.pink : Colors.grey.shade800, size: 28),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, color: iconColor, size: 28),
+                if (showJoinIcon)
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                          offset: const Offset(1, 1),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 18),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Text('Seat $seatNo', style: const TextStyle(color: Colors.white54, fontSize: 10)),
@@ -870,8 +1232,17 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     final canLeaveSeat = isCurrentUser && !widget.isHost;
     return GestureDetector(
       onTap: !canLeaveSeat
-          ? null
+          ? () {
+              // It's NOT me, show profile
+              showProfileInfoBottomSheet(
+                context,
+                userId: participant.userId,
+                hostId: roomData['hostId'],
+                roomId: widget.roomID,
+              );
+            }
           : () async {
+              // It IS me, leave seat
               try {
                 await RoomService.leaveSeat(widget.roomID);
                 ZegoUIKit().turnMicrophoneOn(false);
@@ -969,7 +1340,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
     );
   }
 
-  // NEW WIDGET: The "Join Call" button as an overlay for guests.
   Widget _buildJoinCallOverlay() {
     final String currentUserId = _auth.currentUser!.uid;
     RoomParticipant? currentUserParticipant;
@@ -983,7 +1353,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
         (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
 
     return Visibility(
-      visible: isListener,
+      visible: isListener && _isSeatApprovalRequired,
       child: Positioned(
         bottom: 8,
         right: 24,
@@ -1064,34 +1434,46 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.purple.shade700,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
-                        ],
-                      ),
-                      child: const Text(
-                        "Lv 1",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          letterSpacing: 0.5,
+                GestureDetector(
+                  onTap: () {
+                    showProfileInfoBottomSheet(
+                      context,
+                      userId: m.userId,
+                      hostId: roomData['hostId'] ?? '',
+                      roomId: widget.roomID,
+                    );
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade700,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                          ],
+                        ),
+                        child: const Text(
+                          "Lv 1",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      "${m.username}: ",
-                      style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
-                    ),
-                  ],
+                      Text(
+                        "${m.username}: ",
+                        style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+                      ),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 0, top: 2),
@@ -1130,24 +1512,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: GestureDetector(
-                onTap: () => showRoomSettingsBottomSheet(context, roomId: widget.roomID, isMoveAllowed: _isMoveAllowed),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                  child: const Icon(CupertinoIcons.settings, color: Colors.white, size: 22),
-                ),
-              ),
-            ),
-          if (widget.isHost)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: GestureDetector(
                 onTap: () => showAllRequestsBottomSheet(
                   context,
                   coHostRequests: _coHostRequests,
                   speakerRequests: _speakerRequests,
                   roomID: widget.roomID,
+                  isMoveAllowed: _isMoveAllowed,
+                  isSeatApprovalRequired: _isSeatApprovalRequired,
                 ),
                 child: Stack(
                   clipBehavior: Clip.none,
@@ -1236,7 +1607,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                   fillColor: Colors.black.withOpacity(0.2),
                   filled: true,
-                  // Adjusted padding to center the text vertically
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
                 onSubmitted: (_) => _sendMessage(),
@@ -1262,6 +1632,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
   }
 
   void _sendMessage() async {
+    _showJoinAnimation("Riad Safowan"); // dont remove this line, it's only for testing
     final messageText = _chatController.text.trim();
     if (messageText.isEmpty) return;
 
@@ -1270,6 +1641,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> {
       setState(() {
         _messages.add(
           ChatMessage(
+            userId: _auth.currentUser!.uid,
             username: _auth.currentUser?.displayName ?? "Me",
             message: messageText,
             timestamp: DateTime.now(),

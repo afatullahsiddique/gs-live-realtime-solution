@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cute_live/data/remote/firebase/profile_services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cute_live/data/remote/firebase/profile_services.dart';
 
 import '../../../ui/video_streaming/bottomsheets/invite_pk_bottomsheet.dart';
 
@@ -24,10 +24,11 @@ class VideoRoomService {
       'hostPicture': user.photoURL,
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
-      'participantCount': 1,
+      'participantCount': 1, // Total users in room
+      'onCallCount': 1,      // <-- NEW: Users on call
       'isLocked': false,
       'password': null,
-      'pkState': {'isPK': false}, // PK Feature
+      'pkState': {'isPK': false},
     });
 
     batch.set(participantRef, {
@@ -38,6 +39,7 @@ class VideoRoomService {
       'isOnline': true,
       'isMuted': false,
       'isCameraOn': true,
+      'onCall': true, // <-- NEW
     });
 
     batch.update(userRef, {'currentRoomId': roomRef.id});
@@ -50,6 +52,7 @@ class VideoRoomService {
     return _roomsCollection.where('isActive', isEqualTo: true).snapshots();
   }
 
+  // This function is now for viewers to join (they are NOT on call)
   static Future<void> joinRoom(String roomId) async {
     final user = _auth.currentUser!;
     final roomRef = _roomsCollection.doc(roomId);
@@ -60,32 +63,27 @@ class VideoRoomService {
       if (!roomSnapshot.exists) throw Exception("Room does not exist.");
 
       final roomData = roomSnapshot.data() as Map<String, dynamic>;
-      final currentCount = roomData['participantCount'] ?? 0;
       final pkState = roomData['pkState'] as Map<String, dynamic>? ?? {'isPK': false};
 
-      // Do not allow joining as participant if room is in PK
       if (pkState['isPK'] == true) {
         throw Exception("Cannot join room: PK battle is in progress.");
       }
 
-      // Your logic for 4 participants is fine, but PK rooms will have
-      // 2 hosts. Let's adjust max to 4 *per host*.
-      // We'll cap a *single* room at 4 participants.
-      if (currentCount >= 4) {
-        throw Exception("This room is full.");
+      final participantSnapshot = await transaction.get(participantRef);
+      if (!participantSnapshot.exists) {
+        transaction.set(participantRef, {
+          'userId': user.uid,
+          'userName': user.displayName ?? 'Anonymous',
+          'userPicture': user.photoURL,
+          'joinedAt': FieldValue.serverTimestamp(),
+          'isOnline': true,
+          'isMuted': true,
+          'isCameraOn': false,
+          'onCall': false,
+        });
+
+        transaction.update(roomRef, {'participantCount': FieldValue.increment(1)});
       }
-
-      transaction.set(participantRef, {
-        'userId': user.uid,
-        'userName': user.displayName ?? 'Anonymous',
-        'userPicture': user.photoURL,
-        'joinedAt': FieldValue.serverTimestamp(),
-        'isOnline': true,
-        'isMuted': true,
-        'isCameraOn': false,
-      });
-
-      transaction.update(roomRef, {'participantCount': FieldValue.increment(1)});
     });
   }
 
@@ -97,8 +95,18 @@ class VideoRoomService {
     await _firestore.runTransaction((transaction) async {
       final participantDoc = await transaction.get(participantRef);
       if (participantDoc.exists) {
+        final participantData = participantDoc.data() as Map<String, dynamic>;
+        final bool wasOnCall = participantData['onCall'] ?? false;
+
         transaction.delete(participantRef);
-        transaction.update(roomRef, {'participantCount': FieldValue.increment(-1)});
+
+        final roomUpdateData = {'participantCount': FieldValue.increment(-1)};
+
+        if (wasOnCall) {
+          roomUpdateData['onCallCount'] = FieldValue.increment(-1);
+        }
+
+        transaction.update(roomRef, roomUpdateData);
       }
     });
   }
@@ -213,39 +221,38 @@ class VideoRoomService {
   static Future<void> approveJoinRequest(String roomId, String requestId, String userId) async {
     final roomRef = _roomsCollection.doc(roomId);
     final requestRef = roomRef.collection('join_requests').doc(requestId);
+    final participantRef = roomRef.collection('participants').doc(userId);
 
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
       if (!roomSnapshot.exists) throw Exception("Room does not exist.");
 
       final roomData = roomSnapshot.data() as Map<String, dynamic>;
-      final currentCount = roomData['participantCount'] ?? 0;
+      final currentOnCallCount = roomData['onCallCount'] ?? 0;
       final pkState = roomData['pkState'] as Map<String, dynamic>? ?? {'isPK': false};
 
       if (pkState['isPK'] == true) {
         throw Exception("Cannot approve request: PK battle is in progress.");
       }
 
-      if (currentCount >= 4) {
+      // Use the onCallCount for the limit
+      if (currentOnCallCount >= 4) {
         throw Exception("The room is full. Cannot approve more participants.");
       }
 
       final requestSnapshot = await transaction.get(requestRef);
       if (!requestSnapshot.exists) throw Exception("Request no longer exists.");
-      final requestData = requestSnapshot.data() as Map<String, dynamic>;
 
-      final participantRef = roomRef.collection('participants').doc(userId);
-      transaction.set(participantRef, {
-        'userId': userId,
-        'userName': requestData['userName'] ?? 'Anonymous',
-        'userPicture': requestData['userPicture'],
-        'joinedAt': FieldValue.serverTimestamp(),
-        'isOnline': true,
+      // This is now an UPDATE, not a SET
+      // We are "promoting" a viewer to be on-call
+      transaction.update(participantRef, {
         'isMuted': false,
         'isCameraOn': true,
+        'onCall': true, // <-- NEW: Promote user to on-call
       });
 
-      transaction.update(roomRef, {'participantCount': FieldValue.increment(1)});
+      // Increment ONLY the onCallCount
+      transaction.update(roomRef, {'onCallCount': FieldValue.increment(1)});
       transaction.delete(requestRef);
     });
   }

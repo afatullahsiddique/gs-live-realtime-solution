@@ -13,6 +13,7 @@ import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
 import 'bottomsheets/invite_pk_bottomsheet.dart';
 import 'bottomsheets/participants_bottomsheet.dart';
+import 'bottomsheets/profile_info_bottomsheet.dart';
 import 'bottomsheets/requests_bottomsheet.dart';
 import 'bottomsheets/tools_bottomsheet.dart';
 import 'package:collection/collection.dart';
@@ -23,6 +24,7 @@ class VideoParticipant {
   final String? userPicture;
   final bool isMuted;
   final bool isCameraOn;
+  final bool onCall;
 
   VideoParticipant({
     required this.userId,
@@ -30,6 +32,7 @@ class VideoParticipant {
     this.userPicture,
     required this.isMuted,
     required this.isCameraOn,
+    required this.onCall,
   });
 
   factory VideoParticipant.fromFirestore(DocumentSnapshot doc) {
@@ -40,6 +43,7 @@ class VideoParticipant {
       userPicture: data.containsKey('userPicture') ? data['userPicture'] : null,
       isMuted: data['isMuted'] ?? true,
       isCameraOn: data['isCameraOn'] ?? false,
+      onCall: data['onCall'] ?? false,
     );
   }
 }
@@ -64,11 +68,12 @@ class JoinRequest {
 }
 
 class ChatMessage {
+  final String userId;
   final String username;
   final String message;
   final DateTime timestamp;
 
-  ChatMessage({required this.username, required this.message, required this.timestamp});
+  ChatMessage({required this.userId, required this.username, required this.message, required this.timestamp});
 }
 
 class VideoRoomPage extends StatefulWidget {
@@ -81,7 +86,6 @@ class VideoRoomPage extends StatefulWidget {
   State<VideoRoomPage> createState() => _VideoRoomPageState();
 }
 
-// --- PAGE STATE (Refactored) ---
 class _VideoRoomPageState extends State<VideoRoomPage> {
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
@@ -110,7 +114,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   Map<String, dynamic> _pkState = {};
   List<VideoParticipant> _opponentParticipants = [];
 
-  // --- NEW: PK Timer State ---
   Timer? _pkTimer;
   String _pkTimerDisplay = "00:00";
 
@@ -206,11 +209,19 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     ZegoUIKit().turnCameraOn(widget.isHost);
     ZegoUIKit().setAudioOutputToSpeaker(true);
 
+    if (!widget.isHost) {
+      try {
+        await VideoRoomService.joinRoom(widget.roomID);
+      } catch (e) {
+        debugPrint("Error joining room as viewer: $e");
+      }
+      _sendJoinMessage();
+    }
+
     _setupListeners();
     setState(() => _isInitialized = true);
   }
 
-  // --- LISTENERS (MODIFIED) ---
   void _setupListeners() {
     _roomSubscription = VideoRoomService.getRoomStream(widget.roomID).listen((doc) {
       if (doc.exists && mounted) {
@@ -269,15 +280,13 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           }
           _opponentParticipantsSubscription?.cancel();
 
-          // --- NEW: Stop the PK Timer ---
           _pkTimer?.cancel();
-          // ---
 
           setState(() {
             _isPKMode = false;
             _pkState = {};
             _opponentParticipants = [];
-            _pkTimerDisplay = "00:00"; // Reset timer display
+            _pkTimerDisplay = "00:00";
           });
         }
       } else {
@@ -290,7 +299,12 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         setState(() {
           _messages.insert(
             0,
-            ChatMessage(username: message.user.name, message: message.message, timestamp: DateTime.now()),
+            ChatMessage(
+              userId: message.user.id,
+              username: message.user.name,
+              message: message.message,
+              timestamp: DateTime.now(),
+            ),
           );
           _scrollToNewestMessage();
         });
@@ -302,17 +316,23 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         final newParticipants = snapshot.docs.map((doc) => VideoParticipant.fromFirestore(doc)).toList();
         final currentUser = _auth.currentUser!;
 
-        final isNowJoined = newParticipants.any((p) => p.userId == currentUser.uid);
+        final currentUserParticipant = newParticipants.firstWhereOrNull((p) => p.userId == currentUser.uid);
+        final bool isNowOnCall = currentUserParticipant?.onCall ?? false;
 
-        if (isNowJoined && !_isJoined) {
+        if (isNowOnCall && !_isJoined) {
           debugPrint("Join request approved! Starting local video/audio stream.");
           ZegoUIKit().turnMicrophoneOn(true);
           ZegoUIKit().turnCameraOn(true);
+        } else if (!isNowOnCall && _isJoined) {
+          debugPrint("Removed from call. Stopping local video/audio stream.");
+          ZegoUIKit().turnMicrophoneOn(false);
+          ZegoUIKit().turnCameraOn(false);
         }
 
         setState(() {
-          _participants = newParticipants;
-          _isJoined = isNowJoined;
+          _participants = newParticipants.where((p) => p.onCall == true).toList();
+
+          _isJoined = isNowOnCall;
         });
       }
     });
@@ -346,7 +366,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         );
 
         if (newAcceptedInvite != null && !_isPKMode) {
-          // Add to a "shown" set so snackbar doesn't appear multiple times
           _dialogsShownForInviteIds.add(newAcceptedInvite.id);
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -360,27 +379,22 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     }
   }
 
-  // --- NEW: PK Timer Logic ---
   void _startPKTimer(DateTime endTime) {
-    _pkTimer?.cancel(); // Cancel any existing timer
+    _pkTimer?.cancel();
     _pkTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final now = DateTime.now();
       final remaining = endTime.difference(now);
 
       if (remaining.isNegative) {
-        // --- TIMER IS DONE ---
         timer.cancel();
         setState(() {
           _pkTimerDisplay = "00:00";
         });
-        // Only one host (e.g., the sender) should be responsible for ending the battle
-        // Or just check if 'isHost' to be safe.
         if (widget.isHost && _isPKMode) {
           debugPrint("PK Timer finished. Ending battle.");
           VideoRoomService.endPKBattle(widget.roomID, _pkState['opponentRoomId']);
         }
       } else {
-        // --- Update Timer Display ---
         setState(() {
           _pkTimerDisplay = _formatDuration(remaining);
         });
@@ -395,7 +409,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  // --- DIALOGS (Unchanged) ---
   Future<void> _showPKInviteDialog(PKInvite invite) async {
     return showDialog<void>(
       context: context,
@@ -407,7 +420,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           'PK Invitation',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        // --- MODIFIED: Show timer duration in invite dialog ---
         content: Text(
           '${invite.senderHostName} wants to start a ${invite.durationInMinutes}-minute PK. What do you want to do?',
           style: const TextStyle(color: Colors.white70),
@@ -433,7 +445,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
               Navigator.of(context).pop();
 
               VideoRoomService.acceptPKInvite(widget.roomID, invite);
-              // This is correct: the receiver (Host B) starts playing the sender's stream.
               ZegoUIKit().startPlayAnotherRoomAudioVideo(invite.senderRoomId, invite.senderHostId);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('PK accepted with ${invite.senderHostName}!'), backgroundColor: Colors.green),
@@ -499,7 +510,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     });
   }
 
-  // --- *** MAIN BUILD METHOD *** ---
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -509,51 +519,35 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
       },
       child: Scaffold(
         backgroundColor: Colors.black,
-        // --- *** THIS IS THE FIX *** ---
-        // Wrap the body in a Builder to get a valid context
-        // and initialize ZegoScreenUtil before it's used
-        // by ZegoAudioVideoView.
         body: Builder(
           builder: (builderContext) {
-            // Initialize the ScreenUtil with a valid context
-            // that is a descendant of the MaterialApp.
-            // This sets the internal '_data' field and prevents the crash.
-            ZegoScreenUtil.init(
-              builderContext,
-              // designSize: const Size(750, 1334), // Default Zego design size
-            );
+            ZegoScreenUtil.init(builderContext);
 
-            // Return your existing layout logic
             return _isInitialized
-                // --- This is the new layout router ---
                 ? _isPKMode
                       ? _buildPKModeLayout()
                       : _buildStandardModeLayout()
                 : _buildLoadingIndicator();
           },
         ),
-        // --- *** END FIX *** ---
       ),
     );
   }
 
-  // --- *** Standard Mode Layout (Your original `build` method's body) *** ---
   Widget _buildStandardModeLayout() {
     return Stack(
       children: [
-        Positioned.fill(
-          // Use _buildStandardVideoLayout NOT _buildVideoLayout
-          child: _buildStandardVideoLayout(),
-        ),
+        Positioned.fill(child: _buildStandardVideoLayout()),
         _isInitialized
             ? Column(
                 children: [
-                  _buildAppBar(), // AppBar will show participant counts
+                  _buildAppBar(),
+                  _buildHostStatsRow(),
                   Expanded(
                     child: Stack(
                       children: [
                         Positioned(bottom: 0, left: 0, right: 0, child: _buildChatSection()),
-                        _buildJoinCallOverlay(),
+                        Positioned(bottom: 0, right: 0, child: _buildJoinCallOverlay()),
                       ],
                     ),
                   ),
@@ -568,18 +562,13 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   Widget _buildPKModeLayout() {
     return Column(
       children: [
-        _buildAppBar(), // AppBar will HIDE participant counts
-        _buildPKParticipantCountsAndTimer(), // Counts are shown here
-        Expanded(
-          flex: 3, // Video gets more space
-          child: _buildPKVideoLayout(),
-        ),
+        _buildAppBar(),
+        // _buildHostStatsRow(),
+        _buildPKParticipantCountsAndTimer(),
+        Expanded(flex: 3, child: _buildPKVideoLayout()),
         _buildPKProgressBar(),
         _buildPKEmptySeats(),
-        Expanded(
-          flex: 2, // Chat gets less space
-          child: _buildChatSection(),
-        ),
+        Expanded(flex: 2, child: _buildChatSection()),
         SafeArea(top: false, child: _buildChatInput()),
       ],
     );
@@ -598,17 +587,59 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
+  Widget _buildHostStatsRow() {
+    final String hostId = roomData['hostId'] ?? '';
+    if (hostId.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: ProfileService.getUserProfileStream(hostId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+
+        final int starCount = data['starCount'] ?? 0;
+        final int diamondCount = data['diamondCount'] ?? 0;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
+          child: Row(
+            children: [
+              _buildStatChip(Icons.star_rounded, starCount.toString(), Colors.yellow.shade700),
+              const SizedBox(width: 8),
+              _buildStatChip(Icons.diamond_rounded, diamondCount.toString(), Colors.cyan.shade300),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatChip(IconData icon, String label, Color iconColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPKParticipantCountsAndTimer() {
-    // --- RENAMED ---
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
-        // mainAxisAlignment: MainAxisAlignment.spaceBetween, // Removed
         children: [
-          // Left Side (My Team)
           _buildParticipantCountButton(_participants, _participantCount, Colors.blue, roomData['hostId']),
-          const Spacer(), // --- NEW: Pushes timer to center ---
-          // --- NEW: Timer Display ---
+          const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -621,13 +652,12 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 16, // Slightly larger
-                fontFeatures: [FontFeature.tabularFigures()], // Ensures fixed width digits
+                fontSize: 16,
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
           ),
-          const Spacer(), // --- NEW: Pushes opponent count to right ---
-          // Right Side (Opponent Team)
+          const Spacer(),
           _buildParticipantCountButton(
             _opponentParticipants,
             _opponentParticipants.length,
@@ -646,6 +676,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           context,
           participants: participants,
           currentUserId: _auth.currentUser!.uid,
+          roomId: widget.roomID,
           hostId: hostId,
         );
       },
@@ -678,17 +709,11 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           height: 8,
-          color: Colors.black45, // Slightly lighter background
+          color: Colors.black45,
           child: Row(
             children: [
-              Expanded(
-                flex: 1, // 50%
-                child: Container(color: Colors.blue),
-              ),
-              Expanded(
-                flex: 1, // 50%
-                child: Container(color: Colors.red),
-              ),
+              Expanded(flex: 1, child: Container(color: Colors.blue)),
+              Expanded(flex: 1, child: Container(color: Colors.red)),
             ],
           ),
         ),
@@ -696,7 +721,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- *** PK Empty Seats Widget (MODIFIED) *** ---
   Widget _buildPKEmptySeats() {
     Widget buildSeatIcon() {
       return Container(
@@ -723,96 +747,92 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- *** MODIFIED: AppBar now hides counts in PK mode *** ---
   Widget _buildAppBar() {
     final String hostId = roomData['hostId'] ?? '';
     final String currentUserId = _auth.currentUser?.uid ?? '';
     final bool isGuest = !widget.isHost && hostId != currentUserId;
 
+    final guestParticipants = _participants.where((p) => p.userId != hostId).toList();
+
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.5), Colors.transparent],
-        ),
-      ),
+      // ... (Container decoration)
       child: Padding(
         padding: EdgeInsets.only(top: MediaQuery.of(context).viewPadding.top),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0),
           child: Row(
             children: [
-              CircleAvatar(radius: 20, backgroundImage: NetworkImage(roomData['hostPicture'] ?? '')),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (_isPKMode)
-                        Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-                          child: const Text(
-                            'PK',
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
+              GestureDetector(
+                onTap: () {
+                  // Open the profile bottom sheet for the host
+                  showProfileInfoBottomSheet(context, userId: hostId, hostId: hostId, roomId: widget.roomID);
+                },
+                child: Row(
+                  children: [
+                    CircleAvatar(radius: 20, backgroundImage: NetworkImage(roomData['hostPicture'] ?? '')),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (_isPKMode)
+                              Container(
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
+                                child: const Text(
+                                  'PK',
+                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            Text(
+                              roomData["hostName"],
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                      Text(
-                        roomData["hostName"],
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                  StreamBuilder<DocumentSnapshot>(
-                    stream: ProfileService.getUserProfileStream(hostId),
-                    builder: (context, snapshot) {
-                      int followCount = 0;
-                      if (snapshot.hasData && snapshot.data!.exists) {
-                        final data = snapshot.data!.data() as Map<String, dynamic>;
-                        followCount = data['followerCount'] ?? 0;
-                      }
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: ProfileService.getUserProfileStream(hostId),
+                          builder: (context, snapshot) {
+                            int followCount = 0;
+                            if (snapshot.hasData && snapshot.data!.exists) {
+                              final data = snapshot.data!.data() as Map<String, dynamic>;
+                              followCount = data['followerCount'] ?? 0;
+                            }
 
-                      return Text(
-                        '$followCount Followers',
-                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
-                      );
-                    },
-                  ),
-                ],
+                            return Text(
+                              '$followCount Followers',
+                              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               if (isGuest)
                 StreamBuilder<bool>(
                   stream: ProfileService.isFollowing(hostId),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: OutlinedButton(
-                          onPressed: null,
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.withOpacity(0.5)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                          ),
-                          child: const Text('...', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        ),
-                      );
+                      return const SizedBox.shrink();
                     }
+
                     final bool isFollowing = snapshot.data ?? false;
+
+                    if (isFollowing) {
+                      return const SizedBox.shrink();
+                    }
+
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: OutlinedButton(
                         onPressed: () async {
                           try {
-                            if (isFollowing) {
-                              await _showUnfollowDialog(hostId);
-                            } else {
-                              await ProfileService.followUser(hostId);
-                            }
+                            await ProfileService.followUser(hostId);
                           } catch (e) {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -820,33 +840,27 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                           }
                         },
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: isFollowing ? Colors.grey : Colors.pink.shade400, width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                          backgroundColor: isFollowing ? Colors.black.withOpacity(0.2) : Colors.transparent,
+                          side: BorderSide(color: Colors.pink.shade400, width: 1.5),
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(4),
+                          backgroundColor: Colors.transparent,
                         ),
-                        child: Text(
-                          isFollowing ? 'Following' : 'Follow',
-                          style: TextStyle(
-                            color: isFollowing ? Colors.white70 : Colors.pink.shade300,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: Icon(Icons.add, color: Colors.pink.shade300, size: 20),
                       ),
                     );
                   },
                 ),
               const Spacer(),
-              // --- HIDE participant counts in AppBar if in PK mode ---
               if (!_isPKMode) ...[
-                // This is your original participant count button
+                _buildParticipantAvatars(guestParticipants),
+
                 GestureDetector(
                   onTap: () {
                     showVideoParticipantsBottomSheet(
                       context,
                       participants: _participants,
                       currentUserId: _auth.currentUser!.uid,
+                      roomId: widget.roomID,
                       hostId: roomData['hostId'],
                     );
                   },
@@ -882,13 +896,56 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- VIDEO LAYOUTS (Unchanged from your code) ---
-  Widget _buildVideoLayout() {
-    if (_isPKMode) {
-      return _buildPKVideoLayout();
-    } else {
-      return _buildStandardVideoLayout();
+  Widget _buildParticipantAvatars(List<VideoParticipant> participants) {
+    if (participants.isEmpty) {
+      return const SizedBox.shrink();
     }
+
+    const double avatarSize = 20.0;
+    const double overlap = 15.0;
+
+    final participantsToShow = participants.take(5).toList();
+
+    final double stackWidth = avatarSize + (participantsToShow.length - 1) * overlap;
+
+    return SizedBox(
+      width: stackWidth,
+      height: avatarSize,
+      child: Stack(
+        children: participantsToShow
+            .asMap()
+            .entries
+            .map((entry) {
+              final index = entry.key;
+              final participant = entry.value;
+              final double leftPosition = index * overlap;
+
+              return Positioned(
+                left: leftPosition,
+                child: Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                  child: CircleAvatar(
+                    radius: (avatarSize / 2) - 1,
+                    backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
+                        ? NetworkImage(participant.userPicture!)
+                        : null,
+                    child: (participant.userPicture == null || participant.userPicture!.isEmpty)
+                        ? const Icon(Icons.person, size: 12, color: Colors.white)
+                        : null,
+                  ),
+                ),
+              );
+            })
+            .toList()
+            .reversed
+            .toList(),
+      ),
+    );
   }
 
   Widget _buildPKVideoLayout() {
@@ -897,11 +954,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         Expanded(
           child: Row(
             children: [
-              // Expanded for Team A (My Team - LEFT)
               Expanded(
                 child: _buildTeamLayout(participants: _participants, hostName: roomData['hostName'] ?? 'Host A'),
               ),
-              // Expanded for Team B (Opponent Team - RIGHT)
               Expanded(
                 child: _buildTeamLayout(
                   participants: _opponentParticipants,
@@ -930,7 +985,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   }) {
     if (participants.isEmpty) {
       if (isHost) {
-        // If I am the host and my list is empty, show my camera
         final zegoUser = ZegoUIKit().getUser(_auth.currentUser!.uid);
         if (zegoUser != null) {
           return ClipRect(child: ZegoAudioVideoView(user: zegoUser));
@@ -949,7 +1003,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         }
       }
 
-      // Fallback for camera off
       return ClipRect(
         child: SizedBox.expand(
           child: Container(
@@ -1021,7 +1074,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     }
   }
 
-  // --- OVERLAYS AND CHAT (Unchanged) ---
   Widget _buildJoinCallOverlay() {
     return Visibility(
       visible: !_isJoined && !widget.isHost,
@@ -1067,10 +1119,10 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- *** MODIFIED: Chat section no longer has fixed height *** ---
   Widget _buildChatSection() {
     return Container(
-      // height: MediaQuery.of(context).size.height * 0.3, // <-- REMOVED this line
+      height: MediaQuery.of(context).size.height * 0.3,
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -1086,7 +1138,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         itemBuilder: (context, index) {
           if (index == _messages.length) {
             return const Padding(
-              padding: EdgeInsets.only(top: 10),
+              padding: EdgeInsets.only(top: 10, bottom: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1110,34 +1162,44 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.purple.shade700,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
-                        ],
-                      ),
-                      child: const Text(
-                        "Lv 1",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          letterSpacing: 0.5,
+                GestureDetector(
+                  onTap: () {
+                    showProfileInfoBottomSheet(
+                      context,
+                      userId: m.userId,
+                      hostId: roomData['hostId'] ?? '',
+                      roomId: widget.roomID,
+                    );
+                  },
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade700,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                          ],
+                        ),
+                        child: const Text(
+                          "Lv 1",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      "${m.username}: ",
-                      style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
-                    ),
-                  ],
+                      Text(
+                        "${m.username}: ",
+                        style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+                      ),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 0, top: 2),
@@ -1151,7 +1213,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- CHAT INPUT & HELPERS (Unchanged from your code) ---
   Widget _buildChatInput() {
     VideoParticipant? currentUserParticipant;
     if (_isJoined) {
@@ -1175,7 +1236,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
               padding: const EdgeInsets.only(right: 10.0),
               child: GestureDetector(
                 onTap: () {
-                  // Show confirmation before ending
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -1220,6 +1280,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   context,
                   pendingInvites: _pendingInvites,
                   currentRoomId: widget.roomID,
+                  isHost: widget.isHost,
                   // TODO: Pass PK state to tools bottom sheet
                   // isPKMode: _isPKMode,
                   // onEndPK: () { ... }
@@ -1368,42 +1429,12 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  Future<void> _showUnfollowDialog(String hostId) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2d1b2b),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Unfollow Host',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Text('Do you really want to unfollow?', style: TextStyle(color: Colors.white70)),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Unfollow', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await ProfileService.unfollowUser(hostId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
+  void _sendJoinMessage() async {
+    const messageText = "Just joined the room!";
+    try {
+      await ZegoUIKit().sendInRoomMessage(messageText);
+    } catch (e) {
+      debugPrint('Error sending join message: $e');
     }
   }
 
@@ -1417,6 +1448,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         _messages.insert(
           0,
           ChatMessage(
+            userId: _auth.currentUser?.uid ?? '',
             username: _auth.currentUser?.displayName ?? "Me",
             message: messageText,
             timestamp: DateTime.now(),

@@ -22,6 +22,7 @@ class RoomService {
       'isActive': true,
       'participantCount': 1,
       'isMoveAllowed': true,
+      'isSeatApprovalRequired': true,
       'isLocked': isLocked,
       'password': isLocked ? password : null,
     });
@@ -157,9 +158,44 @@ class RoomService {
     }
   }
 
+  /// NEW: A guest (listener) takes an empty seat.
+  static Future<void> takeSeat(String roomId, int newSeatNo) async {
+    final user = _auth.currentUser!;
+    final roomRef = _firestore.collection('rooms').doc(roomId);
+    final participantRef = roomRef.collection('room_participants').doc(user.uid);
+
+    final roomDoc = await roomRef.get();
+    if (!roomDoc.exists) throw Exception('Room not found.');
+
+    // Check the new room setting
+    if (roomDoc.data()?['isSeatApprovalRequired'] ?? true) {
+      throw Exception('Seat approval is required. Please send a request.');
+    }
+
+    // Check if seat is occupied
+    final query = roomRef.collection('room_participants').where('seatNo', isEqualTo: newSeatNo);
+    final snapshot = await query.get();
+
+    if (snapshot.docs.isNotEmpty) {
+      throw Exception('Seat is already occupied.');
+    } else {
+      // Assign seat and unmute
+      await participantRef.update({
+        'seatNo': newSeatNo,
+        'isMuted': false,
+      });
+    }
+  }
+
   static Future<void> toggleMoveAllowed(String roomId, bool isAllowed) async {
     await _firestore.collection('rooms').doc(roomId).update({'isMoveAllowed': isAllowed});
   }
+
+  /// NEW: Toggle the setting for requiring seat approval
+  static Future<void> toggleSeatApprovalRequired(String roomId, bool isRequired) async {
+    await _firestore.collection('rooms').doc(roomId).update({'isSeatApprovalRequired': isRequired});
+  }
+
 
   static Future<void> requestToBeSpeaker(String roomId) async {
     final user = _auth.currentUser!;
@@ -194,15 +230,19 @@ class RoomService {
       }
     }
 
-    final batch = _firestore.batch();
-    if (nextAvailableSeat != null) {
-      batch.update(participantRef, {'seatNo': nextAvailableSeat, 'isMuted': false});
+    if (nextAvailableSeat == null) {
+      await requestRef.delete();
+      throw Exception('All seats are full.');
     }
+
+    final batch = _firestore.batch();
+    batch.update(participantRef, {'seatNo': nextAvailableSeat, 'isMuted': false});
     batch.delete(requestRef);
     await batch.commit();
   }
 
   static Future<void> rejectSpeakerRequest(String roomId, String requestId) async {
+    // UPDATED: Added implementation
     await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(requestId).delete();
   }
 
@@ -241,10 +281,11 @@ class RoomService {
   }
 
   static Future<void> rejectCoHostRequest(String roomId, String requestId) async {
+    // UPDATED: Added implementation
     await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(requestId).delete();
   }
 
-  // NEW METHOD: Set or change the password for a room
+  // ... (setOrChangeRoomPassword, removeRoomPassword... remain unchanged)
   static Future<void> setOrChangeRoomPassword(String roomId, String password) async {
     await _firestore.collection('rooms').doc(roomId).update({
       'isLocked': true,
@@ -252,7 +293,6 @@ class RoomService {
     });
   }
 
-  // NEW METHOD: Remove the password from a room, making it public
   static Future<void> removeRoomPassword(String roomId) async {
     await _firestore.collection('rooms').doc(roomId).update({
       'isLocked': false,

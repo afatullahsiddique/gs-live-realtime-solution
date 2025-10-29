@@ -55,6 +55,30 @@ class ProfileService {
     return _usersCollection.doc(userId).snapshots();
   }
 
+  // --- NEW: Added for ProfileInfoBottomSheet ---
+  static Future<DocumentSnapshot> getUserProfile(String userId) {
+    if (userId.isEmpty) {
+      throw Exception("User ID cannot be empty");
+    }
+    return _usersCollection.doc(userId).get();
+  }
+
+  // --- NEW: Added for FollowListBottomSheet ---
+  static Stream<QuerySnapshot> getFollowersStream(String userId) {
+    if (userId.isEmpty) {
+      return Stream.empty();
+    }
+    return _usersCollection.doc(userId).collection('followers').snapshots();
+  }
+
+  // --- NEW: Added for FollowListBottomSheet ---
+  static Stream<QuerySnapshot> getFollowingsStream(String userId) {
+    if (userId.isEmpty) {
+      return Stream.empty();
+    }
+    return _usersCollection.doc(userId).collection('following').snapshots();
+  }
+
   static Stream<bool> isFollowing(String hostId) {
     final currentUserId = _auth.currentUser?.uid;
     if (currentUserId == null || hostId.isEmpty) {

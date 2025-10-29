@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cute_live/data/remote/firebase/profile_services.dart'; // <-- ADD THIS
+import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart'; // <-- ADD THIS
 import '../audio_room_page.dart';
 import '../audio_room_page_v2.dart'; // Import to access the RoomParticipant class
 
@@ -6,11 +8,15 @@ import '../audio_room_page_v2.dart'; // Import to access the RoomParticipant cla
 class ParticipantsBottomSheet extends StatelessWidget {
   final List<RoomParticipant> participants;
   final String currentUserId;
+  final String hostId; // <-- ADD THIS
+  final String roomId;
 
   const ParticipantsBottomSheet({
     super.key,
     required this.participants,
     required this.currentUserId,
+    required this.hostId, // <-- ADD THIS
+    required this.roomId,
   });
 
   @override
@@ -22,10 +28,11 @@ class ParticipantsBottomSheet extends StatelessWidget {
     sortedParticipants.sort((a, b) {
       int getRoleValue(RoomParticipant p) {
         if (p.seatNo == 0) return 0; // Host
-        if (p.isCoHost) return 1;   // Co-host
-        if (p.seatNo > 0) return 2;   // Speaker
-        return 3;                   // Listener
+        if (p.isCoHost) return 1; // Co-host
+        if (p.seatNo > 0) return 2; // Speaker
+        return 3; // Listener
       }
+
       return getRoleValue(a).compareTo(getRoleValue(b));
     });
 
@@ -46,7 +53,8 @@ class ParticipantsBottomSheet extends StatelessWidget {
             itemCount: sortedParticipants.length,
             itemBuilder: (context, index) {
               final participant = sortedParticipants[index];
-              return _buildParticipantTile(participant);
+              // Pass context to the tile builder
+              return _buildParticipantTile(context, participant);
             },
           ),
         ),
@@ -55,7 +63,7 @@ class ParticipantsBottomSheet extends StatelessWidget {
   }
 
   /// Builds a single row for a participant in the list.
-  Widget _buildParticipantTile(RoomParticipant participant) {
+  Widget _buildParticipantTile(BuildContext context, RoomParticipant participant) {
     // Determine the role for the subtitle
     String role = 'Listener';
     if (participant.seatNo == 0) {
@@ -69,6 +77,18 @@ class ParticipantsBottomSheet extends StatelessWidget {
     final bool isCurrentUser = participant.userId == currentUserId;
 
     return ListTile(
+      // --- ADDED ONTAP ---
+      onTap: () {
+        // Close this bottom sheet first
+        Navigator.of(context).pop();
+        // Show the new profile bottom sheet
+        showProfileInfoBottomSheet(
+          context,
+          userId: participant.userId,
+          hostId: hostId,
+          roomId: roomId,
+        );
+      },
       leading: CircleAvatar(
         backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
             ? NetworkImage(participant.userPicture!)
@@ -85,14 +105,59 @@ class ParticipantsBottomSheet extends StatelessWidget {
         ),
       ),
       subtitle: Text(role, style: const TextStyle(color: Colors.white70)),
+      // --- ADDED TRAILING BUTTON ---
+      trailing: isCurrentUser
+          ? null
+          : StreamBuilder<bool>(
+              stream: ProfileService.isFollowing(participant.userId),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox(
+                    width: 80,
+                    child: Center(
+                      child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                  );
+                }
+
+                final bool isFollowing = snapshot.data ?? false;
+
+                return ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isFollowing ? Colors.grey.shade800 : Colors.pink,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  onPressed: () async {
+                    try {
+                      if (isFollowing) {
+                        await ProfileService.unfollowUser(participant.userId);
+                      } else {
+                        await ProfileService.followUser(participant.userId);
+                      }
+                    } catch (e) {
+                      debugPrint('Error following/unfollowing user: $e');
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      }
+                    }
+                  },
+                  child: Text(isFollowing ? 'Following' : 'Follow'),
+                );
+              },
+            ),
     );
   }
 }
 
 /// A top-level function to display the participants bottom sheet.
-void showParticipantsBottomSheet(BuildContext context, {
+void showParticipantsBottomSheet(
+  BuildContext context, {
   required List<RoomParticipant> participants,
   required String currentUserId,
+  required String hostId,
+  required String roomId,
 }) {
   showModalBottomSheet(
     context: context,
@@ -103,8 +168,10 @@ void showParticipantsBottomSheet(BuildContext context, {
       return FractionallySizedBox(
         heightFactor: 0.7,
         child: ParticipantsBottomSheet(
+          roomId: roomId,
           participants: participants,
           currentUserId: currentUserId,
+          hostId: hostId,
         ),
       );
     },

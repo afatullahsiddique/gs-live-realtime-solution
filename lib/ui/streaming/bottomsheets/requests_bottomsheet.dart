@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../../data/remote/firebase/room_services.dart';
+import '../audio_room_page_v2.dart';
+
 class RequestsBottomSheet extends StatefulWidget {
   final List<dynamic> initialCoHostRequests;
   final List<dynamic> initialSpeakerRequests;
   final String roomID;
+  final bool initialMoveAllowed;
+  final bool initialSeatApprovalRequired;
 
   const RequestsBottomSheet({
     Key? key,
     required this.initialCoHostRequests,
     required this.initialSpeakerRequests,
     required this.roomID,
+    required this.initialMoveAllowed,
+    required this.initialSeatApprovalRequired,
   }) : super(key: key);
 
   @override
@@ -18,24 +24,25 @@ class RequestsBottomSheet extends StatefulWidget {
 }
 
 class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
-  // Local copies of the request lists to manage state internally.
   late List<dynamic> _coHostRequests;
   late List<dynamic> _speakerRequests;
+  late bool _isMoveAllowed;
+  late bool _isSeatApprovalRequired;
 
   @override
   void initState() {
     super.initState();
-    // Create mutable copies of the initial lists passed to the widget.
     _coHostRequests = List.from(widget.initialCoHostRequests);
     _speakerRequests = List.from(widget.initialSpeakerRequests);
+    _isMoveAllowed = widget.initialMoveAllowed;
+    _isSeatApprovalRequired = widget.initialSeatApprovalRequired;
   }
 
-  // Helper to build a single request list tile.
   Widget _buildRequestTile({
     required dynamic request,
     required String subtitle,
     required Future<void> Function() onApprove,
-    required VoidCallback onStateChange, // To update the local list
+    required VoidCallback onStateChange,
   }) {
     return ListTile(
       leading: CircleAvatar(
@@ -50,12 +57,19 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
           TextButton(
             child: const Text('Reject', style: TextStyle(color: Colors.white70)),
             onPressed: () async {
-              // Call the reject service, then update the local state.
-              // await RoomService.rejectCoHostRequest(widget.roomID, request.requestId); // Or speaker variant
-              setState(onStateChange);
-              if (_coHostRequests.isEmpty && _speakerRequests.isEmpty) {
-                Navigator.pop(context);
+              try {
+                if (request is CoHostRequest) {
+                  await RoomService.rejectCoHostRequest(widget.roomID, request.requestId);
+                } else if (request is SpeakerRequest) {
+                  await RoomService.rejectSpeakerRequest(widget.roomID, request.requestId);
+                }
+              } catch (e) {
+                debugPrint("Error rejecting request: $e");
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+                }
               }
+              setState(onStateChange);
             },
           ),
           const SizedBox(width: 8),
@@ -65,10 +79,7 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
             onPressed: () async {
               try {
                 await onApprove();
-                setState(onStateChange); // Update UI by removing the item
-                if (_coHostRequests.isEmpty && _speakerRequests.isEmpty) {
-                  Navigator.pop(context);
-                }
+                setState(onStateChange);
               } catch (e) {
                 if (mounted) {
                   Navigator.pop(context);
@@ -95,56 +106,137 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    if (_coHostRequests.isEmpty && _speakerRequests.isEmpty) {
-      return const Center(
-        child: Text("No pending requests", style: TextStyle(color: Colors.white70, fontSize: 16)),
-      );
-    }
+    final bool hasCoHostRequests = _coHostRequests.isNotEmpty;
+    final bool hasSpeakerRequests = _speakerRequests.isNotEmpty;
+    final bool hasAnyRequests = hasCoHostRequests || hasSpeakerRequests;
 
     return ListView(
       children: [
-        // --- Co-Host Requests Section ---
-        if (_coHostRequests.isNotEmpty) ...[
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16.0),
+          child: Text(
+            'Room Settings',
+            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const Divider(color: Colors.white24, height: 1),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: SwitchListTile(
+            title: const Text('Allow Seat Change', style: TextStyle(color: Colors.white)),
+            subtitle: Text(
+              'Allow speakers to move between empty seats.',
+              style: TextStyle(color: Colors.white.withOpacity(0.7)),
+            ),
+            value: _isMoveAllowed,
+            onChanged: (bool newValue) async {
+              setState(() {
+                _isMoveAllowed = newValue;
+              });
+              try {
+                await RoomService.toggleMoveAllowed(widget.roomID, newValue);
+              } catch (e) {
+                if (mounted) {
+                  setState(() {
+                    _isMoveAllowed = !newValue;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating setting: $e')));
+                }
+              }
+            },
+            activeColor: Colors.pink,
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: SwitchListTile(
+            title: const Text('Require Seat Approval', style: TextStyle(color: Colors.white)),
+            subtitle: Text(
+              'If off, guests can take empty seats directly.',
+              style: TextStyle(color: Colors.white.withOpacity(0.7)),
+            ),
+            value: _isSeatApprovalRequired,
+            onChanged: (bool newValue) async {
+              setState(() {
+                _isSeatApprovalRequired = newValue;
+              });
+              try {
+                await RoomService.toggleSeatApprovalRequired(widget.roomID, newValue);
+              } catch (e) {
+                if (mounted) {
+                  setState(() {
+                    _isSeatApprovalRequired = !newValue;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating setting: $e')));
+                }
+              }
+            },
+            activeColor: Colors.pink,
+          ),
+        ),
+
+        if (hasCoHostRequests) ...[
+          const Divider(color: Colors.white24, height: 1),
           _buildSectionHeader("Co-Host Requests (${_coHostRequests.length})"),
-          ..._coHostRequests.map((request) => _buildRequestTile(
-            request: request,
-            subtitle: 'Wants to be a co-host',
-            onApprove: () => RoomService.approveCoHostRequest(widget.roomID, request.requestId, request.userId),
-            onStateChange: () => _coHostRequests.remove(request),
-          )).toList(),
-          if (_speakerRequests.isNotEmpty) const Divider(color: Colors.white24, height: 1),
+          ..._coHostRequests.map(
+            (request) => _buildRequestTile(
+              request: request,
+              subtitle: 'Wants to be a co-host',
+              onApprove: () => RoomService.approveCoHostRequest(widget.roomID, request.requestId, request.userId),
+              onStateChange: () => _coHostRequests.remove(request),
+            ),
+          ),
+          if (hasSpeakerRequests) const Divider(color: Colors.white24, height: 1),
         ],
 
-        // --- Speaker Requests Section ---
-        if (_speakerRequests.isNotEmpty) ...[
+        if (hasSpeakerRequests) ...[
+          if (!hasCoHostRequests) const Divider(color: Colors.white24, height: 1),
           _buildSectionHeader("Speaker Requests (${_speakerRequests.length})"),
-          ..._speakerRequests.map((request) => _buildRequestTile(
-            request: request,
-            subtitle: 'Wants to join a chair',
-            onApprove: () => RoomService.approveSpeakerRequest(widget.roomID, request.requestId, request.userId),
-            onStateChange: () => _speakerRequests.remove(request),
-          )).toList(),
+          ..._speakerRequests.map(
+            (request) => _buildRequestTile(
+              request: request,
+              subtitle: 'Wants to join a chair',
+              onApprove: () => RoomService.approveSpeakerRequest(widget.roomID, request.requestId, request.userId),
+              onStateChange: () => _speakerRequests.remove(request),
+            ),
+          ),
         ],
+
+        if (!hasAnyRequests)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40.0),
+            child: Center(
+              child: Text("No pending requests", style: TextStyle(color: Colors.white70, fontSize: 16)),
+            ),
+          ),
       ],
     );
   }
 }
 
-// This top-level function is what you'll call from your main UI file.
-// It keeps the `showModalBottomSheet` call separate from the content widget.
-void showAllRequestsBottomSheet(BuildContext context, {
+void showAllRequestsBottomSheet(
+  BuildContext context, {
   required List<dynamic> coHostRequests,
   required List<dynamic> speakerRequests,
   required String roomID,
+  required bool isMoveAllowed,
+  required bool isSeatApprovalRequired,
 }) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF2d1b2b),
-    // Use the new widget as the content
-    builder: (context) => RequestsBottomSheet(
-      initialCoHostRequests: coHostRequests,
-      initialSpeakerRequests: speakerRequests,
-      roomID: roomID,
+    isScrollControlled: true,
+    builder: (context) => FractionallySizedBox(
+      heightFactor: 0.7,
+      child: RequestsBottomSheet(
+        initialCoHostRequests: coHostRequests,
+        initialSpeakerRequests: speakerRequests,
+        roomID: roomID,
+        initialMoveAllowed: isMoveAllowed,
+        initialSeatApprovalRequired: isSeatApprovalRequired,
+      ),
     ),
   );
 }

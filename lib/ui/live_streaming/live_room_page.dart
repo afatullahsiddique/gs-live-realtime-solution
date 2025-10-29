@@ -185,6 +185,14 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
     ZegoUIKit().turnCameraOn(widget.isHost); // Only host will have camera on
     ZegoUIKit().setAudioOutputToSpeaker(true);
 
+    // --- MODIFICATION ---
+    if (widget.isHost) {
+      // Ensure Firestore state is 'true' for camera, as it cannot be turned off.
+      // This allows _buildHostVideo to render the video feed correctly.
+      await LiveStreamService.toggleCameraState(widget.roomID, true);
+    }
+    // --- END MODIFICATION ---
+
     _setupListeners();
     setState(() => _isInitialized = true);
   }
@@ -433,7 +441,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
         return ClipRect(child: ZegoAudioVideoView(user: zegoUser));
       }
     }
-    // Fallback for camera off
+    // Fallback for camera off (shouldn't be reached if init works)
     return ClipRect(
       child: SizedBox.expand(
         child: Container(
@@ -443,8 +451,9 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
             children: [
               CircleAvatar(
                 radius: 40,
-                backgroundImage:
-                host.userPicture != null && host.userPicture!.isNotEmpty ? NetworkImage(host.userPicture!) : null,
+                backgroundImage: host.userPicture != null && host.userPicture!.isNotEmpty
+                    ? NetworkImage(host.userPicture!)
+                    : null,
                 child: host.userPicture == null || host.userPicture!.isEmpty
                     ? const Icon(Icons.person, size: 40, color: Colors.white)
                     : null,
@@ -482,10 +491,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
                 decoration: BoxDecoration(
                   // Use DecorationImage for the background
                   image: (guest.userPicture != null && guest.userPicture!.isNotEmpty)
-                      ? DecorationImage(
-                    image: NetworkImage(guest.userPicture!),
-                    fit: BoxFit.cover,
-                  )
+                      ? DecorationImage(image: NetworkImage(guest.userPicture!), fit: BoxFit.cover)
                       : null,
                   // Fallback color if no image
                   color: Colors.grey.shade800,
@@ -690,7 +696,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
     }
 
     final bool isCurrentlyMuted = currentUserParticipant?.isMuted ?? true;
-    final bool isCameraOn = currentUserParticipant?.isCameraOn ?? false; // Only relevant for host
+    // final bool isCameraOn = currentUserParticipant?.isCameraOn ?? false; // <-- REMOVED (No longer needed)
     final int totalRequests = _joinRequests.length;
 
     return Padding(
@@ -780,27 +786,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
                 ),
               ),
             ),
-            // **CHANGE**: Only Host sees the Camera button
-            if (widget.isHost)
-              Padding(
-                padding: const EdgeInsets.only(right: 10.0),
-                child: GestureDetector(
-                  onTap: () {
-                    final newCameraState = !isCameraOn;
-                    LiveStreamService.toggleCameraState(widget.roomID, newCameraState);
-                    ZegoUIKit().turnCameraOn(newCameraState);
-                  },
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                    child: Icon(
-                      isCameraOn ? CupertinoIcons.videocam_fill : Icons.videocam_off,
-                      color: isCameraOn ? Colors.pink : Colors.white,
-                    ),
-                  ),
-                ),
-              ),
+            // **CHANGE**: Host Camera button REMOVED
           ] else
             const SizedBox.shrink(),
           // Chat text field
