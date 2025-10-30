@@ -117,6 +117,11 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   Timer? _pkTimer;
   String _pkTimerDisplay = "00:00";
 
+  // --- MODIFIED: Added placeholder scores for the new UI ---
+  // You will need to replace these with your actual score data stream
+  int _pkScoreBlue = 0;
+  int _pkScoreRed = 0;
+
   @override
   void initState() {
     super.initState();
@@ -237,6 +242,20 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         // PK Just Started
         if (isNowInPK && !_isPKMode) {
           debugPrint("PK Mode STARTING");
+
+          if (widget.isHost) {
+            final hostParticipant = _participants.firstWhereOrNull((p) => p.userId == _auth.currentUser!.uid);
+
+            // Check if host is in the list and if their camera is currently off
+            if (hostParticipant != null && !hostParticipant.isCameraOn) {
+              debugPrint("PK started, forcing host camera ON.");
+              // Update Firestore
+              VideoRoomService.toggleCameraState(widget.roomID, true);
+              // Update local Zego SDK
+              ZegoUIKit().turnCameraOn(true);
+            }
+          }
+
           if (widget.isHost && newPKState['role'] == 'sender') {
             String opponentRoomId = newPKState['opponentRoomId'] ?? '';
             String opponentHostId = newPKState['opponentHostId'] ?? '';
@@ -444,6 +463,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
             onPressed: () {
               Navigator.of(context).pop();
 
+              ZegoUIKit().turnCameraOn(true);
+              VideoRoomService.toggleCameraState(widget.roomID, true);
+
               VideoRoomService.acceptPKInvite(widget.roomID, invite);
               ZegoUIKit().startPlayAnotherRoomAudioVideo(invite.senderRoomId, invite.senderHostId);
               ScaffoldMessenger.of(context).showSnackBar(
@@ -563,11 +585,12 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     return Column(
       children: [
         _buildAppBar(),
-        // _buildHostStatsRow(),
-        _buildPKParticipantCountsAndTimer(),
+        // _buildHostStatsRow(), // Optional: You might want this in PK mode too
+        // --- MODIFIED: This row is now removed ---
+        // _buildPKParticipantCountsAndTimer(),
         Expanded(flex: 3, child: _buildPKVideoLayout()),
         _buildPKProgressBar(),
-        _buildPKEmptySeats(),
+        _buildPKEmptySeats(), // This now contains the timer
         Expanded(flex: 2, child: _buildChatSection()),
         SafeArea(top: false, child: _buildChatInput()),
       ],
@@ -633,70 +656,18 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  Widget _buildPKParticipantCountsAndTimer() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          _buildParticipantCountButton(_participants, _participantCount, Colors.blue, roomData['hostId']),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24, width: 1),
-            ),
-            child: Text(
-              _pkTimerDisplay,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-          const Spacer(),
-          _buildParticipantCountButton(
-            _opponentParticipants,
-            _opponentParticipants.length,
-            Colors.red,
-            _pkState['opponentHostId'] ?? '',
-          ),
-        ],
+  Widget _buildPKScoreChip(String score, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color, width: 1.5),
       ),
-    );
-  }
-
-  Widget _buildParticipantCountButton(List<VideoParticipant> participants, int count, Color color, String hostId) {
-    return GestureDetector(
-      onTap: () {
-        showVideoParticipantsBottomSheet(
-          context,
-          participants: participants,
-          currentUserId: _auth.currentUser!.uid,
-          roomId: widget.roomID,
-          hostId: hostId,
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.25),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color, width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(CupertinoIcons.person_2_fill, color: color, size: 18),
-            const SizedBox(width: 6),
-            Text(
-              count.toString(),
-              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ],
+      child: Center(
+        child: Text(
+          score,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
         ),
       ),
     );
@@ -704,18 +675,54 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
   Widget _buildPKProgressBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0), // Added horizontal padding
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 8,
-          color: Colors.black45,
-          child: Row(
-            children: [
-              Expanded(flex: 1, child: Container(color: Colors.blue)),
-              Expanded(flex: 1, child: Container(color: Colors.red)),
-            ],
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 12,
+              color: Colors.black45,
+              child: Row(
+                children: [
+                  // TODO: Wire up flex to score percentage
+                  Expanded(flex: 1, child: Container(color: Colors.blue)),
+                  Expanded(flex: 1, child: Container(color: Colors.red)),
+                ],
+              ),
+            ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 0.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildPKScoreChip(_pkScoreBlue.toString(), Colors.blue.shade300),
+                _buildPKScoreChip(_pkScoreRed.toString(), Colors.red.shade300),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPKTimerWidget() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Text(
+        _pkTimerDisplay,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+          fontFeatures: [FontFeature.tabularFigures()],
         ),
       ),
     );
@@ -724,23 +731,24 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   Widget _buildPKEmptySeats() {
     Widget buildSeatIcon() {
       return Container(
-        margin: EdgeInsets.symmetric(horizontal: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(100)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Icon(Icons.event_seat_rounded, color: Colors.white70, size: 20),
+        child: const Padding(
+          padding: EdgeInsets.all(3),
+          child: Icon(Icons.event_seat_rounded, color: Colors.white70, size: 16),
         ),
       );
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0), // Added horizontal padding
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Left Seats
           Row(children: List.generate(5, (index) => buildSeatIcon())),
-          // Right Seats
+          const Spacer(),
+          _buildPKTimerWidget(),
+          const Spacer(),
           Row(children: List.generate(5, (index) => buildSeatIcon())),
         ],
       ),
@@ -755,7 +763,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     final guestParticipants = _participants.where((p) => p.userId != hostId).toList();
 
     return Container(
-      // ... (Container decoration)
       child: Padding(
         padding: EdgeInsets.only(top: MediaQuery.of(context).viewPadding.top),
         child: Padding(
@@ -851,9 +858,8 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   },
                 ),
               const Spacer(),
-              if (!_isPKMode) ...[
-                _buildParticipantAvatars(guestParticipants),
-
+              if (!_isPKMode) _buildParticipantAvatars(guestParticipants),
+              if (!_isPKMode)
                 GestureDetector(
                   onTap: () {
                     showVideoParticipantsBottomSheet(
@@ -883,7 +889,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                     ),
                   ),
                 ),
-              ],
               IconButton(
                 icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
                 onPressed: _showExitConfirmationDialog,
@@ -1226,6 +1231,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     final bool isCurrentlyMuted = currentUserParticipant?.isMuted ?? true;
     final bool isCameraOn = currentUserParticipant?.isCameraOn ?? false;
     final int totalRequests = _joinRequests.length;
+    final bool isPKHost = widget.isHost && _isPKMode;
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -1375,25 +1381,26 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 10.0),
-              child: GestureDetector(
-                onTap: () {
-                  final newCameraState = !isCameraOn;
-                  VideoRoomService.toggleCameraState(widget.roomID, newCameraState);
-                  ZegoUIKit().turnCameraOn(newCameraState);
-                },
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                  child: Icon(
-                    isCameraOn ? CupertinoIcons.videocam_fill : Icons.videocam_off,
-                    color: isCameraOn ? Colors.pink : Colors.white,
+            if (!isPKHost)
+              Padding(
+                padding: const EdgeInsets.only(right: 10.0),
+                child: GestureDetector(
+                  onTap: () {
+                    final newCameraState = !isCameraOn;
+                    VideoRoomService.toggleCameraState(widget.roomID, newCameraState);
+                    ZegoUIKit().turnCameraOn(newCameraState);
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
+                    child: Icon(
+                      isCameraOn ? CupertinoIcons.videocam_fill : Icons.videocam_off,
+                      color: isCameraOn ? Colors.pink : Colors.white,
+                    ),
                   ),
                 ),
               ),
-            ),
           ] else
             const SizedBox.shrink(),
           Expanded(
@@ -1403,10 +1410,10 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
               decoration: InputDecoration(
                 hintText: 'Say something...',
                 hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25)),
                 fillColor: Colors.black.withOpacity(0.2),
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
               onSubmitted: (_) => _sendMessage(),
             ),
