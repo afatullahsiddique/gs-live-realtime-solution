@@ -25,7 +25,7 @@ class VideoRoomService {
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
       'participantCount': 1, // Total users in room
-      'onCallCount': 1,      // <-- NEW: Users on call
+      'onCallCount': 1, // <-- NEW: Users on call
       'isLocked': false,
       'password': null,
       'pkState': {'isPK': false},
@@ -166,16 +166,12 @@ class VideoRoomService {
 
   static Future<void> toggleMuteState(String roomId, bool newMuteState) async {
     final user = _auth.currentUser!;
-    await _roomsCollection.doc(roomId).collection('participants').doc(user.uid).update({
-      'isMuted': newMuteState,
-    });
+    await _roomsCollection.doc(roomId).collection('participants').doc(user.uid).update({'isMuted': newMuteState});
   }
 
   static Future<void> toggleCameraState(String roomId, bool isCameraOn) async {
     final user = _auth.currentUser!;
-    await _roomsCollection.doc(roomId).collection('participants').doc(user.uid).update({
-      'isCameraOn': isCameraOn,
-    });
+    await _roomsCollection.doc(roomId).collection('participants').doc(user.uid).update({'isCameraOn': isCameraOn});
   }
 
   static Future<DocumentSnapshot> getRoomInfo(String roomId) {
@@ -243,13 +239,7 @@ class VideoRoomService {
       final requestSnapshot = await transaction.get(requestRef);
       if (!requestSnapshot.exists) throw Exception("Request no longer exists.");
 
-      // This is now an UPDATE, not a SET
-      // We are "promoting" a viewer to be on-call
-      transaction.update(participantRef, {
-        'isMuted': false,
-        'isCameraOn': true,
-        'onCall': true, // <-- NEW: Promote user to on-call
-      });
+      transaction.update(participantRef, {'isMuted': false, 'isCameraOn': true, 'onCall': true});
 
       // Increment ONLY the onCallCount
       transaction.update(roomRef, {'onCallCount': FieldValue.increment(1)});
@@ -259,6 +249,34 @@ class VideoRoomService {
 
   static Future<void> rejectJoinRequest(String roomId, String requestId) async {
     await _roomsCollection.doc(roomId).collection('join_requests').doc(requestId).delete();
+  }
+
+  static Future<void> demoteAllParticipantsToViewers(String roomId, String hostId) async {
+    final roomRef = _roomsCollection.doc(roomId);
+    final participantsRef = roomRef.collection('participants');
+
+    try {
+      final participantsSnapshot = await participantsRef.get();
+      final batch = _firestore.batch();
+
+      int onCallCount = 0;
+
+      for (final doc in participantsSnapshot.docs) {
+        if (doc.id == hostId) {
+          batch.update(doc.reference, {'onCall': true, 'isCameraOn': true});
+          onCallCount = 1;
+        } else {
+          batch.update(doc.reference, {'onCall': false, 'isMuted': true, 'isCameraOn': false});
+        }
+      }
+
+      batch.update(roomRef, {'onCallCount': onCallCount});
+
+      await batch.commit();
+      print("Demoted all participants to viewers for PK.");
+    } catch (e) {
+      print("Error demoting participants: $e");
+    }
   }
 
   static Future<void> sendPKInvite({
@@ -332,7 +350,6 @@ class VideoRoomService {
     final int duration = invite.durationInMinutes;
     final pkEndTime = Timestamp.fromDate(DateTime.now().add(Duration(minutes: duration)));
 
-
     batch.update(myRoomRef, {
       'pkState': {
         'isPK': true,
@@ -342,7 +359,7 @@ class VideoRoomService {
         'role': 'receiver',
         'durationInMinutes': duration,
         'pkEndTime': pkEndTime,
-      }
+      },
     });
 
     batch.update(senderRoomRef, {
@@ -354,7 +371,7 @@ class VideoRoomService {
         'role': 'sender',
         'durationInMinutes': duration,
         'pkEndTime': pkEndTime,
-      }
+      },
     });
 
     final inviteRef = myRoomRef.collection('pk_invites').doc(invite.id);
@@ -372,11 +389,15 @@ class VideoRoomService {
 
     // 1. Clear my PK state
     final myRoomRef = _roomsCollection.doc(myRoomId);
-    batch.update(myRoomRef, {'pkState': {'isPK': false}});
+    batch.update(myRoomRef, {
+      'pkState': {'isPK': false},
+    });
 
     // 2. Clear the opponent's PK state
     final opponentRoomRef = _roomsCollection.doc(opponentRoomId);
-    batch.update(opponentRoomRef, {'pkState': {'isPK': false}});
+    batch.update(opponentRoomRef, {
+      'pkState': {'isPK': false},
+    });
 
     // 3. Clean up the 'accepted' invite docs from both rooms
     final myInvitesRef = myRoomRef.collection('pk_invites').doc(opponentRoomId);
@@ -391,12 +412,10 @@ class VideoRoomService {
   // This function is now less relevant as endPKBattle is more specific
   static Future<void> clearPKInvite(PKInvite invite) async {
     // This is called by the SENDER after the PK is over
-    final data =
-    await _roomsCollection.doc(invite.receiverRoomId).collection('pk_invites').doc(invite.id).get();
+    final data = await _roomsCollection.doc(invite.receiverRoomId).collection('pk_invites').doc(invite.id).get();
 
     if (data.exists) {
       await data.reference.delete();
     }
   }
 }
-

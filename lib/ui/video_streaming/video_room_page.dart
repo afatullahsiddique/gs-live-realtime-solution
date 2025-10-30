@@ -117,8 +117,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   Timer? _pkTimer;
   String _pkTimerDisplay = "00:00";
 
-  // --- MODIFIED: Added placeholder scores for the new UI ---
-  // You will need to replace these with your actual score data stream
   int _pkScoreBlue = 0;
   int _pkScoreRed = 0;
 
@@ -244,16 +242,8 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           debugPrint("PK Mode STARTING");
 
           if (widget.isHost) {
-            final hostParticipant = _participants.firstWhereOrNull((p) => p.userId == _auth.currentUser!.uid);
-
-            // Check if host is in the list and if their camera is currently off
-            if (hostParticipant != null && !hostParticipant.isCameraOn) {
-              debugPrint("PK started, forcing host camera ON.");
-              // Update Firestore
-              VideoRoomService.toggleCameraState(widget.roomID, true);
-              // Update local Zego SDK
-              ZegoUIKit().turnCameraOn(true);
-            }
+            final hostId = _auth.currentUser!.uid;
+            VideoRoomService.demoteAllParticipantsToViewers(widget.roomID, hostId);
           }
 
           if (widget.isHost && newPKState['role'] == 'sender') {
@@ -270,19 +260,21 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
             _pkState = newPKState;
           });
 
-          // --- NEW: Start the PK Timer ---
+          // Start the PK Timer
           final Timestamp? pkEndTimeStamp = newPKState['pkEndTime'] as Timestamp?;
           if (pkEndTimeStamp != null) {
             _startPKTimer(pkEndTimeStamp.toDate());
           }
-          // ---
 
           _opponentParticipantsSubscription?.cancel();
           _opponentParticipantsSubscription = VideoRoomService.getRoomParticipants(newPKState['opponentRoomId']).listen(
             (snapshot) {
               if (mounted) {
+                final newOpponentParticipants = snapshot.docs
+                    .map((doc) => VideoParticipant.fromFirestore(doc))
+                    .toList();
                 setState(() {
-                  _opponentParticipants = snapshot.docs.map((doc) => VideoParticipant.fromFirestore(doc)).toList();
+                  _opponentParticipants = newOpponentParticipants.where((p) => p.onCall == true).toList();
                 });
               }
             },
@@ -463,6 +455,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
             onPressed: () {
               Navigator.of(context).pop();
 
+              // Force camera on
               ZegoUIKit().turnCameraOn(true);
               VideoRoomService.toggleCameraState(widget.roomID, true);
 
@@ -556,6 +549,25 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
+  Widget _buildChatContainer({required Widget chatListWidget}) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0.0, 1.0],
+          colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.2)],
+        ),
+      ),
+      child: Column(
+        children: [
+          chatListWidget,
+          SafeArea(top: false, child: _buildChatInput()),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStandardModeLayout() {
     return Stack(
       children: [
@@ -566,14 +578,15 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   _buildAppBar(),
                   _buildHostStatsRow(),
                   Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned(bottom: 0, left: 0, right: 0, child: _buildChatSection()),
-                        Positioned(bottom: 0, right: 0, child: _buildJoinCallOverlay()),
-                      ],
+                    child: Stack(children: [Positioned(bottom: 0, right: 0, child: _buildJoinCallOverlay())]),
+                  ),
+                  _buildChatContainer(
+                    chatListWidget: Container(
+                      height: MediaQuery.of(context).size.height * 0.3,
+                      width: double.infinity,
+                      child: _buildChatSection(),
                     ),
                   ),
-                  SafeArea(top: false, child: _buildChatInput()),
                 ],
               )
             : const SizedBox.shrink(),
@@ -585,12 +598,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     return Column(
       children: [
         _buildAppBar(),
-        // _buildHostStatsRow(), // Optional: You might want this in PK mode too
-        // --- MODIFIED: This row is now removed ---
-        // _buildPKParticipantCountsAndTimer(),
         Expanded(flex: 3, child: _buildPKVideoLayout()),
         _buildPKProgressBar(),
-        _buildPKEmptySeats(), // This now contains the timer
+        _buildPKEmptySeats(),
         Expanded(flex: 2, child: _buildChatSection()),
         SafeArea(top: false, child: _buildChatInput()),
       ],
@@ -760,7 +770,10 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     final String currentUserId = _auth.currentUser?.uid ?? '';
     final bool isGuest = !widget.isHost && hostId != currentUserId;
 
-    final guestParticipants = _participants.where((p) => p.userId != hostId).toList();
+    List<VideoParticipant> participantsForAvatars = [];
+    if (!_isPKMode) {
+      participantsForAvatars = _participants.where((p) => p.userId != hostId).toList();
+    }
 
     return Container(
       child: Padding(
@@ -858,8 +871,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   },
                 ),
               const Spacer(),
-              if (!_isPKMode) _buildParticipantAvatars(guestParticipants),
-              if (!_isPKMode)
+              // Show avatars and count button ONLY if NOT in PK mode
+              if (!_isPKMode) ...[
+                _buildParticipantAvatars(participantsForAvatars),
                 GestureDetector(
                   onTap: () {
                     showVideoParticipantsBottomSheet(
@@ -889,6 +903,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                     ),
                   ),
                 ),
+              ],
               IconButton(
                 icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
                 onPressed: _showExitConfirmationDialog,
@@ -1124,97 +1139,87 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
+  // --- MODIFIED: Removed gradient container and height ---
   Widget _buildChatSection() {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.3,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.6)],
-        ),
-      ),
-      child: ListView.builder(
-        reverse: true,
-        controller: _chatScrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        itemCount: _messages.length + 1,
-        itemBuilder: (context, index) {
-          if (index == _messages.length) {
-            return const Padding(
-              padding: EdgeInsets.only(top: 10, bottom: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 250,
-                    child: Text(
-                      "Any sexual or violation content is strictly prohibited. All violator will be banned. Do not expose your personal info such phone or location.",
-                      style: TextStyle(color: Colors.white70, fontSize: 10),
-                      maxLines: 3,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final m = _messages[index];
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView.builder(
+      reverse: true,
+      controller: _chatScrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      itemCount: _messages.length + 1,
+      itemBuilder: (context, index) {
+        if (index == _messages.length) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 10, bottom: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                GestureDetector(
-                  onTap: () {
-                    showProfileInfoBottomSheet(
-                      context,
-                      userId: m.userId,
-                      hostId: roomData['hostId'] ?? '',
-                      roomId: widget.roomID,
-                    );
-                  },
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade700,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
-                          ],
-                        ),
-                        child: const Text(
-                          "Lv 1",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        "${m.username}: ",
-                        style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
-                      ),
-                    ],
+                SizedBox(
+                  width: 250,
+                  child: Text(
+                    "Any sexual or violation content is strictly prohibited. All violator will be banned. Do not expose your personal info such phone or location.",
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
+                    maxLines: 3,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 0, top: 2),
-                  child: Text(m.message, style: const TextStyle(color: Colors.white, fontSize: 14)),
                 ),
               ],
             ),
           );
-        },
-      ),
+        }
+
+        final m = _messages[index];
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  showProfileInfoBottomSheet(
+                    context,
+                    userId: m.userId,
+                    hostId: roomData['hostId'] ?? '',
+                    roomId: widget.roomID,
+                  );
+                },
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade700,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: const Text(
+                        "Lv 1",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      "${m.username}: ",
+                      style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 0, top: 2),
+                child: Text(m.message, style: const TextStyle(color: Colors.white, fontSize: 14)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1287,7 +1292,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   pendingInvites: _pendingInvites,
                   currentRoomId: widget.roomID,
                   isHost: widget.isHost,
-                  // TODO: Pass PK state to tools bottom sheet
                   // isPKMode: _isPKMode,
                   // onEndPK: () { ... }
                 );
