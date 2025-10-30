@@ -1,22 +1,15 @@
 import 'dart:developer';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cute_live/ui/home/tabs/party_tab.dart';
 import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
-import 'package:rxdart/rxdart.dart';
 import 'dart:ui';
 
 import '../../core/cubits/app_cubit.dart';
-import '../../data/remote/firebase/live_streaming_services.dart';
-import '../../data/remote/firebase/room_services.dart';
-import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
 import 'home_cubit.dart';
@@ -30,9 +23,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late Stream<List<StreamerModel>> _allRoomsStream;
 
-  // Dummy data for streamers
   final List<StreamerModel> _streamers = [
     StreamerModel(
       id: '1',
@@ -94,82 +85,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-
-    // Get the individual streams
-    final audioRoomsStream = RoomService.getAllRooms();
-    final videoRoomsStream = VideoRoomService.getAllRooms();
-    final liveStreamsStream = LiveStreamService.getAllRooms(); // --- 3. GET NEW STREAM ---
-
-    // --- 3. UPGRADE TO combine3 ---
-    _allRoomsStream = CombineLatestStream.combine3(
-      audioRoomsStream,
-      videoRoomsStream,
-      liveStreamsStream, // Add new stream
-      (
-        QuerySnapshot audioSnapshot,
-        QuerySnapshot videoSnapshot,
-        QuerySnapshot liveStreamSnapshot, // Add new snapshot
-      ) {
-        final List<StreamerModel> liveRooms = [];
-
-        // Process audio rooms
-        for (var doc in audioSnapshot.docs) {
-          var roomData = doc.data() as Map<String, dynamic>;
-          liveRooms.add(
-            StreamerModel(
-              id: doc.id,
-              name: roomData['hostName'] ?? 'Unknown Host',
-              imageUrl: roomData['hostPicture'],
-              bio: '',
-              viewCount: roomData['participantCount'] ?? 0,
-              isVideo: false,
-              isLocked: roomData['isLocked'] ?? false,
-              isLiveStream: false, // --- 2. ADD NEW FLAG ---
-            ),
-          );
-        }
-
-        // Process video rooms
-        for (var doc in videoSnapshot.docs) {
-          var roomData = doc.data() as Map<String, dynamic>;
-          liveRooms.add(
-            StreamerModel(
-              id: doc.id,
-              name: roomData['hostName'] ?? 'Unknown Host',
-              imageUrl: roomData['hostPicture'],
-              bio: '',
-              viewCount: roomData['participantCount'] ?? 0,
-              isVideo: true,
-              isLocked: roomData['isLocked'] ?? false,
-              isLiveStream: false, // --- 2. ADD NEW FLAG ---
-            ),
-          );
-        }
-
-        // --- 3. PROCESS NEW LIVE STREAMS ---
-        for (var doc in liveStreamSnapshot.docs) {
-          var roomData = doc.data() as Map<String, dynamic>;
-          liveRooms.add(
-            StreamerModel(
-              id: doc.id,
-              name: roomData['hostName'] ?? 'Unknown Host',
-              imageUrl: roomData['hostPicture'],
-              bio: '',
-              viewCount: roomData['participantCount'] ?? 0,
-              isVideo: true,
-              // A live stream shows video
-              isLocked: roomData['isLocked'] ?? false,
-              isLiveStream: true, // --- 2. SET NEW FLAG ---
-            ),
-          );
-        }
-
-        debugPrint("Processed ${liveRooms.length} active rooms in real-time.");
-        // Sort the combined list
-        liveRooms.sort((a, b) => b.viewCount.compareTo(a.viewCount));
-        return liveRooms;
-      },
-    );
   }
 
   @override
@@ -182,41 +97,40 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => HomeCubit()..init(),
-      child: Scaffold(
-        // MODIFICATION: Add the AppBar here
-        appBar: _buildNewAppBar(),
-        body: Container(
-          decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
-          child: SafeArea(
-            // Set top to false since the AppBar now handles the top safe area
-            top: false,
-            child: Column(
-              children: [
-                // MODIFICATION: Removed _buildAppBar() and _buildTabBar()
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      SingleChildScrollView(child: _buildPopularGrid()),
-                      SingleChildScrollView(child: _buildFresherGrid()),
-                      PartyTab(streamers: _streamers),
-                      PKTab(streamers: _streamers),
-                    ],
-                  ),
+      child: Builder(
+        builder: (context) { 
+          final cubit = context.read<HomeCubit>();
+          return Scaffold(
+            appBar: _buildNewAppBar(),
+            body: Container(
+              decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          SingleChildScrollView(child: _buildPopularGrid(cubit)),
+                          SingleChildScrollView(child: _buildFresherGrid(cubit)),
+                          PartyTab(streamers: _streamers),
+                          PKTab(streamers: _streamers),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  // MODIFICATION: Added _buildNewAppBar from tuki_live and adapted it
   PreferredSizeWidget _buildNewAppBar() {
     return AppBar(
-      // MODIFICATION: Changed color from transparent to Colors.pink
-      // This provides a solid background for the white text and icons
       backgroundColor: Colors.pink,
       elevation: 0,
       toolbarHeight: 60,
@@ -237,7 +151,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           unselectedLabelColor: Colors.white.withOpacity(0.6),
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
-          // MODIFICATION: Used the tabs from cute_live
           tabs: const [
             Tab(text: 'Popular'),
             Tab(text: 'Freshers'),
@@ -255,18 +168,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
         GestureDetector(
           onTap: () {
-            // This action is from tuki_live, assuming Routes.myLevel.path exists
             context.push(Routes.myLevel.path);
           },
           onLongPress: () {
-            // This logout logic is the same as the one in cute_live's original _buildAppBar
             final appCubit = GetIt.I<AppCubit>();
             appCubit.logout();
             context.go(Routes.login.path);
           },
           child: Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            // Using the icon from tuki_live's design
             child: Icon(Icons.emoji_events_outlined, color: Colors.amber[700], size: 24),
           ),
         ),
@@ -274,7 +184,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildFresherGrid() {
+  Widget _buildFresherGrid(HomeCubit cubit) {
     return Column(
       children: [
         CarouselBanner(
@@ -282,7 +192,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           height: 120,
           autoPlayDuration: const Duration(seconds: 4),
           onBannerTap: (index) {
-            // Handle banner tap
             print('Banner $index tapped');
           },
         ),
@@ -310,10 +219,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildPopularGrid() {
+  Widget _buildPopularGrid(HomeCubit cubit) {
     return Column(
       children: [
-        // Grid for your static dummy data
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 10),
           child: GridView.builder(
@@ -342,9 +250,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             print('Banner $index tapped');
           },
         ),
-        // This StreamBuilder now correctly receives and displays live updates
         StreamBuilder<List<StreamerModel>>(
-          stream: _allRoomsStream,
+          stream: cubit.allRoomsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -359,7 +266,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               );
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const SizedBox.shrink(); // Show nothing if no live rooms
+              return const SizedBox.shrink();
             }
 
             final liveRooms = snapshot.data!;
@@ -388,7 +295,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 }
 
-// --- 2. MODIFY StreamerModel ---
 class StreamerModel {
   final String id;
   final String name;
@@ -398,7 +304,7 @@ class StreamerModel {
   final bool isPremium;
   final bool isVideo;
   final bool isLocked;
-  final bool isLiveStream; // --- ADDED THIS LINE ---
+  final bool isLiveStream;
 
   const StreamerModel({
     required this.id,
@@ -409,6 +315,6 @@ class StreamerModel {
     this.isPremium = false,
     this.isVideo = true,
     this.isLocked = false,
-    this.isLiveStream = false, // --- ADDED THIS LINE (with default) ---
+    this.isLiveStream = false,
   });
 }
