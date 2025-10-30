@@ -70,6 +70,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       isPremium: false,
       isVideo: true,
     ),
+    StreamerModel(
+      id: '5',
+      name: 'Sophie Kim',
+      bio: 'Live music sessions and acoustic covers. Request your favorite songs!',
+      viewCount: 2156,
+      imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
+      isPremium: false,
+      isVideo: false,
+    ),
+    StreamerModel(
+      id: '6',
+      name: 'Ryan Miller',
+      bio: 'Competitive gaming and esports analysis. Let\'s talk strategy!',
+      viewCount: 754,
+      imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
+      isPremium: false,
+      isVideo: true,
+    ),
   ];
 
   @override
@@ -84,72 +102,74 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     // --- 3. UPGRADE TO combine3 ---
     _allRoomsStream = CombineLatestStream.combine3(
-        audioRoomsStream,
-        videoRoomsStream,
-        liveStreamsStream, // Add new stream
-            (
-            QuerySnapshot audioSnapshot,
-            QuerySnapshot videoSnapshot,
-            QuerySnapshot liveStreamSnapshot, // Add new snapshot
-            ) {
-          final List<StreamerModel> liveRooms = [];
+      audioRoomsStream,
+      videoRoomsStream,
+      liveStreamsStream, // Add new stream
+      (
+        QuerySnapshot audioSnapshot,
+        QuerySnapshot videoSnapshot,
+        QuerySnapshot liveStreamSnapshot, // Add new snapshot
+      ) {
+        final List<StreamerModel> liveRooms = [];
 
-          // Process audio rooms
-          for (var doc in audioSnapshot.docs) {
-            var roomData = doc.data() as Map<String, dynamic>;
-            liveRooms.add(
-              StreamerModel(
-                id: doc.id,
-                name: roomData['hostName'] ?? 'Unknown Host',
-                imageUrl: roomData['hostPicture'],
-                bio: '',
-                viewCount: roomData['participantCount'] ?? 0,
-                isVideo: false,
-                isLocked: roomData['isLocked'] ?? false,
-                isLiveStream: false, // --- 2. ADD NEW FLAG ---
-              ),
-            );
-          }
+        // Process audio rooms
+        for (var doc in audioSnapshot.docs) {
+          var roomData = doc.data() as Map<String, dynamic>;
+          liveRooms.add(
+            StreamerModel(
+              id: doc.id,
+              name: roomData['hostName'] ?? 'Unknown Host',
+              imageUrl: roomData['hostPicture'],
+              bio: '',
+              viewCount: roomData['participantCount'] ?? 0,
+              isVideo: false,
+              isLocked: roomData['isLocked'] ?? false,
+              isLiveStream: false, // --- 2. ADD NEW FLAG ---
+            ),
+          );
+        }
 
-          // Process video rooms
-          for (var doc in videoSnapshot.docs) {
-            var roomData = doc.data() as Map<String, dynamic>;
-            liveRooms.add(
-              StreamerModel(
-                id: doc.id,
-                name: roomData['hostName'] ?? 'Unknown Host',
-                imageUrl: roomData['hostPicture'],
-                bio: '',
-                viewCount: roomData['participantCount'] ?? 0,
-                isVideo: true,
-                isLocked: roomData['isLocked'] ?? false,
-                isLiveStream: false, // --- 2. ADD NEW FLAG ---
-              ),
-            );
-          }
+        // Process video rooms
+        for (var doc in videoSnapshot.docs) {
+          var roomData = doc.data() as Map<String, dynamic>;
+          liveRooms.add(
+            StreamerModel(
+              id: doc.id,
+              name: roomData['hostName'] ?? 'Unknown Host',
+              imageUrl: roomData['hostPicture'],
+              bio: '',
+              viewCount: roomData['participantCount'] ?? 0,
+              isVideo: true,
+              isLocked: roomData['isLocked'] ?? false,
+              isLiveStream: false, // --- 2. ADD NEW FLAG ---
+            ),
+          );
+        }
 
-          // --- 3. PROCESS NEW LIVE STREAMS ---
-          for (var doc in liveStreamSnapshot.docs) {
-            var roomData = doc.data() as Map<String, dynamic>;
-            liveRooms.add(
-              StreamerModel(
-                id: doc.id,
-                name: roomData['hostName'] ?? 'Unknown Host',
-                imageUrl: roomData['hostPicture'],
-                bio: '',
-                viewCount: roomData['participantCount'] ?? 0,
-                isVideo: true, // A live stream shows video
-                isLocked: roomData['isLocked'] ?? false,
-                isLiveStream: true, // --- 2. SET NEW FLAG ---
-              ),
-            );
-          }
+        // --- 3. PROCESS NEW LIVE STREAMS ---
+        for (var doc in liveStreamSnapshot.docs) {
+          var roomData = doc.data() as Map<String, dynamic>;
+          liveRooms.add(
+            StreamerModel(
+              id: doc.id,
+              name: roomData['hostName'] ?? 'Unknown Host',
+              imageUrl: roomData['hostPicture'],
+              bio: '',
+              viewCount: roomData['participantCount'] ?? 0,
+              isVideo: true,
+              // A live stream shows video
+              isLocked: roomData['isLocked'] ?? false,
+              isLiveStream: true, // --- 2. SET NEW FLAG ---
+            ),
+          );
+        }
 
-          debugPrint("Processed ${liveRooms.length} active rooms in real-time.");
-          // Sort the combined list
-          liveRooms.sort((a, b) => b.viewCount.compareTo(a.viewCount));
-          return liveRooms;
-        });
+        debugPrint("Processed ${liveRooms.length} active rooms in real-time.");
+        // Sort the combined list
+        liveRooms.sort((a, b) => b.viewCount.compareTo(a.viewCount));
+        return liveRooms;
+      },
+    );
   }
 
   @override
@@ -163,13 +183,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return BlocProvider(
       create: (context) => HomeCubit()..init(),
       child: Scaffold(
+        // MODIFICATION: Add the AppBar here
+        appBar: _buildNewAppBar(),
         body: Container(
           decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
           child: SafeArea(
+            // Set top to false since the AppBar now handles the top safe area
+            top: false,
             child: Column(
               children: [
-                _buildAppBar(),
-                _buildTabBar(),
+                // MODIFICATION: Removed _buildAppBar() and _buildTabBar()
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -189,114 +212,65 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildAppBar() {
-    return Builder(
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
-            children: [
-              // Profile Section
-              Row(
-                children: [
-                  Container(
-                    width: 45,
-                    height: 45,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]),
-                      boxShadow: [
-                        BoxShadow(color: Colors.pink.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Image.network(
-                        FirebaseAuth.instance.currentUser?.photoURL ?? "",
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.person, color: Colors.white, size: 24);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ShaderMask(
-                        shaderCallback: (bounds) =>
-                            LinearGradient(colors: [Colors.white, Colors.pink.shade200]).createShader(bounds),
-                        child: Text(
-                          FirebaseAuth.instance.currentUser?.displayName ?? "Unknown",
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      Text(
-                        'ID: 123456789',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Settings Icon
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.black.withOpacity(0.2),
-                  border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-                ),
-                child: IconButton(
-                  icon: Icon(Icons.settings_rounded, color: Colors.pink.shade300, size: 20),
-                  onPressed: () {
-                    final appCubit = GetIt.I<AppCubit>();
-                    appCubit.logout();
-                    context.go(Routes.login.path);
-                  },
-                ),
-              ),
-            ],
+  // MODIFICATION: Added _buildNewAppBar from tuki_live and adapted it
+  PreferredSizeWidget _buildNewAppBar() {
+    return AppBar(
+      // MODIFICATION: Changed color from transparent to Colors.pink
+      // This provides a solid background for the white text and icons
+      backgroundColor: Colors.pink,
+      elevation: 0,
+      toolbarHeight: 60,
+      automaticallyImplyLeading: false,
+      title: Align(
+        alignment: Alignment.centerLeft,
+        child: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          indicator: UnderlineTabIndicator(
+            borderSide: BorderSide(width: 3.0, color: Colors.white),
+            insets: const EdgeInsets.symmetric(horizontal: 16.0),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        color: Colors.black.withOpacity(0.3),
-        border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(25),
-          gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]),
+          indicatorSize: TabBarIndicatorSize.label,
+          dividerColor: Colors.transparent,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white.withOpacity(0.6),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+          // MODIFICATION: Used the tabs from cute_live
+          tabs: const [
+            Tab(text: 'Popular'),
+            Tab(text: 'Freshers'),
+            Tab(text: 'Party'),
+            Tab(text: 'PK'),
+          ],
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white.withOpacity(0.6),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        tabs: const [
-          Tab(text: 'Popular'),
-          Tab(text: 'Freshers'),
-          Tab(text: 'Party'),
-          Tab(text: 'PK'),
-        ],
       ),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.search, color: Colors.white, size: 24),
+          onPressed: () {
+            // Handle search
+          },
+        ),
+        GestureDetector(
+          onTap: () {
+            // This action is from tuki_live, assuming Routes.myLevel.path exists
+            context.push(Routes.myLevel.path);
+          },
+          onLongPress: () {
+            // This logout logic is the same as the one in cute_live's original _buildAppBar
+            final appCubit = GetIt.I<AppCubit>();
+            appCubit.logout();
+            context.go(Routes.login.path);
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            // Using the icon from tuki_live's design
+            child: Icon(Icons.emoji_events_outlined, color: Colors.amber[700], size: 24),
+          ),
+        ),
+      ],
     );
   }
 

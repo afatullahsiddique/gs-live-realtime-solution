@@ -33,56 +33,86 @@ class PKTab extends StatelessWidget {
   }
 
   Widget _buildVSCard(StreamerModel streamer1, StreamerModel streamer2, bool isTopMatch, int index) {
+    // Define gradient colors
+    // For top matches, colors are semi-transparent to show the GIF behind them
+    final List<Color> gradientColors = isTopMatch
+        ? [
+      const Color(0xFF1a0a0a).withOpacity(0.5),
+      const Color(0xff261b2d).withOpacity(0.6),
+      const Color(0xff3b2c4a).withOpacity(0.7),
+      const Color(0xFF9b6bff).withOpacity(0.3),
+    ]
+        : [
+      // Opaque colors for regular cards
+      const Color(0xFF0a0a0a),
+      const Color(0xFF1a1a1a),
+      const Color(0xFF2a1a2a),
+    ];
+
     return Container(
-      height: 180,
+      height: 240,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isTopMatch
-              ? [
-                  const Color(0xFF1a0a0a),
-                  const Color(0xFF2d1b2b),
-                  const Color(0xFF4a2c4a),
-                  const Color(0xFFff6b9d).withOpacity(0.3),
-                ]
-              : [const Color(0xFF0a0a0a), const Color(0xFF1a1a1a), const Color(0xFF2a1a2a)],
-        ),
+        color: const Color(0xFF0a0a0a), // Fallback background color
         boxShadow: [
           BoxShadow(
-            color: isTopMatch ? Colors.pink.withOpacity(0.3) : Colors.black.withOpacity(0.5),
+            color: isTopMatch ? Colors.purple.withOpacity(0.3) : Colors.purple.withOpacity(0.5),
             blurRadius: 15,
             spreadRadius: 2,
             offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Animated background effects for top matches
-          if (isTopMatch) _buildAnimatedBackground(index),
+      child: ClipRRect(
+        // Clip all children to the rounded corners
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            // 1. NEW: Animated GIF background
+            if (isTopMatch)
+              Image.asset(
+                // Assumed asset path, using 1-based indexing (1, 2, 3)
+                "assets/animations/pk_border_${index + 1}.gif",
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 240,
+              ),
 
-          // Main content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Left streamer
-                Expanded(child: _buildStreamerSide(streamer1, true, isTopMatch)),
+            // 2. Gradient overlay (now inside the Stack)
+            // Container(
+            //   decoration: BoxDecoration(
+            //     gradient: LinearGradient(
+            //       begin: Alignment.topLeft,
+            //       end: Alignment.bottomRight,
+            //       colors: gradientColors, // Use the colors defined above
+            //     ),
+            //   ),
+            // ),
 
-                // VS section
-                _buildVSSection(streamer1, streamer2, isTopMatch),
+            // 3. Animated background effects (pulsing border)
+            if (isTopMatch) _buildAnimatedBackground(index),
 
-                // Right streamer
-                Expanded(child: _buildStreamerSide(streamer2, false, isTopMatch)),
-              ],
+            // 4. Main content
+            Padding(
+              padding: const EdgeInsets.all(22),
+              child: Row(
+                children: [
+                  // Left streamer
+                  Expanded(child: _buildStreamerSide(streamer1, true, isTopMatch)),
+
+                  // VS section
+                  _buildVSSection(streamer1, streamer2, isTopMatch),
+
+                  // Right streamer
+                  Expanded(child: _buildStreamerSide(streamer2, false, isTopMatch)),
+                ],
+              ),
             ),
-          ),
 
-          // Top match indicator
-          if (isTopMatch) _buildTopMatchIndicator(index),
-        ],
+            // 5. Top match indicator
+            if (isTopMatch) _buildTopMatchIndicator(index),
+          ],
+        ),
       ),
     );
   }
@@ -120,7 +150,7 @@ class PKTab extends StatelessWidget {
   Widget _buildTopMatchIndicator(int index) {
     final ranks = ['🥇', '🥈', '🥉'];
     return Positioned(
-      top: 8,
+      top: 20,
       left: 0,
       right: 0,
       child: Center(
