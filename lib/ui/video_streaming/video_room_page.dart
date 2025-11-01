@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
@@ -400,13 +401,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
         if (newAcceptedInvite != null && !_isPKMode) {
           _dialogsShownForInviteIds.add(newAcceptedInvite.id);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${newAcceptedInvite.receiverHostId} accepted your PK invite!'),
-              backgroundColor: Colors.green,
-            ),
-          );
         }
       });
     }
@@ -485,10 +479,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
               ZegoUIKit().startPlayAnotherRoomAudioVideo(invite.senderRoomId, invite.senderHostId);
               // Re-apply view mode for the new remote stream
               ZegoUIKit().updateVideoViewMode(true);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('PK accepted with ${invite.senderHostName}!'), backgroundColor: Colors.green),
-              );
             },
             child: const Text('Accept', style: TextStyle(color: Colors.white)),
           ),
@@ -563,12 +553,15 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           builder: (builderContext) {
             ZegoScreenUtil.init(builderContext);
 
+            if (!_isInitialized) {
+              return _buildLoadingIndicator();
+            }
+
             return Stack(
               children: [
-                if (_isInitialized)
-                  _isPKMode ? _buildPKModeLayout() : _buildStandardModeLayout()
-                else
-                  _buildLoadingIndicator(),
+                _isPKMode ? _buildPKModeLayout() : _buildStandardModeLayout(),
+
+                // The animation overlay can now safely access roomData
                 Visibility(visible: _isStartingPKAnimation, child: _buildPKStartingAnimation()),
               ],
             );
@@ -1033,7 +1026,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- MODIFIED: This is the new buildZegoView method ---
   Widget _buildTeamLayout({
     required List<VideoParticipant> participants,
     required String hostName,
@@ -1508,47 +1500,16 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   }
 
   Widget _buildPKStartingAnimation() {
-    final myPicture = roomData['hostPicture'] as String? ?? '';
-    final opponentPicture = _pkState['opponentHostPicture'] as String? ?? '';
-
     return Container(
       color: Colors.black.withOpacity(0.85),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: myPicture.isNotEmpty ? NetworkImage(myPicture) : null,
-                  child: myPicture.isEmpty ? const Icon(Icons.person, size: 50) : null,
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Text(
-                    "VS",
-                    style: TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.redAccent,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: opponentPicture.isNotEmpty ? NetworkImage(opponentPicture) : null,
-                  child: opponentPicture.isEmpty ? const Icon(Icons.person, size: 50) : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              "PK BATTLE STARTING",
-              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2),
+            Container(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).size.height * .2),
+              height: MediaQuery.of(context).size.height / 2,
+              child: SVGAEasyPlayer(assetsName: "assets/svga/pk_start.svga", fit: BoxFit.cover),
             ),
           ],
         ),
