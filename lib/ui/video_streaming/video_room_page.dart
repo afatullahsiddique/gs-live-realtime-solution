@@ -120,6 +120,8 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   int _pkScoreBlue = 0;
   int _pkScoreRed = 0;
 
+  bool _isStartingPKAnimation = false;
+
   @override
   void initState() {
     super.initState();
@@ -197,11 +199,12 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
   Future<void> _finishInitialization() async {
     await ZegoUIKit().init(
-      appID: 1738777063, // Your App ID
-      appSign: "1b5dbd4c4dac51d753a6a4eb7563490006a11a161c5133a4bb2f4727d5e34550", // Your App Sign
+      appID: 751798122, // Your App ID
+      appSign: "ec25b1cfc409394987c89a717dd124dce925283695e2ebc36a37882feda0ef84", // Your App Sign
       scenario: ZegoScenario.Default,
     );
 
+    // This sets the mode for the LOCAL user and users in the SAME room
     ZegoUIKit().updateVideoViewMode(true);
 
     final currentUser = _auth.currentUser!;
@@ -225,6 +228,62 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     setState(() => _isInitialized = true);
   }
 
+  void _startPKBattleSequence(Map<String, dynamic> newPKState) {
+    // Set state immediately for animation to get opponent data and show overlay
+    setState(() {
+      _pkState = newPKState;
+      _isStartingPKAnimation = true;
+    });
+
+    // Wait for the animation to finish
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return; // Guard against disposed widget
+
+      debugPrint("PK Animation finished. Starting PK logic.");
+
+      // Start all the background PK logic
+      if (widget.isHost) {
+        final hostId = _auth.currentUser!.uid;
+        VideoRoomService.demoteAllParticipantsToViewers(widget.roomID, hostId);
+      }
+
+      if (widget.isHost && newPKState['role'] == 'sender') {
+        String opponentRoomId = newPKState['opponentRoomId'] ?? '';
+        String opponentHostId = newPKState['opponentHostId'] ?? '';
+        if (opponentRoomId.isNotEmpty && opponentHostId.isNotEmpty) {
+          debugPrint("Sender is starting to play opponent's stream: $opponentHostId");
+          ZegoUIKit().startPlayAnotherRoomAudioVideo(opponentRoomId, opponentHostId);
+          // Re-apply view mode for the new remote stream (may not work, but good to have)
+          ZegoUIKit().updateVideoViewMode(true);
+        }
+      }
+
+      // Start the PK Timer
+      final Timestamp? pkEndTimeStamp = newPKState['pkEndTime'] as Timestamp?;
+      if (pkEndTimeStamp != null) {
+        _startPKTimer(pkEndTimeStamp.toDate());
+      }
+
+      _opponentParticipantsSubscription?.cancel();
+      _opponentParticipantsSubscription = VideoRoomService.getRoomParticipants(newPKState['opponentRoomId']).listen((
+        snapshot,
+      ) {
+        if (mounted) {
+          final newOpponentParticipants = snapshot.docs.map((doc) => VideoParticipant.fromFirestore(doc)).toList();
+          setState(() {
+            _opponentParticipants = newOpponentParticipants.where((p) => p.onCall == true).toList();
+          });
+        }
+      });
+
+      // Final state update to switch UI from animation to PK layout
+      setState(() {
+        _isPKMode = true;
+        _isStartingPKAnimation = false;
+      });
+    });
+  }
+
   void _setupListeners() {
     _roomSubscription = VideoRoomService.getRoomStream(widget.roomID).listen((doc) {
       if (doc.exists && mounted) {
@@ -239,46 +298,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
         // PK Just Started
         if (isNowInPK && !_isPKMode) {
-          debugPrint("PK Mode STARTING");
-
-          if (widget.isHost) {
-            final hostId = _auth.currentUser!.uid;
-            VideoRoomService.demoteAllParticipantsToViewers(widget.roomID, hostId);
+          if (!_isStartingPKAnimation) {
+            _startPKBattleSequence(newPKState);
           }
-
-          if (widget.isHost && newPKState['role'] == 'sender') {
-            String opponentRoomId = newPKState['opponentRoomId'] ?? '';
-            String opponentHostId = newPKState['opponentHostId'] ?? '';
-            if (opponentRoomId.isNotEmpty && opponentHostId.isNotEmpty) {
-              debugPrint("Sender is starting to play opponent's stream: $opponentHostId");
-              ZegoUIKit().startPlayAnotherRoomAudioVideo(opponentRoomId, opponentHostId);
-            }
-          }
-
-          setState(() {
-            _isPKMode = true;
-            _pkState = newPKState;
-          });
-
-          // Start the PK Timer
-          final Timestamp? pkEndTimeStamp = newPKState['pkEndTime'] as Timestamp?;
-          if (pkEndTimeStamp != null) {
-            _startPKTimer(pkEndTimeStamp.toDate());
-          }
-
-          _opponentParticipantsSubscription?.cancel();
-          _opponentParticipantsSubscription = VideoRoomService.getRoomParticipants(newPKState['opponentRoomId']).listen(
-            (snapshot) {
-              if (mounted) {
-                final newOpponentParticipants = snapshot.docs
-                    .map((doc) => VideoParticipant.fromFirestore(doc))
-                    .toList();
-                setState(() {
-                  _opponentParticipants = newOpponentParticipants.where((p) => p.onCall == true).toList();
-                });
-              }
-            },
-          );
         }
         // PK Just Ended
         else if (!isNowInPK && _isPKMode) {
@@ -461,6 +483,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
               VideoRoomService.acceptPKInvite(widget.roomID, invite);
               ZegoUIKit().startPlayAnotherRoomAudioVideo(invite.senderRoomId, invite.senderHostId);
+              // Re-apply view mode for the new remote stream
+              ZegoUIKit().updateVideoViewMode(true);
+
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('PK accepted with ${invite.senderHostName}!'), backgroundColor: Colors.green),
               );
@@ -538,11 +563,15 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           builder: (builderContext) {
             ZegoScreenUtil.init(builderContext);
 
-            return _isInitialized
-                ? _isPKMode
-                      ? _buildPKModeLayout()
-                      : _buildStandardModeLayout()
-                : _buildLoadingIndicator();
+            return Stack(
+              children: [
+                if (_isInitialized)
+                  _isPKMode ? _buildPKModeLayout() : _buildStandardModeLayout()
+                else
+                  _buildLoadingIndicator(),
+                Visibility(visible: _isStartingPKAnimation, child: _buildPKStartingAnimation()),
+              ],
+            );
           },
         ),
       ),
@@ -556,7 +585,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           stops: const [0.0, 1.0],
-          colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.2)],
+          colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.7)],
         ),
       ),
       child: Column(
@@ -572,24 +601,23 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     return Stack(
       children: [
         Positioned.fill(child: _buildStandardVideoLayout()),
-        _isInitialized
-            ? Column(
-                children: [
-                  _buildAppBar(),
-                  _buildHostStatsRow(),
-                  Expanded(
-                    child: Stack(children: [Positioned(bottom: 0, right: 0, child: _buildJoinCallOverlay())]),
-                  ),
-                  _buildChatContainer(
-                    chatListWidget: Container(
-                      height: MediaQuery.of(context).size.height * 0.3,
-                      width: double.infinity,
-                      child: _buildChatSection(),
-                    ),
-                  ),
-                ],
-              )
-            : const SizedBox.shrink(),
+        if (_isInitialized)
+          Column(
+            children: [
+              _buildAppBar(),
+              _buildHostStatsRow(),
+              Spacer(),
+              _buildChatContainer(
+                chatListWidget: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.3,
+                  width: double.infinity,
+                  child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()]),
+                ),
+              ),
+            ],
+          )
+        else
+          const SizedBox.shrink(),
       ],
     );
   }
@@ -598,11 +626,14 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     return Column(
       children: [
         _buildAppBar(),
-        Expanded(flex: 3, child: _buildPKVideoLayout()),
+        _buildHostStatsRow(),
+        Expanded(flex: 2, child: _buildPKVideoLayout()),
         _buildPKProgressBar(),
         _buildPKEmptySeats(),
-        Expanded(flex: 2, child: _buildChatSection()),
-        SafeArea(top: false, child: _buildChatInput()),
+        Expanded(
+          flex: 2,
+          child: _buildChatContainer(chatListWidget: Expanded(flex: 1, child: _buildChatSection())),
+        ),
       ],
     );
   }
@@ -739,14 +770,23 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   }
 
   Widget _buildPKEmptySeats() {
-    Widget buildSeatIcon() {
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(100)),
-        child: const Padding(
-          padding: EdgeInsets.all(3),
-          child: Icon(Icons.event_seat_rounded, color: Colors.white70, size: 16),
-        ),
+    Widget buildSeatIcon(int number) {
+      return Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(color: Colors.amber.withOpacity(0.2), shape: BoxShape.circle),
+            child: const Padding(
+              padding: EdgeInsets.all(3),
+              child: Icon(Icons.event_seat_rounded, color: Colors.amber, size: 16),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            number.toString(),
+            style: const TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+        ],
       );
     }
 
@@ -755,11 +795,17 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(children: List.generate(5, (index) => buildSeatIcon())),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(5, (index) => buildSeatIcon(index + 1)),
+          ),
           const Spacer(),
           _buildPKTimerWidget(),
           const Spacer(),
-          Row(children: List.generate(5, (index) => buildSeatIcon())),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(5, (index) => buildSeatIcon(index + 1)),
+          ),
         ],
       ),
     );
@@ -813,20 +859,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                             ),
                           ],
                         ),
-                        StreamBuilder<DocumentSnapshot>(
-                          stream: ProfileService.getUserProfileStream(hostId),
-                          builder: (context, snapshot) {
-                            int followCount = 0;
-                            if (snapshot.hasData && snapshot.data!.exists) {
-                              final data = snapshot.data!.data() as Map<String, dynamic>;
-                              followCount = data['followerCount'] ?? 0;
-                            }
-
-                            return Text(
-                              '$followCount Followers',
-                              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
-                            );
-                          },
+                        Text(
+                          'ID: ${hostId.length > 8 ? hostId.substring(hostId.length - 8) : hostId}',
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
                         ),
                       ],
                     ),
@@ -998,6 +1033,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
+  // --- MODIFIED: This is the new buildZegoView method ---
   Widget _buildTeamLayout({
     required List<VideoParticipant> participants,
     required String hostName,
@@ -1007,46 +1043,19 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
       if (isHost) {
         final zegoUser = ZegoUIKit().getUser(_auth.currentUser!.uid);
         if (zegoUser != null) {
-          return ClipRect(child: ZegoAudioVideoView(user: zegoUser));
+          return buildZegoView(
+            VideoParticipant(
+              userId: zegoUser.id,
+              userName: zegoUser.name,
+              isMuted: !zegoUser.microphone.value,
+              isCameraOn: zegoUser.camera.value,
+              onCall: true,
+            ),
+          );
         }
       }
       return Center(
         child: Text('Waiting for $hostName...', style: const TextStyle(color: Colors.white)),
-      );
-    }
-
-    Widget buildZegoView(VideoParticipant participant) {
-      if (participant.isCameraOn) {
-        final zegoUser = ZegoUIKit().getUser(participant.userId);
-        if (zegoUser != null) {
-          return ClipRect(child: ZegoAudioVideoView(user: zegoUser));
-        }
-      }
-
-      return ClipRect(
-        child: SizedBox.expand(
-          child: Container(
-            color: Colors.black.withOpacity(0.5),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
-                      ? NetworkImage(participant.userPicture!)
-                      : null,
-                  child: participant.userPicture == null || participant.userPicture!.isEmpty
-                      ? const Icon(Icons.person, size: 40, color: Colors.white)
-                      : null,
-                ),
-                Container(
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), shape: BoxShape.circle),
-                ),
-                const Icon(Icons.videocam_off, color: Colors.white, size: 30),
-              ],
-            ),
-          ),
-        ),
       );
     }
 
@@ -1094,6 +1103,58 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     }
   }
 
+  Widget buildZegoView(VideoParticipant participant) {
+    if (participant.isCameraOn) {
+      final zegoUser = ZegoUIKit().getUser(participant.userId);
+      if (zegoUser != null) {
+        return SizedBox.expand(
+          child: ClipRect(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: ValueListenableBuilder<Size>(
+                valueListenable: ZegoUIKit().getVideoSizeNotifier(participant.userId),
+                builder: (context, videoSize, _) {
+                  return SizedBox(
+                    width: videoSize.width,
+                    height: videoSize.height,
+                    child: ZegoAudioVideoView(user: zegoUser),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    // Fallback for when the camera is off (avatar view)
+    return ClipRect(
+      child: SizedBox.expand(
+        child: Container(
+          color: Colors.black.withOpacity(0.5),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
+                    ? NetworkImage(participant.userPicture!)
+                    : null,
+                child: participant.userPicture == null || participant.userPicture!.isEmpty
+                    ? const Icon(Icons.person, size: 40, color: Colors.white)
+                    : null,
+              ),
+              Container(
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), shape: BoxShape.circle),
+              ),
+              const Icon(Icons.videocam_off, color: Colors.white, size: 30),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildJoinCallOverlay() {
     return Visibility(
       visible: !_isJoined && !widget.isHost,
@@ -1139,7 +1200,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     );
   }
 
-  // --- MODIFIED: Removed gradient container and height ---
   Widget _buildChatSection() {
     return ListView.builder(
       reverse: true,
@@ -1242,47 +1302,6 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
       padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
-          if (widget.isHost && _isPKMode)
-            Padding(
-              padding: const EdgeInsets.only(right: 10.0),
-              child: GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF2d1b2b),
-                      title: const Text('End PK Battle', style: TextStyle(color: Colors.white)),
-                      content: const Text(
-                        'Are you sure you want to end the PK battle?',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                          onPressed: () {
-                            if (_pkState.containsKey('opponentRoomId')) {
-                              VideoRoomService.endPKBattle(widget.roomID, _pkState['opponentRoomId']);
-                            }
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('End PK', style: TextStyle(color: Colors.white)),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.red),
-                  child: const Icon(Icons.cancel_outlined, color: Colors.white, size: 28),
-                ),
-              ),
-            ),
           Padding(
             padding: const EdgeInsets.only(right: 10.0),
             child: GestureDetector(
@@ -1292,15 +1311,27 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   pendingInvites: _pendingInvites,
                   currentRoomId: widget.roomID,
                   isHost: widget.isHost,
-                  // isPKMode: _isPKMode,
-                  // onEndPK: () { ... }
                 );
               },
               child: Container(
-                width: 48,
-                height: 48,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                child: const Icon(Icons.more_horiz, color: Colors.white),
+                child: const Icon(Icons.more_horiz, color: Colors.white, size: 24),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 10.0),
+            child: GestureDetector(
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gift button tapped!')));
+              },
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
+                child: const Icon(CupertinoIcons.gift_fill, color: Colors.white, size: 22),
               ),
             ),
           ),
@@ -1319,10 +1350,10 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                      child: const Icon(CupertinoIcons.person_add_solid, color: Colors.white),
+                      child: const Icon(CupertinoIcons.person_add_solid, color: Colors.white, size: 22),
                     ),
                     if (totalRequests > 0)
                       Positioned(
@@ -1359,10 +1390,10 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                     }
                   },
                   child: Container(
-                    width: 48,
-                    height: 48,
+                    width: 32,
+                    height: 32,
                     decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.red),
-                    child: const Icon(Icons.call_end, color: Colors.white, size: 24),
+                    child: const Icon(Icons.call_end, color: Colors.white, size: 22),
                   ),
                 ),
               ),
@@ -1375,12 +1406,13 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   ZegoUIKit().turnMicrophoneOn(!newMuteState);
                 },
                 child: Container(
-                  width: 48,
-                  height: 48,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
                   child: Icon(
                     isCurrentlyMuted ? CupertinoIcons.mic_off : CupertinoIcons.mic_fill,
                     color: isCurrentlyMuted ? Colors.white : Colors.pink,
+                    size: 22,
                   ),
                 ),
               ),
@@ -1395,12 +1427,13 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                     ZegoUIKit().turnCameraOn(newCameraState);
                   },
                   child: Container(
-                    width: 48,
-                    height: 48,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
                     child: Icon(
                       isCameraOn ? CupertinoIcons.videocam_fill : Icons.videocam_off,
                       color: isCameraOn ? Colors.pink : Colors.white,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -1410,14 +1443,15 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           Expanded(
             child: TextField(
               controller: _chatController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
               decoration: InputDecoration(
-                hintText: 'Say something...',
+                hintText: 'Type a message...',
                 hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(25)),
                 fillColor: Colors.black.withOpacity(0.2),
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               ),
               onSubmitted: (_) => _sendMessage(),
             ),
@@ -1426,13 +1460,13 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
           GestureDetector(
             onTap: _sendMessage,
             child: Container(
-              width: 48,
-              height: 48,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.pink.shade600]),
               ),
-              child: const Icon(Icons.send, color: Colors.white),
+              child: const Icon(Icons.send, color: Colors.white, size: 20),
             ),
           ),
         ],
@@ -1471,5 +1505,54 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     } catch (e) {
       debugPrint('Error sending message: $e');
     }
+  }
+
+  Widget _buildPKStartingAnimation() {
+    final myPicture = roomData['hostPicture'] as String? ?? '';
+    final opponentPicture = _pkState['opponentHostPicture'] as String? ?? '';
+
+    return Container(
+      color: Colors.black.withOpacity(0.85),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundImage: myPicture.isNotEmpty ? NetworkImage(myPicture) : null,
+                  child: myPicture.isEmpty ? const Icon(Icons.person, size: 50) : null,
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Text(
+                    "VS",
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+                CircleAvatar(
+                  radius: 50,
+                  backgroundImage: opponentPicture.isNotEmpty ? NetworkImage(opponentPicture) : null,
+                  child: opponentPicture.isEmpty ? const Icon(Icons.person, size: 50) : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              "PK BATTLE STARTING",
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
