@@ -23,7 +23,8 @@ enum Routes {
   visitors,
   hostPage,
   videoRoom,
-  liveStream
+  liveStream,
+  greedy,
 }
 
 extension RoutesExtension on Routes {
@@ -81,6 +82,8 @@ extension RoutesExtension on Routes {
         return '/videoRoom';
       case Routes.liveStream:
         return '/liveStream';
+      case Routes.greedy:
+        return '/greedy';
     }
   }
 }

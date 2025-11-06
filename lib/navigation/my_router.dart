@@ -19,6 +19,7 @@ import 'package:cute_live/ui/auth/verify_otp/verify_otp_page.dart';
 
 import '../data/local/secure_storage/secure_storage.dart';
 import '../ui/feedback/feedback_page.dart';
+import '../ui/games/greedy_game.dart';
 import '../ui/home/home_page.dart';
 import '../ui/host_page/host_page.dart';
 import '../ui/main_page.dart';
@@ -142,6 +143,16 @@ class MyRouter {
             roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
             isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool,
           ),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.greedy.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: GreedyGamePage(),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),
