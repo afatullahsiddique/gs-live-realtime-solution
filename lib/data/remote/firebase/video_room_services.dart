@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cute_live/data/remote/firebase/profile_services.dart';
 
 import '../../../ui/video_streaming/bottomsheets/invite_pk_bottomsheet.dart';
+import 'profile_services.dart';
 
 class VideoRoomService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;

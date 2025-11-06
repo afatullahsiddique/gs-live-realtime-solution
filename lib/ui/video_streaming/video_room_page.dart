@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
@@ -87,7 +87,7 @@ class VideoRoomPage extends StatefulWidget {
   State<VideoRoomPage> createState() => _VideoRoomPageState();
 }
 
-class _VideoRoomPageState extends State<VideoRoomPage> {
+class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProviderStateMixin {
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -103,6 +103,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
   // State Variables
   late Map<String, dynamic> roomData;
   List<VideoParticipant> _participants = [];
+  List<VideoParticipant> _allParticipants = []; // For join animation tracking
   List<ChatMessage> _messages = [];
   List<JoinRequest> _joinRequests = [];
   List<PKInvite> _pendingInvites = [];
@@ -123,11 +124,42 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
   bool _isStartingPKAnimation = false;
 
+  // --- Welcome Animation Vars ---
+  Duration welcomeTime = Duration(milliseconds: 3500);
+  Timer? _joinAnimationTimer;
+  String? _newJoinerName;
+  late AnimationController _joinAnimationController;
+  late Animation<Offset> _joinAnimationOffset;
+
+  // --- End Welcome Animation Vars ---
+
   @override
   void initState() {
     super.initState();
     _isJoined = widget.isHost;
     _initialize();
+
+    // --- Welcome Animation Init ---
+    _joinAnimationController = AnimationController(duration: welcomeTime, vsync: this);
+
+    _joinAnimationOffset = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(1.5, 0.0),
+          end: const Offset(0.0, 0.0),
+        ).chain(CurveTween(curve: Curves.linear)),
+        weight: 1.0,
+      ),
+      TweenSequenceItem(tween: ConstantTween<Offset>(const Offset(0.0, 0.0)), weight: 3.0),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.0, 0.0),
+          end: const Offset(-1.5, 0.0),
+        ).chain(CurveTween(curve: Curves.linear)),
+        weight: 1.0, // 2 parts of the duration
+      ),
+    ]).animate(_joinAnimationController);
+    // --- End Welcome Animation Init ---
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
@@ -148,6 +180,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     _chatScrollController.dispose();
     _pkTimer?.cancel();
 
+    _joinAnimationTimer?.cancel();
+    _joinAnimationController.dispose();
+
     if (_isInitialized) {
       if (widget.isHost) {
         if (_isPKMode && _pkState.containsKey('opponentRoomId')) {
@@ -160,9 +195,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         }
         VideoRoomService.deleteRoom(widget.roomID);
       } else {
-        if (_isJoined) {
-          VideoRoomService.leaveRoom(widget.roomID);
-        }
+        VideoRoomService.leaveRoom(widget.roomID);
       }
       ZegoUIKit().leaveRoom();
       ZegoUIKit().logout();
@@ -223,6 +256,9 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
         debugPrint("Error joining room as viewer: $e");
       }
       _sendJoinMessage();
+
+      final currentUserName = _auth.currentUser?.displayName ?? "You";
+      _showJoinAnimation(currentUserName);
     }
 
     _setupListeners();
@@ -233,55 +269,53 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     // Set state immediately for animation to get opponent data and show overlay
     setState(() {
       _pkState = newPKState;
-      _isStartingPKAnimation = true;
     });
 
-    // Wait for the animation to finish
-    Future.delayed(const Duration(seconds: 3), () {
-      if (!mounted) return; // Guard against disposed widget
+    if (!mounted) return;
 
-      debugPrint("PK Animation finished. Starting PK logic.");
+    debugPrint("PK Animation finished. Starting PK logic.");
 
-      // Start all the background PK logic
-      if (widget.isHost) {
-        final hostId = _auth.currentUser!.uid;
-        VideoRoomService.demoteAllParticipantsToViewers(widget.roomID, hostId);
+    // Start all the background PK logic
+    if (widget.isHost) {
+      final hostId = _auth.currentUser!.uid;
+      VideoRoomService.demoteAllParticipantsToViewers(widget.roomID, hostId);
+    }
+
+    if (widget.isHost && newPKState['role'] == 'sender') {
+      String opponentRoomId = newPKState['opponentRoomId'] ?? '';
+      String opponentHostId = newPKState['opponentHostId'] ?? '';
+      if (opponentRoomId.isNotEmpty && opponentHostId.isNotEmpty) {
+        debugPrint("Sender is starting to play opponent's stream: $opponentHostId");
+        ZegoUIKit().startPlayAnotherRoomAudioVideo(opponentRoomId, opponentHostId);
+        ZegoUIKit().updateVideoViewMode(true);
       }
+    }
 
-      if (widget.isHost && newPKState['role'] == 'sender') {
-        String opponentRoomId = newPKState['opponentRoomId'] ?? '';
-        String opponentHostId = newPKState['opponentHostId'] ?? '';
-        if (opponentRoomId.isNotEmpty && opponentHostId.isNotEmpty) {
-          debugPrint("Sender is starting to play opponent's stream: $opponentHostId");
-          ZegoUIKit().startPlayAnotherRoomAudioVideo(opponentRoomId, opponentHostId);
-          // Re-apply view mode for the new remote stream (may not work, but good to have)
-          ZegoUIKit().updateVideoViewMode(true);
-        }
+    // Start the PK Timer
+    final Timestamp? pkEndTimeStamp = newPKState['pkEndTime'] as Timestamp?;
+    if (pkEndTimeStamp != null) {
+      _startPKTimer(pkEndTimeStamp.toDate());
+    }
+
+    _opponentParticipantsSubscription?.cancel();
+    _opponentParticipantsSubscription = VideoRoomService.getRoomParticipants(newPKState['opponentRoomId']).listen((
+      snapshot,
+    ) {
+      if (mounted) {
+        final newOpponentParticipants = snapshot.docs.map((doc) => VideoParticipant.fromFirestore(doc)).toList();
+        setState(() {
+          _opponentParticipants = newOpponentParticipants.where((p) => p.onCall == true).toList();
+        });
       }
+    });
 
-      // Start the PK Timer
-      final Timestamp? pkEndTimeStamp = newPKState['pkEndTime'] as Timestamp?;
-      if (pkEndTimeStamp != null) {
-        _startPKTimer(pkEndTimeStamp.toDate());
-      }
-
-      _opponentParticipantsSubscription?.cancel();
-      _opponentParticipantsSubscription = VideoRoomService.getRoomParticipants(newPKState['opponentRoomId']).listen((
-        snapshot,
-      ) {
-        if (mounted) {
-          final newOpponentParticipants = snapshot.docs.map((doc) => VideoParticipant.fromFirestore(doc)).toList();
-          setState(() {
-            _opponentParticipants = newOpponentParticipants.where((p) => p.onCall == true).toList();
-          });
-        }
-      });
-
-      // Final state update to switch UI from animation to PK layout
-      setState(() {
-        _isPKMode = true;
-        _isStartingPKAnimation = false;
-      });
+    // Final state update to switch UI from animation to PK layout
+    setState(() async {
+      _isPKMode = true;
+      await Future.delayed(Duration(seconds: 1));
+      _isStartingPKAnimation = true;
+      await Future.delayed(Duration(seconds: 3));
+      _isStartingPKAnimation = false;
     });
   }
 
@@ -347,8 +381,25 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
     _participantsSubscription = VideoRoomService.getRoomParticipants(widget.roomID).listen((snapshot) {
       if (mounted) {
+        // This is the full list from Firestore
         final newParticipants = snapshot.docs.map((doc) => VideoParticipant.fromFirestore(doc)).toList();
         final currentUser = _auth.currentUser!;
+
+        // --- Welcome Animation Logic ---
+        if (_allParticipants.isNotEmpty && _newJoinerName == null) {
+          final oldParticipantIds = _allParticipants.map((p) => p.userId).toSet();
+          final String hostId = roomData['hostId'] ?? '';
+
+          final newGuest = newParticipants.firstWhere(
+            (p) => !oldParticipantIds.contains(p.userId) && p.userId != hostId,
+            orElse: () => VideoParticipant(userId: '', userName: '', isMuted: true, isCameraOn: false, onCall: false),
+          );
+
+          if (newGuest.userId.isNotEmpty) {
+            _showJoinAnimation(newGuest.userName);
+          }
+        }
+        // --- End Welcome Animation Logic ---
 
         final currentUserParticipant = newParticipants.firstWhereOrNull((p) => p.userId == currentUser.uid);
         final bool isNowOnCall = currentUserParticipant?.onCall ?? false;
@@ -365,7 +416,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
         setState(() {
           _participants = newParticipants.where((p) => p.onCall == true).toList();
-
+          _allParticipants = newParticipants; // <-- STORE THE FULL LIST
           _isJoined = isNowOnCall;
         });
       }
@@ -435,6 +486,25 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
+
+  // --- Welcome Animation Method ---
+  void _showJoinAnimation(String userName) {
+    _joinAnimationTimer?.cancel();
+
+    _joinAnimationController.forward(from: 0.0);
+
+    setState(() {
+      _newJoinerName = userName;
+    });
+
+    _joinAnimationTimer = Timer(welcomeTime, () {
+      setState(() {
+        _newJoinerName = null;
+      });
+    });
+  }
+
+  // --- End Welcome Animation Method ---
 
   Future<void> _showPKInviteDialog(PKInvite invite) async {
     return showDialog<void>(
@@ -560,9 +630,11 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
             return Stack(
               children: [
                 _isPKMode ? _buildPKModeLayout() : _buildStandardModeLayout(),
-
-                // The animation overlay can now safely access roomData
                 Visibility(visible: _isStartingPKAnimation, child: _buildPKStartingAnimation()),
+
+                // --- Add Welcome Animation Overlay ---
+                Center(child: _buildJoinAnimationOverlay()),
+                // --- End Welcome Animation Overlay ---
               ],
             );
           },
@@ -811,7 +883,8 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
 
     List<VideoParticipant> participantsForAvatars = [];
     if (!_isPKMode) {
-      participantsForAvatars = _participants.where((p) => p.userId != hostId).toList();
+      // Use _allParticipants for the avatar stack
+      participantsForAvatars = _allParticipants.where((p) => p.userId != hostId).toList();
     }
 
     return Container(
@@ -906,7 +979,8 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
                   onTap: () {
                     showVideoParticipantsBottomSheet(
                       context,
-                      participants: _participants,
+                      // Pass the full list to the participants bottom sheet
+                      participants: _allParticipants,
                       currentUserId: _auth.currentUser!.uid,
                       roomId: widget.roomID,
                       hostId: roomData['hostId'],
@@ -1499,6 +1573,40 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
     }
   }
 
+  Widget _buildJoinAnimationOverlay() {
+    return Visibility(
+      visible: _newJoinerName != null,
+      child: Container(
+        width: double.infinity,
+        height: 100,
+        margin: EdgeInsets.zero,
+        color: Colors.transparent,
+        child: SlideTransition(
+          position: _joinAnimationOffset,
+          child: Stack(
+            fit: StackFit.expand,
+            alignment: Alignment.center,
+            children: [
+              Image.asset("assets/animations/id_entry.gif", fit: BoxFit.cover),
+              Center(
+                child: Text(
+                  '${_newJoinerName ?? ''} joined!',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                    shadows: [BoxShadow(color: Colors.black54, blurRadius: 4, spreadRadius: 2)],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPKStartingAnimation() {
     return Container(
       color: Colors.black.withOpacity(0.85),
@@ -1509,7 +1617,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> {
             Container(
               padding: EdgeInsets.only(bottom: MediaQuery.of(context).size.height * .2),
               height: MediaQuery.of(context).size.height / 2,
-              child: SVGAEasyPlayer(assetsName: "assets/svga/pk_start.svga", fit: BoxFit.cover),
+              child: Image.asset("assets/animations/pk_start.gif", fit: BoxFit.cover),
             ),
           ],
         ),
