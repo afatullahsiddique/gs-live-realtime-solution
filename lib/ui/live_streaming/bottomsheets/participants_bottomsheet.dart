@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../live_room_page.dart';
-
 
 class LiveStreamParticipantsBottomSheet extends StatelessWidget {
   final List<LiveStreamParticipant> participants;
@@ -61,8 +61,8 @@ class LiveStreamParticipantsBottomSheet extends StatelessWidget {
             ? const Icon(Icons.person, color: Colors.white)
             : null,
       ),
-      title: Text(
-        participant.userName,
+      title: AutoScrollText(
+        text: participant.userName,
         style: TextStyle(
           color: isCurrentUser ? Colors.pink : Colors.white,
           fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
@@ -73,7 +73,8 @@ class LiveStreamParticipantsBottomSheet extends StatelessWidget {
   }
 }
 
-void showLiveStreamParticipantsBottomSheet(BuildContext context, {
+void showLiveStreamParticipantsBottomSheet(
+  BuildContext context, {
   required List<LiveStreamParticipant> participants,
   required String currentUserId,
   required String hostId,

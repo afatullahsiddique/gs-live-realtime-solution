@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart';
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/profile_services.dart';
 import '../video_room_page.dart';
 
@@ -16,7 +17,7 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
     required this.participants,
     required this.currentUserId,
     required this.hostId,
-    required this.roomId
+    required this.roomId,
   });
 
   @override
@@ -27,7 +28,7 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
     // Sort the list to always show the host at the top.
     sortedParticipants.sort((a, b) {
       if (a.userId == hostId) return -1; // a is host, comes first
-      if (b.userId == hostId) return 1;  // b is host, comes first
+      if (b.userId == hostId) return 1; // b is host, comes first
       return a.userName.compareTo(b.userName); // Alphabetical for others
     });
 
@@ -66,12 +67,7 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
         // Close this bottom sheet first
         Navigator.of(context).pop();
         // Show the new profile bottom sheet
-        showProfileInfoBottomSheet(
-          context,
-          userId: participant.userId,
-          hostId: hostId,
-          roomId: roomId
-        );
+        showProfileInfoBottomSheet(context, userId: participant.userId, hostId: hostId, roomId: roomId);
       },
       leading: CircleAvatar(
         backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
@@ -81,8 +77,8 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
             ? const Icon(Icons.person, color: Colors.white)
             : null,
       ),
-      title: Text(
-        participant.userName,
+      title: AutoScrollText(
+        text: participant.userName,
         style: TextStyle(
           color: isCurrentUser ? Colors.pink : Colors.white,
           fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
@@ -93,49 +89,55 @@ class VideoParticipantsBottomSheet extends StatelessWidget {
       trailing: isCurrentUser
           ? null
           : StreamBuilder<bool>(
-        stream: ProfileService.isFollowing(participant.userId),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const SizedBox(width: 80, child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))));
-          }
+              stream: ProfileService.isFollowing(participant.userId),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox(
+                    width: 80,
+                    child: Center(
+                      child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                  );
+                }
 
-          final bool isFollowing = snapshot.data ?? false;
+                final bool isFollowing = snapshot.data ?? false;
 
-          return ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isFollowing ? Colors.grey.shade800 : Colors.pink,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+                return ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isFollowing ? Colors.grey.shade800 : Colors.pink,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  onPressed: () async {
+                    try {
+                      if (isFollowing) {
+                        await ProfileService.unfollowUser(participant.userId);
+                      } else {
+                        await ProfileService.followUser(participant.userId);
+                      }
+                    } catch (e) {
+                      debugPrint('Error following/unfollowing user: $e');
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      }
+                    }
+                  },
+                  child: Text(isFollowing ? 'Following' : 'Follow'),
+                );
+              },
             ),
-            onPressed: () async {
-              try {
-                if (isFollowing) {
-                  await ProfileService.unfollowUser(participant.userId);
-                } else {
-                  await ProfileService.followUser(participant.userId);
-                }
-              } catch (e) {
-                debugPrint('Error following/unfollowing user: $e');
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                }
-              }
-            },
-            child: Text(isFollowing ? 'Following' : 'Follow'),
-          );
-        },
-      ),
     );
   }
 }
 
 /// A top-level function to display the participants bottom sheet.
-void showVideoParticipantsBottomSheet(BuildContext context, {
+void showVideoParticipantsBottomSheet(
+  BuildContext context, {
   required List<VideoParticipant> participants,
   required String currentUserId,
   required String hostId,
-  required String roomId
+  required String roomId,
 }) {
   showModalBottomSheet(
     context: context,

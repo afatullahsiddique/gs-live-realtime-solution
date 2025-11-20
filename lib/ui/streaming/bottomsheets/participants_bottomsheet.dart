@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cute_live/data/remote/firebase/profile_services.dart'; // <-- ADD THIS
 import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart'; // <-- ADD THIS
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../audio_room_page.dart';
 import '../audio_room_page_v2.dart'; // Import to access the RoomParticipant class
 
@@ -41,8 +42,8 @@ class ParticipantsBottomSheet extends StatelessWidget {
         // --- Header ---
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16.0),
-          child: Text(
-            'Participants (${participants.length})',
+          child: AutoScrollText(
+            text: 'Participants (${participants.length})',
             style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
@@ -82,12 +83,7 @@ class ParticipantsBottomSheet extends StatelessWidget {
         // Close this bottom sheet first
         Navigator.of(context).pop();
         // Show the new profile bottom sheet
-        showProfileInfoBottomSheet(
-          context,
-          userId: participant.userId,
-          hostId: hostId,
-          roomId: roomId,
-        );
+        showProfileInfoBottomSheet(context, userId: participant.userId, hostId: hostId, roomId: roomId);
       },
       leading: CircleAvatar(
         backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty

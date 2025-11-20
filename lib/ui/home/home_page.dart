@@ -298,9 +298,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Widget _buildGamesTab() {
     final List<Map<String, String>> games = [
-      {'name': 'Greedy', 'image': 'assets/greedy/greedy_icon.png', 'path': Routes.greedy.path},
+      {'name': 'Greedy', 'image': 'assets/greedy/greedy.jpeg', 'path': Routes.greedy.path},
+      {'name': 'Fruits King', 'image': 'assets/spinner/fruits.jpeg', 'path': Routes.spinner.path},
       {'name': 'Tin Patti', 'image': 'assets/icons/tin_patti_icon.png'},
     ];
+
 
     return SingleChildScrollView(
       child: Column(

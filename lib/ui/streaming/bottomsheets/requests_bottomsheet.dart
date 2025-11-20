@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/room_services.dart';
 import '../audio_room_page_v2.dart';
 
@@ -49,7 +50,10 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
         backgroundImage: request.userPicture != null ? NetworkImage(request.userPicture!) : null,
         child: request.userPicture == null ? const Icon(Icons.person) : null,
       ),
-      title: Text(request.userName, style: const TextStyle(color: Colors.white)),
+      title: AutoScrollText(
+        text: request.userName,
+        style: const TextStyle(color: Colors.white),
+      ),
       subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

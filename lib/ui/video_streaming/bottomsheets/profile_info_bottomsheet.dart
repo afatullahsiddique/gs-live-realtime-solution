@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/profile_services.dart';
 import 'follow_list_bottomsheet.dart';
 import 'host_actions_bottomsheet.dart'; // Import new sheet
@@ -112,7 +113,8 @@ class ProfileInfoBottomSheet extends StatelessWidget {
 
                     const SizedBox(height: 12),
                     // --- User Info ---
-                    Text(
+                    AutoScrollText(
+                      text:
                       userName,
                       style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),

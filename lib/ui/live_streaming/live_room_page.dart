@@ -8,19 +8,19 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
+import '../../core/widgets/auto_scroll_text.dart';
 import '../../data/remote/firebase/live_streaming_services.dart';
+import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
 import 'bottomsheets/participants_bottomsheet.dart';
 import 'bottomsheets/requests_bottomsheet.dart';
-
-// --- MODELS (kept in-file for simplicity) ---
 
 class LiveStreamParticipant {
   final String userId;
   final String userName;
   final String? userPicture;
   final bool isMuted;
-  final bool isCameraOn; // Host uses this, guests will be false
+  final bool isCameraOn;
 
   LiveStreamParticipant({
     required this.userId,
@@ -101,6 +101,8 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
   bool _isInitialized = false;
   late bool _isJoined;
 
+  String _currentUserName = "Me";
+
   @override
   void initState() {
     super.initState();
@@ -176,7 +178,27 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
     ZegoUIKit().updateVideoViewMode(true);
 
     final currentUser = _auth.currentUser!;
-    ZegoUIKit().login(currentUser.uid, currentUser.displayName ?? "Unknown");
+
+    try {
+      final userDoc = await ProfileService.getUserProfile(currentUser.uid);
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _currentUserName = data['displayName'] ?? "Unknown";
+        });
+      } else {
+        setState(() {
+          _currentUserName = currentUser.displayName ?? "Unknown";
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user name: $e");
+      setState(() {
+        _currentUserName = currentUser.displayName ?? "Unknown";
+      });
+    }
+
+    ZegoUIKit().login(currentUser.uid, _currentUserName);
     await ZegoUIKit().joinRoom(widget.roomID);
 
     // Host turns on mic and camera
@@ -323,36 +345,33 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
               child: _isInitialized
                   ? _buildVideoLayout()
                   : Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b)],
-                  ),
-                ),
-                child: const Center(child: CircularProgressIndicator(color: Colors.pink)),
-              ),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b)],
+                        ),
+                      ),
+                      child: const Center(child: CircularProgressIndicator(color: Colors.pink)),
+                    ),
             ),
 
             // --- Layer 2: UI Overlays ---
             _isInitialized
                 ? Column(
-              children: [
-                _buildAppBar(),
-                Expanded(
-                  child: Stack(
                     children: [
-                      Positioned(bottom: 0, left: 0, right: 0, child: _buildChatSection()), // Chat has a gradient
-                      _buildJoinCallOverlay(),
+                      _buildAppBar(),
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Positioned(bottom: 0, left: 0, right: 0, child: _buildChatSection()),
+                            _buildJoinCallOverlay(),
+                          ],
+                        ),
+                      ),
+                      SafeArea(top: false, child: _buildChatInput()),
                     ],
-                  ),
-                ),
-                SafeArea(
-                  top: false, // Only apply padding to the bottom.
-                  child: _buildChatInput(),
-                ),
-              ],
-            )
+                  )
                 : const SizedBox.shrink(),
           ],
         ),
@@ -366,10 +385,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withOpacity(0.5), // Dark scrim at the top
-            Colors.transparent, // Fades to transparent
-          ],
+          colors: [Colors.black.withOpacity(0.5), Colors.transparent],
         ),
       ),
       child: Padding(
@@ -384,10 +400,12 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      roomData["hostName"],
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
+                    SizedBox(
+                      width: 150,
+                      child: AutoScrollText(
+                        text: roomData["hostName"],
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
                     ),
                     Text('ID: ${widget.roomID}', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
                   ],
@@ -538,11 +556,11 @@ class _LiveStreamPageState extends State<LiveStreamPage> {
           child: host != null
               ? _buildHostVideo(host)
               : Container(
-            color: Colors.black,
-            child: const Center(
-              child: Text('Waiting for host...', style: TextStyle(color: Colors.white)),
-            ),
-          ),
+                  color: Colors.black,
+                  child: const Center(
+                    child: Text('Waiting for host...', style: TextStyle(color: Colors.white)),
+                  ),
+                ),
         ),
         // Layer 2: Guest Avatars (top-left)
         Positioned(

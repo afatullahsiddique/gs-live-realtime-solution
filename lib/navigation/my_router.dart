@@ -18,12 +18,16 @@ import 'package:cute_live/ui/auth/login/login_page.dart';
 import 'package:cute_live/ui/auth/verify_otp/verify_otp_page.dart';
 
 import '../data/local/secure_storage/secure_storage.dart';
+import '../ui/apply/apply_agency.dart';
+import '../ui/apply/apply_hosting.dart';
 import '../ui/feedback/feedback_page.dart';
 import '../ui/games/greedy_game.dart';
+import '../ui/games/spinner_game.dart';
 import '../ui/home/home_page.dart';
 import '../ui/host_page/host_page.dart';
 import '../ui/main_page.dart';
 import '../ui/my_level/my_level_page.dart';
+import '../ui/profile/edit_profile_page.dart';
 import '../ui/profile/profile_page.dart';
 import '../ui/store-bag/store_page.dart';
 import '../ui/video_streaming/video_room_page.dart';
@@ -107,6 +111,36 @@ class MyRouter {
               reverseTransitionDuration: const Duration(milliseconds: 100),
             ),
           ),
+          GoRoute(
+            path: Routes.editProfile.path,
+            pageBuilder: (context, state) => CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: EditProfilePage(),
+              transitionsBuilder: customPopTransition,
+              transitionDuration: const Duration(milliseconds: 200),
+              reverseTransitionDuration: const Duration(milliseconds: 100),
+            ),
+          ),
+          GoRoute(
+            path: Routes.applyHosting.path,
+            pageBuilder: (context, state) => CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: ApplyHostingPage(),
+              transitionsBuilder: customPopTransition,
+              transitionDuration: const Duration(milliseconds: 200),
+              reverseTransitionDuration: const Duration(milliseconds: 100),
+            ),
+          ),
+          GoRoute(
+            path: Routes.applyAgency.path,
+            pageBuilder: (context, state) => CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: ApplyAgencyPage(),
+              transitionsBuilder: customPopTransition,
+              transitionDuration: const Duration(milliseconds: 200),
+              reverseTransitionDuration: const Duration(milliseconds: 100),
+            ),
+          ),
         ],
       ),
       GoRoute(
@@ -114,8 +148,8 @@ class MyRouter {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: AudioRoomPage(
-              roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
-              isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool
+            roomID: (state.extra as Map<String, dynamic>)['roomId'] as String,
+            isHost: (state.extra as Map<String, dynamic>)['isHost'] as bool,
           ),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
@@ -153,6 +187,16 @@ class MyRouter {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: GreedyGamePage(),
+          transitionsBuilder: customSlideTransition,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+      GoRoute(
+        path: Routes.spinner.path,
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: FruitsKingPage(),
           transitionsBuilder: customSlideTransition,
           transitionDuration: const Duration(milliseconds: 250),
           reverseTransitionDuration: const Duration(milliseconds: 200),

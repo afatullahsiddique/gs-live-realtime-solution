@@ -6,6 +6,7 @@ import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/view_count.dart';
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../navigation/routes.dart';
 import '../home_page.dart';
 import 'live_animation.dart';
@@ -158,16 +159,14 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                   color: Colors.black.withOpacity(0.3),
                                   border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
                                 ),
-                                child: Text(
-                                  widget.streamer.name,
+                                child: AutoScrollText(
+                                  text: widget.streamer.name,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                   textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/video_room_services.dart';
 import '../video_room_page.dart'; // Import to access the JoinRequest class
 
@@ -33,7 +34,10 @@ class _VideoJoinRequestsBottomSheetState extends State<VideoJoinRequestsBottomSh
             ? const Icon(Icons.person, color: Colors.white)
             : null,
       ),
-      title: Text(request.userName, style: const TextStyle(color: Colors.white)),
+      title: AutoScrollText(
+        text: request.userName,
+        style: const TextStyle(color: Colors.white),
+      ),
       subtitle: const Text('Wants to join the call', style: TextStyle(color: Colors.white70)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

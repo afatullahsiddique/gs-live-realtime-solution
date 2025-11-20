@@ -5,10 +5,23 @@ class RoomService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  static final _usersCollection = _firestore.collection('users');
+
   static Future<String> createRoom({String? password}) async {
     final user = _auth.currentUser!;
     final roomRef = _firestore.collection('rooms').doc();
     final participantRef = roomRef.collection('room_participants').doc(user.uid);
+
+    final userRef = _usersCollection.doc(user.uid);
+
+    final userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      throw Exception("User profile not found. Cannot create room.");
+    }
+
+    final userData = userDoc.data() as Map<String, dynamic>;
+    final String hostName = userData['displayName'] ?? 'Anonymous';
+    final String? hostPicture = userData['photoUrl'];
 
     final batch = _firestore.batch();
 
@@ -16,8 +29,8 @@ class RoomService {
 
     batch.set(roomRef, {
       'hostId': user.uid,
-      'hostName': user.displayName ?? 'Anonymous',
-      'hostPicture': user.photoURL,
+      'hostName': hostName,
+      'hostPicture': hostPicture,
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
       'participantCount': 1,
@@ -29,8 +42,8 @@ class RoomService {
 
     batch.set(participantRef, {
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': hostName,
+      'userPicture': hostPicture,
       'isCoHost': true,
       'seatNo': 0,
       'joinedAt': FieldValue.serverTimestamp(),
@@ -51,12 +64,26 @@ class RoomService {
     final roomRef = _firestore.collection('rooms').doc(roomId);
     final participantRef = roomRef.collection('room_participants').doc(user.uid);
 
+    // 1. Fetch the latest user profile from Firestore 'users' collection
+    final userProfileDoc = await _firestore.collection('users').doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    // 2. If the document exists, override the Auth data with Firestore data
+    if (userProfileDoc.exists) {
+      final data = userProfileDoc.data() as Map<String, dynamic>;
+      userName = data['displayName'] ?? userName;
+      userPicture = data['photoUrl'] ?? data['profilePicture'] ?? userPicture;
+    }
+
     final batch = _firestore.batch();
 
+    // 3. Write this Firestore data into the room participant entry
     batch.set(participantRef, {
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': userName, // Now comes from Firestore
+      'userPicture': userPicture, // Now comes from Firestore
       'isCoHost': false,
       'seatNo': -1,
       'joinedAt': FieldValue.serverTimestamp(),
@@ -180,10 +207,7 @@ class RoomService {
       throw Exception('Seat is already occupied.');
     } else {
       // Assign seat and unmute
-      await participantRef.update({
-        'seatNo': newSeatNo,
-        'isMuted': false,
-      });
+      await participantRef.update({'seatNo': newSeatNo, 'isMuted': false});
     }
   }
 
@@ -196,13 +220,26 @@ class RoomService {
     await _firestore.collection('rooms').doc(roomId).update({'isSeatApprovalRequired': isRequired});
   }
 
-
+  // ## MODIFIED: Fetches latest user profile data before request ##
   static Future<void> requestToBeSpeaker(String roomId) async {
     final user = _auth.currentUser!;
+
+    // Fetch latest data from Firestore
+    final userProfileDoc = await _firestore.collection('users').doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    if (userProfileDoc.exists) {
+      final data = userProfileDoc.data() as Map<String, dynamic>;
+      userName = data['displayName'] ?? userName;
+      userPicture = data['photoUrl'] ?? data['profilePicture'] ?? userPicture;
+    }
+
     await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(user.uid).set({
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': userName,
+      'userPicture': userPicture,
       'requestedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -242,16 +279,29 @@ class RoomService {
   }
 
   static Future<void> rejectSpeakerRequest(String roomId, String requestId) async {
-    // UPDATED: Added implementation
     await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(requestId).delete();
   }
 
+  // ## MODIFIED: Fetches latest user profile data before request (Consistency) ##
   static Future<void> requestToBeCoHost(String roomId) async {
     final user = _auth.currentUser!;
+
+    // Fetch latest data from Firestore
+    final userProfileDoc = await _firestore.collection('users').doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    if (userProfileDoc.exists) {
+      final data = userProfileDoc.data() as Map<String, dynamic>;
+      userName = data['displayName'] ?? userName;
+      userPicture = data['photoUrl'] ?? data['profilePicture'] ?? userPicture;
+    }
+
     await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(user.uid).set({
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': userName,
+      'userPicture': userPicture,
       'requestedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -281,22 +331,14 @@ class RoomService {
   }
 
   static Future<void> rejectCoHostRequest(String roomId, String requestId) async {
-    // UPDATED: Added implementation
     await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(requestId).delete();
   }
 
-  // ... (setOrChangeRoomPassword, removeRoomPassword... remain unchanged)
   static Future<void> setOrChangeRoomPassword(String roomId, String password) async {
-    await _firestore.collection('rooms').doc(roomId).update({
-      'isLocked': true,
-      'password': password,
-    });
+    await _firestore.collection('rooms').doc(roomId).update({'isLocked': true, 'password': password});
   }
 
   static Future<void> removeRoomPassword(String roomId) async {
-    await _firestore.collection('rooms').doc(roomId).update({
-      'isLocked': false,
-      'password': null,
-    });
+    await _firestore.collection('rooms').doc(roomId).update({'isLocked': false, 'password': null});
   }
 }

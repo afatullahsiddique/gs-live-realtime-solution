@@ -5,6 +5,12 @@ import 'dart:ui';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+// Firebase Imports
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../core/widgets/auto_scroll_text.dart';
+import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
 
@@ -16,31 +22,19 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // Dummy profile data
-  final UserProfile _userProfile = UserProfile(
-    name: 'Luna Park',
-    id: '123456789',
-    country: 'South Korea',
-    profileImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
-    friends: 2847,
-    followers: 15420,
-    following: 892,
-    diamonds: 23750,
-    beans: 12680,
-  );
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _userId = FirebaseAuth.instance.currentUser?.uid;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-            stops: [0.0, 0.3, 0.6, 0.8, 1.0],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -51,7 +45,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(CupertinoIcons.back, size: 28, color: Colors.pink),
+                      icon: Icon(CupertinoIcons.back, size: 28, color: AppColors.pink),
                       onPressed: () => Navigator.of(context).maybePop(),
                     ),
                     Text(
@@ -64,26 +58,87 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     Spacer(),
+                    IconButton(
+                      icon: Icon(CupertinoIcons.pencil, size: 28, color: AppColors.pink),
+                      onPressed: () {
+                        context.push(Routes.editProfile.path);
+                      },
+                    ),
                   ],
                 ),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      _buildProfileSection(),
-                      const SizedBox(height: 30),
-                      _buildStatistics(),
-                      const SizedBox(height: 20),
-                      _buildAchievementChips(),
-                      const SizedBox(height: 30),
-                      _buildButtonsGrid(),
-                      const SizedBox(height: 30),
-                    ],
-                  ),
-                ),
+                child: _userId == null
+                    ? Center(
+                        child: Text('Please log in to see your profile.', style: TextStyle(color: Colors.white)),
+                      )
+                    : StreamBuilder<DocumentSnapshot>(
+                        stream: ProfileService.getUserProfileStream(_userId!),
+                        builder: (context, snapshot) {
+                          // Handle Loading State
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator(color: AppColors.pink));
+                          }
+
+                          // Handle Error State
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red.shade300)),
+                            );
+                          }
+
+                          // Handle No Data State
+                          if (!snapshot.hasData || !snapshot.data!.exists) {
+                            return Center(
+                              child: Text('Profile not found.', style: TextStyle(color: Colors.white70)),
+                            );
+                          }
+
+                          // Handle Success State
+                          final data = snapshot.data!.data() as Map<String, dynamic>;
+                          final uid = snapshot.data!.id;
+
+                          // Map Firestore data to our local UserProfile model
+                          final userProfile = UserProfile(
+                            name: data['displayName'] ?? 'No Name',
+                            id: uid,
+                            country: data['country'] ?? 'N/A',
+                            countryFlagEmoji: data['countryFlagEmoji'],
+                            bio: data['bio'] ?? 'No bio yet.',
+                            profileImage: data['photoUrl'] ?? '',
+                            followers: data['followerCount'] ?? 0,
+                            following: data['followingCount'] ?? 0,
+                            diamonds: data['diamonds'] ?? 0,
+                            beans: data['balance'] ?? 0,
+                          );
+
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 10),
+                                _buildProfileSection(userProfile),
+                                const SizedBox(height: 30),
+                                FutureBuilder<List<SimpleUser>>(
+                                  future: ProfileService.getMutualsList(userProfile.id),
+                                  builder: (context, mutualsSnapshot) {
+                                    if (mutualsSnapshot.connectionState == ConnectionState.waiting) {
+                                      return _buildStatistics(userProfile, null); // Pass null for loading
+                                    }
+                                    final friendsCount = mutualsSnapshot.data?.length ?? 0;
+                                    return _buildStatistics(userProfile, friendsCount);
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+                                _buildAchievementChips(userProfile),
+                                const SizedBox(height: 30),
+                                _buildButtonsGrid(),
+                                const SizedBox(height: 30),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -92,10 +147,22 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildProfileSection() {
+  Widget _buildProfileSection(UserProfile userProfile) {
+    final profileImageUrl = userProfile.profileImage;
+
+    final String displayId = userProfile.id.length > 8
+        ? userProfile.id.substring(userProfile.id.length - 8)
+        : userProfile.id;
+
+    Widget countryIndicator;
+    if (userProfile.countryFlagEmoji != null && userProfile.countryFlagEmoji!.isNotEmpty) {
+      countryIndicator = Text(userProfile.countryFlagEmoji!, style: const TextStyle(fontSize: 16));
+    } else {
+      countryIndicator = Icon(Icons.location_on_rounded, color: Colors.blue.shade300, size: 14);
+    }
+
     return Column(
       children: [
-        // Large Profile Picture
         Container(
           width: 140,
           height: 140,
@@ -104,27 +171,34 @@ class _ProfilePageState extends State<ProfilePage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.pink.shade300, Colors.pink.shade500, Colors.purple.shade400, Colors.pink.shade600],
+              colors: [AppColors.pinkLight, AppColors.pinkDark, Colors.pink.shade400, AppColors.pink600],
             ),
             boxShadow: [
               BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 30, offset: const Offset(0, 10)),
-              BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 40, offset: const Offset(0, 0)),
+              BoxShadow(color: Colors.pink.withOpacity(0.2), blurRadius: 40, offset: const Offset(0, 0)),
             ],
           ),
           padding: const EdgeInsets.all(4),
           child: ClipOval(
-            child: Image.network(
-              _userProfile.profileImage,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
+            child: (profileImageUrl.isNotEmpty)
+                ? Image.network(
+                    profileImageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
+                        ),
+                        child: const Icon(Icons.person, color: Colors.white, size: 70),
+                      );
+                    },
+                  )
+                : Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
+                    ),
+                    child: const Icon(Icons.person, color: Colors.white, size: 70),
                   ),
-                  child: const Icon(Icons.person, color: Colors.white, size: 70),
-                );
-              },
-            ),
           ),
         ),
 
@@ -133,9 +207,9 @@ class _ProfilePageState extends State<ProfilePage> {
         // Name
         ShaderMask(
           shaderCallback: (bounds) =>
-              LinearGradient(colors: [Colors.pink.shade300, Colors.pink.shade500]).createShader(bounds),
-          child: Text(
-            _userProfile.name,
+              LinearGradient(colors: [AppColors.pinkLight, AppColors.pinkDark]).createShader(bounds),
+          child: AutoScrollText(
+            text: userProfile.name,
             style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
           ),
         ),
@@ -154,8 +228,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
               ),
               child: Text(
-                'ID: ${_userProfile.id}',
+                'ID: $displayId', // <-- MODIFIED
                 style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 12),
@@ -169,10 +244,11 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.location_on_rounded, color: Colors.blue.shade300, size: 14),
+                  countryIndicator, // <-- MODIFIED
+
                   const SizedBox(width: 4),
                   Text(
-                    _userProfile.country,
+                    userProfile.country, // Updated
                     style: TextStyle(color: Colors.blue.shade300, fontSize: 12, fontWeight: FontWeight.w500),
                   ),
                 ],
@@ -180,11 +256,26 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
         ),
+
+        // ## NEW: BIO SECTION ##
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Text(
+            userProfile.bio,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14, fontStyle: FontStyle.italic),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        // ## END NEW SECTION ##
       ],
     );
   }
 
-  Widget _buildStatistics() {
+  // ## MODIFICATION: Added friendsCount and check for loading ##
+  Widget _buildStatistics(UserProfile userProfile, int? friendsCount) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
@@ -200,11 +291,12 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatItem('Friends', _userProfile.friends, Colors.cyan),
+              // Show a dash while friends count is loading
+              _buildStatItem('Friends', friendsCount, Colors.cyan),
               _buildVerticalDivider(),
-              _buildStatItem('Followers', _userProfile.followers, Colors.pink),
+              _buildStatItem('Followers', userProfile.followers, Colors.pink),
               _buildVerticalDivider(),
-              _buildStatItem('Following', _userProfile.following, Colors.purple),
+              _buildStatItem('Following', userProfile.following, Colors.pink),
             ],
           ),
         ),
@@ -212,13 +304,15 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildStatItem(String label, int count, Color color) {
+  // ## MODIFICATION: Handle null count for loading state ##
+  Widget _buildStatItem(String label, int? count, Color color) {
+    String displayCount = count == null ? '-' : _formatNumber(count);
     return Column(
       children: [
         ShaderMask(
           shaderCallback: (bounds) => LinearGradient(colors: [color, color]).createShader(bounds),
           child: Text(
-            _formatNumber(count),
+            displayCount, // Use formatted count
             style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
           ),
         ),
@@ -230,6 +324,8 @@ class _ProfilePageState extends State<ProfilePage> {
       ],
     );
   }
+
+  // ## END MODIFICATIONS ##
 
   Widget _buildVerticalDivider() {
     return Container(
@@ -245,20 +341,21 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildAchievementChips() {
+  Widget _buildAchievementChips(UserProfile userProfile) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildAchievementChip(
           icon: Icons.diamond_rounded,
-          count: _userProfile.diamonds,
+          count: userProfile.diamonds, // Updated
           color: Colors.cyan,
           label: 'Diamonds',
         ),
         const SizedBox(width: 16),
         _buildAchievementChip(
           assetIcon: 'assets/icons/beans.svg',
-          count: _userProfile.beans,
+          count: userProfile.beans,
+          // Updated
           color: Colors.amber,
           label: 'Beans',
           onTap: () {
@@ -288,7 +385,6 @@ class _ProfilePageState extends State<ProfilePage> {
           boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6))],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(25),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Row(
@@ -384,8 +480,20 @@ class _ProfilePageState extends State<ProfilePage> {
           context.push(Routes.visitors.path);
         },
       ),
-      ProfileButton(title: 'Apply Hosting', icon: Icons.live_tv_rounded),
-      ProfileButton(title: 'Apply Agency', icon: Icons.business_rounded),
+      ProfileButton(
+        title: 'Apply Hosting',
+        icon: Icons.live_tv_rounded,
+        onTap: () {
+          context.push(Routes.applyHosting.path);
+        },
+      ),
+      ProfileButton(
+        title: 'Apply Agency',
+        icon: Icons.business_rounded,
+        onTap: () {
+          context.push(Routes.applyAgency.path);
+        },
+      ),
     ];
 
     return GridView.builder(
@@ -464,8 +572,9 @@ class UserProfile {
   final String name;
   final String id;
   final String country;
+  final String? countryFlagEmoji;
+  final String bio;
   final String profileImage;
-  final int friends;
   final int followers;
   final int following;
   final int diamonds;
@@ -475,8 +584,9 @@ class UserProfile {
     required this.name,
     required this.id,
     required this.country,
+    this.countryFlagEmoji,
+    required this.bio,
     required this.profileImage,
-    required this.friends,
     required this.followers,
     required this.following,
     required this.diamonds,

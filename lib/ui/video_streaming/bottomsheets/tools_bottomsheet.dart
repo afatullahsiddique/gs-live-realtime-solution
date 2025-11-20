@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'invite_pk_bottomsheet.dart';
+import 'share_bottomsheet.dart';
 
 class _ToolItem {
   final String label;
@@ -36,8 +37,15 @@ class ToolsBottomSheet extends StatelessWidget {
   final List<PKInvite> pendingInvites;
   final String currentRoomId;
   final bool isHost;
+  final String hostName;
 
-  const ToolsBottomSheet({super.key, required this.pendingInvites, required this.currentRoomId, required this.isHost});
+  const ToolsBottomSheet({
+    super.key,
+    required this.pendingInvites,
+    required this.currentRoomId,
+    required this.isHost,
+    this.hostName = "Host",
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +83,11 @@ class ToolsBottomSheet extends StatelessWidget {
                     onTapLogic = () {
                       Navigator.pop(context);
                       showInvitePKBottomSheet(context, pendingInvites: pendingInvites, currentRoomId: currentRoomId);
+                    };
+                  } else if (tool.label == 'Share') {
+                    onTapLogic = () {
+                      Navigator.pop(context);
+                      showShareBottomSheet(context, currentRoomId, hostName);
                     };
                   } else {
                     onTapLogic = () {
@@ -139,13 +152,19 @@ void showToolsBottomSheet(
   required List<PKInvite> pendingInvites,
   required String currentRoomId,
   required bool isHost,
+  String hostName = "Host",
 }) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF2d1b2b),
     isScrollControlled: true,
     builder: (context) {
-      return ToolsBottomSheet(pendingInvites: pendingInvites, currentRoomId: currentRoomId, isHost: isHost);
+      return ToolsBottomSheet(
+        pendingInvites: pendingInvites,
+        currentRoomId: currentRoomId,
+        isHost: isHost,
+        hostName: hostName,
+      );
     },
   );
 }

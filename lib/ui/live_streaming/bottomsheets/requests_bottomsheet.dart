@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/live_streaming_services.dart';
 import '../live_room_page.dart';
 
@@ -32,7 +33,10 @@ class _LiveStreamJoinRequestsBottomSheetState extends State<LiveStreamJoinReques
             ? const Icon(Icons.person, color: Colors.white)
             : null,
       ),
-      title: Text(request.userName, style: const TextStyle(color: Colors.white)),
+      title: AutoScrollText(
+        text: request.userName,
+        style: const TextStyle(color: Colors.white),
+      ),
       subtitle: const Text('Wants to join the stream', style: TextStyle(color: Colors.white70)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

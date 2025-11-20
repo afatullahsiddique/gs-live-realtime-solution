@@ -50,6 +50,7 @@ class AppColors {
   static Color pinkLight = Colors.pink.shade300;
   static Color pinkDark = Colors.pink.shade500;
   static Color pink400 = Colors.pink.shade400;
+  static Color pink = Colors.pink;
   static Color pink600 = Colors.pink.shade600;
 
   // Background gradient

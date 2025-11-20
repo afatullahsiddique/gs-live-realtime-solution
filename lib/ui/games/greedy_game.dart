@@ -1,9 +1,16 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'bottomsheets/participants_bottomsheet.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../data/remote/firebase/greedy_game_service.dart';
+import '../../data/remote/firebase/profile_services.dart';
 import '../../theme/app_theme.dart';
+import 'bottomsheets/result_bottomsheet.dart';
 
 class _LeafItemConfig {
   final String assetPath;
@@ -35,6 +42,8 @@ class _CenterItemConfig {
   });
 }
 
+// REMOVED: _BetQueueItem model
+
 class GreedyGamePage extends StatefulWidget {
   const GreedyGamePage({super.key});
 
@@ -43,58 +52,61 @@ class GreedyGamePage extends StatefulWidget {
 }
 
 class _GreedyGamePageState extends State<GreedyGamePage> {
-  final String boardBackgroundImage = 'assets/greedy/board.png';
+  final GreedyGameService _gameService = GreedyGameService();
+  final String _userId = FirebaseAuth.instance.currentUser!.uid;
 
-  // --- Game Timers ---
-  final Duration _totalSpinDuration = const Duration(seconds: 3);
-  final Duration _leafHighlightDuration = const Duration(milliseconds: 400);
-  final Duration _bettingTimeDuration = const Duration(seconds: 25);
-  final Duration _bettingResultDuration = const Duration(seconds: 4);
+  int _selectedCoinValue = 500;
 
-  // --- Game State ---
-  bool _isSpinning = false;
-  bool _isBettingTime = true;
-  int _currentLeafIndex = 0;
-  int? _spinResultIndex;
   Timer? _spinTimer;
-  Timer? _bettingTimer;
-  int _roundNumber = 1;
-  int _countdownSeconds = 15;
+  int _animationLeafIndex = 0;
+  int _serverWinningIndex = -1;
+  String _lastKnownPhase = '';
 
-  // --- Player & Bet State ---
-  int _balance = 1000000;
+  Timer? _countdownTimer;
+  int _localCountdownSeconds = 0;
+  String _currentRoundId = "0";
+
+  int _myBalance = 0;
+  final Map<int, int> _myBets = {};
+
+  StreamSubscription? _controlsSubscription;
+  StreamSubscription? _roundSubscription;
+  StreamSubscription? _betsSubscription;
+  StreamSubscription? _profileSubscription;
+  StreamSubscription? _historySubscription;
+
+  String _gameStatus = "loading";
+  String _currentPhase = "waiting";
+  List<int> _gameHistory = [];
   int _todaysRevenue = 0;
-  int _selectedCoinValue = 0;
+  List<GameParticipant> _gameParticipants = [];
+  Map<String, dynamic>? _myParticipantMap;
 
-  /// Stores the history of winning images for the session
-  final List<String> _winningResultsHistory = [];
+  // NEW: Simplified betting sync state
+  Timer? _syncBetsTimer; // Replaces all the old debounce/queue logic
+  bool _isSyncing = false;
+  bool _isAutoStarting = false; // [NEW] Flag to prevent multiple auto-starts
 
-  /// Stores the bets for the current round.
-  /// Key: Leaf index (0-7), Value: Total bet amount
-  final Map<int, int> _bets = {};
-
-  // --- Asset Lists ---
+  final String boardBackgroundImage = 'assets/greedy/board.png';
   final Map<String, int> _coinValues = {
     'assets/greedy/coin_500.png': 500,
     'assets/greedy/coin_1k.png': 1000,
     'assets/greedy/coin_10k.png': 10000,
     'assets/greedy/coin_50k.png': 50000,
   };
-
   final List<String> _resultImages = [
-    'assets/greedy/burger_result.png',
     'assets/greedy/chicken_result.png',
+    'assets/greedy/octopus_result.png',
+    'assets/greedy/fish_result.png',
+    'assets/greedy/burger_result.png',
     'assets/greedy/cauliflower_result.png',
     'assets/greedy/corn_result.png',
-    'assets/greedy/fish_result.png',
     'assets/greedy/grapes_result.png',
-    'assets/greedy/octopus_result.png',
     'assets/greedy/strawberry_result.png',
   ];
 
   final String _saladImagePath = 'assets/greedy/salad.png';
   final String _pizzaImagePath = 'assets/greedy/pizza.png';
-
   final _CenterItemConfig _centerConfig = _CenterItemConfig(
     assetPath: 'assets/greedy/greedy_icon.png',
     sizeFactor: 0.325,
@@ -102,56 +114,55 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     offsetYFactor: -0.005,
   );
 
-  // (Your _leafConfigs method remains the same)
   List<_LeafItemConfig> _leafConfigs() => [
-    _LeafItemConfig(
-      assetPath: 'assets/greedy/burger.png',
-      sizeFactor: 0.19,
-      radiusFactor: 0.375,
-      angleDegrees: -89.5,
-      multiplier: 10,
-    ),
     _LeafItemConfig(
       assetPath: 'assets/greedy/chicken.png',
       sizeFactor: 0.19,
+      radiusFactor: 0.375,
+      angleDegrees: -89.5,
+      multiplier: 45,
+    ),
+    _LeafItemConfig(
+      assetPath: 'assets/greedy/octopus.png',
+      sizeFactor: 0.19,
       radiusFactor: 0.388,
       angleDegrees: -45,
-      multiplier: 45,
+      multiplier: 25,
+    ),
+    _LeafItemConfig(
+      assetPath: 'assets/greedy/fish.png',
+      sizeFactor: 0.19,
+      radiusFactor: 0.383,
+      angleDegrees: -0.15,
+      multiplier: 15,
+    ),
+    _LeafItemConfig(
+      assetPath: 'assets/greedy/burger.png',
+      sizeFactor: 0.19,
+      radiusFactor: 0.38,
+      angleDegrees: 44.2,
+      multiplier: 10,
     ),
     _LeafItemConfig(
       assetPath: 'assets/greedy/cauliflower.png',
       sizeFactor: 0.19,
-      radiusFactor: 0.383,
-      angleDegrees: -0.15,
+      radiusFactor: 0.37,
+      angleDegrees: 90,
       multiplier: 5,
     ),
     _LeafItemConfig(
       assetPath: 'assets/greedy/corn.png',
       sizeFactor: 0.19,
       radiusFactor: 0.38,
-      angleDegrees: 44.2,
+      angleDegrees: 135.7,
       multiplier: 5,
-    ),
-    _LeafItemConfig(
-      assetPath: 'assets/greedy/fish.png',
-      sizeFactor: 0.19,
-      radiusFactor: 0.37,
-      angleDegrees: 90,
-      multiplier: 15,
     ),
     _LeafItemConfig(
       assetPath: 'assets/greedy/grapes.png',
       sizeFactor: 0.19,
       radiusFactor: 0.38,
-      angleDegrees: 135.7,
-      multiplier: 5,
-    ),
-    _LeafItemConfig(
-      assetPath: 'assets/greedy/octopus.png',
-      sizeFactor: 0.19,
-      radiusFactor: 0.38,
       angleDegrees: 181,
-      multiplier: 25,
+      multiplier: 5,
     ),
     _LeafItemConfig(
       assetPath: 'assets/greedy/strawberry.png',
@@ -165,22 +176,279 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
   @override
   void initState() {
     super.initState();
-    _startBettingPhase();
+    _initGameListeners();
+  }
+
+  void _initGameListeners() {
+    _controlsSubscription = _gameService.getGameControlsStream().listen((controlSnap) {
+      if (!controlSnap.exists) {
+        print("[GREEDY_LOG] GameControls: Document does not exist!");
+        if (mounted) setState(() => _gameStatus = "stopped");
+        return;
+      }
+      final controls = controlSnap.data() as Map<String, dynamic>;
+      print("[GREEDY_LOG] GameControls: ${controlSnap.data()}");
+
+      final String serverRoundId = (controls['currentRoundId'] ?? 0).toString();
+      final String gameStatus = controls['status'] ?? 'stopped';
+
+      // [MODIFIED] Check for auto-pause status and trigger auto-start
+      final bool isAutoPaused = controls['isAutoPaused'] ?? false;
+      if (gameStatus == 'stopped' && isAutoPaused) {
+        if (mounted) setState(() => _gameStatus = "auto-paused");
+        // [NEW] Automatically call the function to wake up the game
+        _triggerAutoStart();
+      } else {
+        if (mounted) setState(() => _gameStatus = gameStatus);
+      }
+
+      final List<dynamic> participantsList = controls['participants'] ?? [];
+      final newParticipants = participantsList.map((p) => GameParticipant.fromMap(p as Map<String, dynamic>)).toList();
+
+      if (mounted) {
+        setState(() {
+          _gameParticipants = newParticipants;
+        });
+      }
+
+      if (_currentRoundId != serverRoundId) {
+        print("[GREEDY_LOG] === NEW ROUND DETECTED ===");
+        print("[GREEDY_LOG] Old Round: $_currentRoundId, New Round: $serverRoundId");
+
+        if (mounted) {
+          setState(() {
+            _currentRoundId = serverRoundId;
+            _myBets.clear();
+            _localCountdownSeconds = 0;
+            _lastKnownPhase = '';
+            _serverWinningIndex = -1;
+            _isAutoStarting = false; // [NEW] Reset auto-start flag
+
+            // NEW: Clear sync timer
+            _syncBetsTimer?.cancel();
+
+            _countdownTimer?.cancel();
+            _spinTimer?.cancel();
+            _spinTimer = null;
+          });
+        }
+
+        _listenToRound(serverRoundId);
+        _listenToMyBets(serverRoundId);
+      }
+    });
+
+    _profileSubscription = ProfileService.getUserProfileStream(_userId).listen((profileSnap) {
+      if (profileSnap.exists) {
+        final data = profileSnap.data() as Map<String, dynamic>;
+        print("[GREEDY_LOG] Profile Update: ${profileSnap.data()}");
+
+        if (_myParticipantMap == null) {
+          _myParticipantMap = {
+            'userId': _userId,
+            'userName': data['displayName'] ?? 'Unknown',
+            'userPicture': data['photoUrl'],
+          };
+
+          _gameService
+              .joinGameRoom(_myParticipantMap!)
+              .then((_) => print("[GREEDY_LOG] Joined game room."))
+              .catchError((e) => print("[GREEDY_LOG] Error joining room: $e"));
+        }
+
+        if (mounted) {
+          setState(() {
+            // NEW: Check sync flag
+            if (!_isSyncing && _syncBetsTimer?.isActive != true) {
+              _myBalance = data['balance'] ?? 0;
+            }
+            _todaysRevenue = data['todaysRevenue'] ?? 0;
+          });
+        }
+      } else {
+        print("[GREEDY_LOG] Profile Update: User document does not exist.");
+      }
+    });
+
+    _historySubscription = _gameService.getGameHistoryStream().listen((historySnap) {
+      final history = historySnap.docs.map((doc) => doc['winningIndex'] as int).toList().reversed.toList();
+      print("[GREEDY_LOG] History Update: ${history.toString()}");
+      if (mounted) {
+        setState(() {
+          _gameHistory = history;
+        });
+      }
+    });
+  }
+
+  void _listenToRound(String roundId) {
+    _roundSubscription?.cancel();
+    _roundSubscription = _gameService.getGameRoundStream(roundId).listen((roundSnap) async {
+      if (!roundSnap.exists) {
+        print("[GREEDY_LOG] Round($roundId): Document does not exist yet.");
+        if (mounted) setState(() => _currentPhase = "waiting");
+        return;
+      }
+
+      final roundData = roundSnap.data() as Map<String, dynamic>?;
+      print("[GREEDY_LOG] Round($roundId) Update: ${roundData}");
+
+      final String phase = roundData?['phase'] ?? 'waiting';
+      final int serverCountdown = roundData?['countdown'] ?? 0;
+      final Timestamp? serverTimestamp = roundData?['timestamp'];
+      final int winningIndex = roundData?['winningIndex'] ?? -1;
+
+      if (_lastKnownPhase != phase) {
+        print("[GREEDY_LOG] === PHASE CHANGE ===");
+
+        final String previousPhase = _lastKnownPhase;
+        print("[GREEDY_LOG] Old: $previousPhase, New: $phase");
+
+        _lastKnownPhase = phase;
+
+        if (mounted) {
+          setState(() => _currentPhase = phase);
+        }
+
+        switch (phase) {
+          case 'betting':
+            _spinTimer?.cancel();
+            _spinTimer = null;
+            _serverWinningIndex = -1;
+            if (serverTimestamp != null) {
+              _startCountdownTimer(serverTimestamp.toDate(), serverCountdown);
+            }
+            break;
+
+          case 'spinning':
+            _countdownTimer?.cancel();
+            _countdownTimer = null;
+            if (mounted) setState(() => _localCountdownSeconds = 0);
+            _syncBetsTimer?.cancel();
+
+            if (_spinTimer == null) {
+              _startConstantSpin();
+            }
+            break;
+
+          case 'result':
+            _countdownTimer?.cancel();
+            _countdownTimer = null;
+            if (mounted) setState(() => _localCountdownSeconds = 0);
+
+            if (winningIndex != -1 && _serverWinningIndex != winningIndex) {
+              _serverWinningIndex = winningIndex;
+              _startLandingSpin(winningIndex);
+
+              if (previousPhase == 'spinning') {
+                await Future.delayed(Duration(seconds: 1));
+                _showResultBottomSheet(winningIndex);
+              }
+            }
+            break;
+        }
+      }
+    });
+  }
+
+  void _listenToMyBets(String roundId) {
+    _betsSubscription?.cancel();
+    _betsSubscription = _gameService.getMyBetsStream(roundId).listen((betSnap) {
+      if (_isSyncing || _syncBetsTimer?.isActive == true) {
+        print("[GREEDY_LOG] Bets Update: Ignored (sync active).");
+        return;
+      }
+
+      if (betSnap.exists) {
+        final serverBets = (betSnap.data() as Map<String, dynamic>?) ?? {};
+        print("[GREEDY_LOG] Bets Update (Syncing): $serverBets");
+
+        _myBets.clear();
+        serverBets.forEach((key, value) {
+          final int leafIndex = int.parse(key.split('_')[1]);
+          _myBets[leafIndex] = value as int;
+        });
+        if (mounted) setState(() {});
+      } else {
+        print("[GREEDY_LOG] Bets Update (Clearing): No bets placed.");
+        _myBets.clear();
+        if (mounted) setState(() {});
+      }
+    });
+  }
+
+  void _showResultBottomSheet(int winningIndex) async {
+    if (!mounted) return;
+
+    final leafConfig = _leafConfigs()[winningIndex];
+    final int multiplier = leafConfig.multiplier;
+    final int winningBet = _myBets[winningIndex] ?? 0;
+    final int totalEarnings = winningBet * multiplier;
+    final int totalBets = _myBets.values.fold(0, (prev, amount) => prev + amount);
+
+    final List<TopEarner> topEarnersData = await _gameService.getTopEarners(_currentRoundId, winningIndex);
+
+    final participantMap = <String, GameParticipant>{};
+    for (var p in _gameParticipants) {
+      participantMap[p.userId] = p;
+    }
+
+    final List<DisplayEarner> topEarnersList = [];
+    for (var earner in topEarnersData) {
+      final participant = participantMap[earner.userId];
+      if (participant != null) {
+        topEarnersList.add(
+          DisplayEarner(
+            name: participant.userName,
+            pictureUrl: participant.userPicture ?? "",
+            earnings: earner.winningBet * multiplier,
+          ),
+        );
+      }
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GameResultBottomSheet(
+          roundId: _currentRoundId,
+          winningIndex: winningIndex,
+          resultImagePath: _resultImages[winningIndex],
+          totalEarnings: totalEarnings,
+          totalBets: totalBets,
+          topEarners: topEarnersList,
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
+    if (_myParticipantMap != null) {
+      _gameService
+          .leaveGameRoom(_myParticipantMap!)
+          .then((_) => print("[GREEDY_LOG] Left game room."))
+          .catchError((e) => print("[GREEDY_LOG] Error leaving room: $e"));
+    }
+    _countdownTimer?.cancel();
     _spinTimer?.cancel();
-    _bettingTimer?.cancel();
+    _syncBetsTimer?.cancel();
+    _controlsSubscription?.cancel();
+    _roundSubscription?.cancel();
+    _betsSubscription?.cancel();
+    _profileSubscription?.cancel();
+    _historySubscription?.cancel();
     super.dispose();
   }
 
-  /// Formats a number as a compact string (e.g., 12345 -> "12,345")
   String _formatCurrency(int amount) {
     return NumberFormat.decimalPattern().format(amount);
   }
 
-  /// Formats a number as a compact string (e.g., 12345 -> "12.3k")
   String _formatBetAmount(int amount) {
     if (amount >= 1000000) {
       double value = amount / 1000000.0;
@@ -193,163 +461,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     return amount.toString();
   }
 
-  /// Starts the 10-second betting countdown
-  void _startBettingPhase() {
-    setState(() {
-      _isBettingTime = true;
-      _isSpinning = false;
-      _spinResultIndex = null;
-      _bets.clear();
-      _countdownSeconds = _bettingTimeDuration.inSeconds;
-    });
-
-    _bettingTimer?.cancel();
-    _bettingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_countdownSeconds > 0) {
-        setState(() {
-          _countdownSeconds--;
-        });
-      } else {
-        timer.cancel();
-        setState(() {
-          _isBettingTime = false;
-        });
-        _startSpin();
-      }
-    });
-  }
-
-  /// Places a bet on a specific leaf
-  void _onBet(int leafIndex) {
-    if (!_isBettingTime) {
-      _showToast("Betting time is over!", isError: true);
-      return;
-    }
-    if (_selectedCoinValue == 0) {
-      _showToast("Please select a coin to bet with.", isError: true);
-      return;
-    }
-    if (_balance < _selectedCoinValue) {
-      _showToast("Not enough balance!", isError: true);
-      return;
-    }
-
-    setState(() {
-      _balance -= _selectedCoinValue;
-      // Add the selected coin value to any existing bet on this leaf
-      _bets[leafIndex] = (_bets[leafIndex] ?? 0) + _selectedCoinValue;
-    });
-  }
-
-  /// Removes a bet from a specific leaf
-  void _onRemoveBet(int leafIndex) {
-    if (!_isBettingTime) {
-      _showToast("Betting time is over!", isError: true);
-      return;
-    }
-
-    final int currentBet = _bets[leafIndex] ?? 0;
-    if (currentBet == 0) {
-      // No bet to remove
-      return;
-    }
-
-    setState(() {
-      // Add the bet amount back to the balance
-      _balance += currentBet;
-      // Remove the bet from the map
-      _bets.remove(leafIndex);
-    });
-  }
-
-  /// Starts the spinning animation
-  void _startSpin() {
-    if (_isSpinning) return;
-
-    setState(() {
-      _isSpinning = true;
-      _spinResultIndex = null;
-      _currentLeafIndex = math.Random().nextInt(8); // Start from a random pos
-    });
-
-    final startTime = DateTime.now();
-    final totalLeaves = _leafConfigs().length;
-
-    // Pre-calculate the final winning index
-    // This is a simple (and predictable) way to "choose" a winner.
-    // For a real game, you'd get this result from a server.
-    final winningIndex = math.Random().nextInt(totalLeaves);
-
-    // Calculate total ticks needed
-    final int minSpins = 3 * totalLeaves; // At least 3 full spins
-    final int ticksToWinner = (totalLeaves - _currentLeafIndex + winningIndex) % totalLeaves;
-    final int totalTicks = minSpins + ticksToWinner;
-
-    final Duration tickDuration = _totalSpinDuration ~/ totalTicks;
-
-    _spinTimer = Timer.periodic(tickDuration, (timer) {
-      final elapsedTime = DateTime.now().difference(startTime);
-
-      if (elapsedTime >= _totalSpinDuration) {
-        timer.cancel();
-        // Ensure the final index is the one we chose
-        _currentLeafIndex = winningIndex;
-        _processSpinResult(winningIndex);
-      } else {
-        setState(() {
-          _currentLeafIndex = (_currentLeafIndex + 1) % totalLeaves;
-        });
-      }
-    });
-  }
-
-  /// Processes the result after the spin animation completes
-  void _processSpinResult(int winningIndex) {
-    final winningConfig = _leafConfigs()[winningIndex];
-    final int? playerBetOnWinner = _bets[winningIndex];
-
-    int winnings = 0;
-    String toastMessage = '';
-    bool didPlaceAnyBet = _bets.isNotEmpty;
-
-    if (playerBetOnWinner != null && playerBetOnWinner > 0) {
-      // Player won!
-      winnings = playerBetOnWinner * winningConfig.multiplier;
-      toastMessage = 'You won ${_formatCurrency(winnings)}! (${winningConfig.multiplier}x)';
-
-      setState(() {
-        _balance += winnings;
-        _todaysRevenue += winnings;
-
-        if (winningIndex < _resultImages.length) {
-          _winningResultsHistory.add(_resultImages[winningIndex]);
-        }
-      });
-    } else if (didPlaceAnyBet) {
-      // Player lost, but they did place a bet
-      toastMessage = 'No win this round. Try again!';
-    }
-    // If didPlaceAnyBet is false and they didn't win, toastMessage remains empty
-
-    setState(() {
-      _isSpinning = false;
-      _spinResultIndex = winningIndex;
-      _roundNumber = _roundNumber + 1;
-    });
-
-    if (toastMessage.isNotEmpty) {
-      _showToast(toastMessage, isError: winnings == 0);
-    }
-
-    // Wait for sometime to show the result, then start the next round
-    Future.delayed(_bettingResultDuration, () {
-      if (mounted) {
-        _startBettingPhase();
-      }
-    });
-  }
-
-  /// Helper to show a SnackBar
   void _showToast(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -359,9 +470,197 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: isError ? Colors.red[700] : Colors.amber[800],
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  //
+  // --- [NEW] SIMPLIFIED BETTING & AUTO-START LOGIC ---
+  //
+
+  /// [NEW] Calls the backend with an empty bet to trigger the auto-start.
+  Future<void> _triggerAutoStart() async {
+    // Prevent multiple auto-start calls
+    if (_isAutoStarting) return;
+
+    print("[GREEDY_LOG] Game is auto-paused. Attempting to wake up...");
+    setState(() => _isAutoStarting = true);
+
+    try {
+      // Call setBets with an empty map.
+      // This will fail with the "Game is starting up" error, which is expected.
+      await _gameService.setBets(_currentRoundId, {});
+    } catch (e) {
+      // We expect an error here, either "Game is starting up" or "Bet must be positive"
+      // if the game *just* started. Either way, the "wake up" call is done.
+      print("[GREEDY_LOG] Auto-start trigger sent. Error (expected): $e");
+    } finally {
+      // The listeners will take over from here.
+      // We'll reset the flag after a short delay in case the listener doesn't catch a new round.
+      Future.delayed(Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() => _isAutoStarting = false);
+        }
+      });
+    }
+  }
+
+  /// [MODIFIED] Debounced bet submission
+  void _onBet(String currentRoundId, String phase, int leafIndex) {
+    if (phase != 'betting') {
+      if (_gameStatus == 'auto-paused') {
+        _showToast("Game is waking up, please wait...", isError: false);
+      } else {
+        _showToast("Betting time is over!", isError: true);
+      }
+      return;
+    }
+    if (_myBalance < _selectedCoinValue) {
+      _showToast("Not enough balance!", isError: true);
+      return;
+    }
+
+    // 1. Optimistic UI update
+    setState(() {
+      _myBalance -= _selectedCoinValue;
+      _myBets[leafIndex] = (_myBets[leafIndex] ?? 0) + _selectedCoinValue;
+    });
+
+    // 2. Trigger debounced sync to server
+    _triggerDebouncedSync();
+  }
+
+  /// [NEW] Handle bet removal
+  void _onRemoveBet(String currentRoundId, String phase, int leafIndex) {
+    if (phase != 'betting') {
+      return;
+    }
+
+    final int currentBetOnLeaf = _myBets[leafIndex] ?? 0;
+    if (currentBetOnLeaf == 0) return;
+
+    // 1. Optimistic UI update (refund)
+    setState(() {
+      _myBalance += currentBetOnLeaf;
+      _myBets.remove(leafIndex);
+    });
+
+    // 2. Trigger debounced sync to server
+    _triggerDebouncedSync();
+  }
+
+  /// [NEW] Triggers a sync, debounced by 1 second
+  void _triggerDebouncedSync() {
+    if (_isSyncing) return;
+
+    _syncBetsTimer?.cancel();
+    _syncBetsTimer = Timer(const Duration(milliseconds: 1000), () {
+      _syncBetsToServer();
+    });
+  }
+
+  /// [NEW] The actual function that calls the service
+  Future<void> _syncBetsToServer() async {
+    if (_isSyncing) return;
+
+    if (_currentPhase != 'betting') {
+      print("[GREEDY_LOG] Phase changed, sync cancelled.");
+      return;
+    }
+
+    setState(() => _isSyncing = true);
+
+    // Make a copy of the current bets to send
+    final betsToSend = Map<int, int>.from(_myBets);
+
+    try {
+      print("[GREEDY_LOG] Syncing bets to server: $betsToSend");
+      await _gameService.setBets(_currentRoundId, betsToSend);
+      print("[GREEDY_LOG] Sync successful.");
+    } catch (e) {
+      print("[GREEDY_LOG] Sync failed: $e");
+      // This will show the "Game is starting up" error
+      _showToast(e.toString().replaceFirst("Exception: ", ""), isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
+  }
+
+  // --- END OF NEW BETTING LOGIC ---
+
+  void _startConstantSpin() {
+    _spinTimer?.cancel();
+    _spinTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _animationLeafIndex = (_animationLeafIndex + 1) % 8;
+      });
+    });
+  }
+
+  void _startLandingSpin(int finalIndex) {
+    _spinTimer?.cancel();
+    final int startIndex = _animationLeafIndex;
+    final totalLeaves = _leafConfigs().length;
+    final int ticksToWinner = (totalLeaves - startIndex + finalIndex) % totalLeaves;
+    final int totalTicks = ticksToWinner;
+    final Duration tickDuration = const Duration(milliseconds: 100);
+
+    _spinTimer = Timer.periodic(tickDuration, (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final bool isDone = (timer.tick >= totalTicks);
+
+      if (isDone) {
+        timer.cancel();
+        _spinTimer = null;
+        setState(() {
+          _animationLeafIndex = finalIndex;
+        });
+      } else {
+        setState(() {
+          _animationLeafIndex = (startIndex + timer.tick) % totalLeaves;
+        });
+      }
+    });
+  }
+
+  void _startCountdownTimer(DateTime serverStartTime, int totalDuration) {
+    _countdownTimer?.cancel();
+
+    _countdownTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final timePassed = DateTime.now().difference(serverStartTime);
+      int secondsRemaining = totalDuration - timePassed.inSeconds;
+
+      if (secondsRemaining < 0) {
+        secondsRemaining = 0;
+      }
+
+      if (mounted) {
+        setState(() {
+          _localCountdownSeconds = secondsRemaining;
+        });
+      }
+
+      if (secondsRemaining == 0) {
+        timer.cancel();
+        _countdownTimer = null;
+      }
+    });
   }
 
   @override
@@ -383,66 +682,130 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       ),
       body: Container(
         decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 20, top: 8, bottom: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.pink.withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      'Round: $_roundNumber',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.normal),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double screenShortestSide = constraints.maxWidth < constraints.maxHeight
-                        ? constraints.maxWidth
-                        : constraints.maxHeight;
+        child: _buildGameContent(),
+      ),
+    );
+  }
 
-                    final double boardSize = screenShortestSide * 1;
-                    return _buildGameWheel(boardSize);
-                  },
-                ),
-              ),
-              SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    children: [
-                      _buildSaladPizzaRow(),
-                      const SizedBox(height: 16),
-                      _buildRankingHistoryRow(),
-                      const SizedBox(height: 16),
-                      _buildResultRow(),
-                      const SizedBox(height: 16),
-                      _buildCoinListRow(),
-                      const SizedBox(height: 16),
-                      _buildBalanceRow(),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+  Widget _buildGameContent() {
+    if (_gameStatus == "loading") {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // [MODIFIED] Show loading indicator when auto-paused
+    if (_gameStatus == 'auto-paused') {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
+    if (_gameStatus != 'running') {
+      return const Center(
+        child: Text("Game is currently offline.", style: TextStyle(color: Colors.white, fontSize: 18)),
+      );
+    }
+
+    return SafeArea(
+      child: Column(
+        children: [
+          _buildTopBar(),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double boardSize = constraints.maxWidth < constraints.maxHeight
+                    ? constraints.maxWidth
+                    : constraints.maxHeight;
+                return _buildGameWheel(
+                  boardSize: boardSize,
+                  phase: _currentPhase,
+                  currentRoundId: _currentRoundId,
+                  winningIndex: _serverWinningIndex,
+                );
+              },
+            ),
           ),
+          SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                children: [
+                  _buildSaladPizzaRow(),
+                  const SizedBox(height: 16),
+                  _buildRankingHistoryRow(),
+                  const SizedBox(height: 16),
+                  _buildResultRow(),
+                  const SizedBox(height: 16),
+                  _buildCoinListRow(_currentPhase),
+                  const SizedBox(height: 16),
+                  _buildBalanceRow(),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [_buildRoundCounter(_currentRoundId), _buildParticipantCounter(_gameParticipants)],
+      ),
+    );
+  }
+
+  Widget _buildRoundCounter(String roundId) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.pink.withOpacity(0.3)),
+      ),
+      child: Text(
+        'Round: $roundId',
+        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.normal),
+      ),
+    );
+  }
+
+  Widget _buildParticipantCounter(List<GameParticipant> participants) {
+    return GestureDetector(
+      onTap: () {
+        showGameParticipantsBottomSheet(context, participants: participants, currentUserId: _userId);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.25),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.pink.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(CupertinoIcons.person_2_fill, color: Colors.amber, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              participants.length.toString(),
+              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildGameWheel(double boardSize) {
+  Widget _buildGameWheel({
+    required double boardSize,
+    required String phase,
+    required String currentRoundId,
+    required int winningIndex,
+  }) {
     return SizedBox(
       width: boardSize,
       height: boardSize,
@@ -459,17 +822,17 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
             final double size = boardSize * config.sizeFactor;
 
             bool isHighlighted;
-            if (_isSpinning) {
-              isHighlighted = (index == _currentLeafIndex);
-            } else if (_spinResultIndex != null) {
-              isHighlighted = (index == _spinResultIndex);
+            if (phase == 'betting') {
+              isHighlighted = true;
             } else {
-              isHighlighted = _isBettingTime; // Highlight all during betting time
+              isHighlighted = (index == _animationLeafIndex);
             }
+
+            final int betAmount = _myBets[index] ?? 0;
 
             return Transform(
               transform: Matrix4.translationValues(radius * math.cos(angle), radius * math.sin(angle), 0.0),
-              child: _buildGameItem(config, index, size, isHighlighted, _bets[index] ?? 0),
+              child: _buildGameItem(config, index, size, isHighlighted, betAmount, currentRoundId, phase),
             );
           }).toList(),
           Transform(
@@ -478,17 +841,31 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
               boardSize * _centerConfig.offsetYFactor,
               0.0,
             ),
-            child: _buildCenterDisplay(_centerConfig.assetPath, boardSize * _centerConfig.sizeFactor),
+            child: _buildCenterDisplay(
+              _centerConfig.assetPath,
+              boardSize * _centerConfig.sizeFactor,
+              phase,
+              winningIndex,
+              _localCountdownSeconds,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildGameItem(_LeafItemConfig config, int index, double size, bool isHighlighted, int betAmount) {
+  Widget _buildGameItem(
+      _LeafItemConfig config,
+      int index,
+      double size,
+      bool isHighlighted,
+      int betAmount,
+      String currentRoundId,
+      String phase,
+      ) {
     return InkWell(
-      onTap: () => _onBet(index),
-      onLongPress: () => _onRemoveBet(index),
+      onTap: () => _onBet(currentRoundId, phase, index),
+      onLongPress: () => _onRemoveBet(currentRoundId, phase, index),
       child: SizedBox(
         width: size,
         height: size,
@@ -497,21 +874,11 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
             fit: StackFit.expand,
             alignment: Alignment.center,
             children: [
-              Image.asset(
-                config.assetPath,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey,
-                    child: const Center(child: Icon(Icons.warning, color: Colors.red)),
-                  );
-                },
-              ),
+              Image.asset(config.assetPath, fit: BoxFit.cover),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
                 color: isHighlighted ? Colors.transparent : Colors.black.withOpacity(0.5),
               ),
-              // Show bet amount and multiplier
               if (betAmount > 0)
                 Container(
                   alignment: Alignment.center,
@@ -551,13 +918,10 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     );
   }
 
-  /// Center display shows countdown or "Spinning"
-  Widget _buildCenterDisplay(String assetPath, double size) {
+  Widget _buildCenterDisplay(String assetPath, double size, String phase, int winningIndex, int localCountdown) {
     String centerText = '';
-    if (_isBettingTime) {
-      centerText = '$_countdownSeconds';
-    } else if (_isSpinning) {
-      centerText = '...';
+    if (phase == 'betting') {
+      centerText = "$localCountdown";
     }
 
     return Container(
@@ -565,13 +929,7 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        image: DecorationImage(
-          image: AssetImage(assetPath),
-          fit: BoxFit.contain,
-          onError: (exception, stackTrace) {
-            print('Error loading center image: $exception');
-          },
-        ),
+        image: DecorationImage(image: AssetImage(assetPath), fit: BoxFit.contain),
       ),
       child: Center(
         child: Text(
@@ -599,7 +957,7 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       children: [
         Image.asset(
           assetPath,
-          height: 80,
+          height: 50,
           errorBuilder: (ctx, err, stack) => const Icon(Icons.fastfood, color: Colors.white, size: 80),
         ),
         const SizedBox(height: 8),
@@ -617,16 +975,16 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       children: [
         Expanded(
           child: SizedBox(
-            height: 48,
+            height: 40,
             child: ElevatedButton.icon(
               onPressed: () {},
               icon: const Icon(Icons.leaderboard, color: Colors.white),
               label: const Text(
                 "Today Ranking",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.pinkLight.withOpacity(0.5),
+                backgroundColor: AppColors.pink.withOpacity(0.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
@@ -635,18 +993,18 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
         const SizedBox(width: 16),
         Expanded(
           child: SizedBox(
-            height: 48,
+            height: 40,
             child: ElevatedButton.icon(
               onPressed: () {},
               icon: const Icon(Icons.history, color: Colors.white),
               label: const Text(
                 "Your History",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black.withOpacity(0.2),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                side: BorderSide(color: Colors.pink.withOpacity(0.3)),
+                side: BorderSide(color: AppColors.pink.withOpacity(0.3)),
               ),
             ),
           ),
@@ -657,36 +1015,37 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
 
   Widget _buildResultRow() {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.pink.withOpacity(0.3)),
+        border: Border.all(color: AppColors.pink.withOpacity(0.3)),
       ),
-      height: 100,
       width: double.infinity,
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Text(
-            "Result",
+            "Result:",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(width: 8),
           Expanded(
-            child: SingleChildScrollView(
+            child: (_gameHistory.isEmpty)
+                ? const Text("Game history will appear here.", style: TextStyle(color: Colors.white70, fontSize: 12))
+                : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: _winningResultsHistory.map((path) {
+                children: _gameHistory.reversed.map((winningIndex) {
+                  if (winningIndex < 0 || winningIndex >= _resultImages.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4.0),
+                      child: Icon(Icons.error, color: Colors.red, size: 40),
+                    );
+                  }
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: Image.asset(
-                      path,
-                      fit: BoxFit.contain,
-                      errorBuilder: (ctx, err, stack) => Icon(Icons.circle, color: Colors.white),
-                    ),
+                    child: Image.asset(_resultImages[winningIndex], fit: BoxFit.contain, height: 40, width: 40),
                   );
                 }).toList(),
               ),
@@ -697,42 +1056,49 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     );
   }
 
-  Widget _buildCoinListRow() {
-    return Row(
-      children: _coinValues.entries.map((entry) {
-        final String path = entry.key;
-        final int value = entry.value;
-        final bool isSelected = _selectedCoinValue == value;
+  Widget _buildCoinListRow(String phase) {
+    final bool isBettingTime = (phase == 'betting');
 
-        return Expanded(
-          child: InkWell(
-            onTap: _isBettingTime
-                ? () {
-                    setState(() {
-                      _selectedCoinValue = value;
-                    });
-                  }
-                : null,
-            child: Opacity(
-              opacity: _isBettingTime ? 1.0 : 0.5,
-              child: Container(
-                margin: const EdgeInsets.all(4),
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: isSelected ? Border.all(color: Colors.amber, width: 3) : null,
-                  boxShadow: isSelected ? [const BoxShadow(color: Colors.amber, blurRadius: 10, spreadRadius: 2)] : [],
-                ),
-                child: Image.asset(
-                  path,
-                  fit: BoxFit.contain,
-                  errorBuilder: (ctx, err, stack) => const Icon(Icons.monetization_on, color: Colors.white, size: 60),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 60.0),
+      child: Row(
+        children: _coinValues.entries.map((entry) {
+          final String path = entry.key;
+          final int value = entry.value;
+          final bool isSelected = _selectedCoinValue == value;
+
+          return Expanded(
+            child: InkWell(
+              onTap: isBettingTime
+                  ? () {
+                setState(() {
+                  _selectedCoinValue = value;
+                });
+              }
+                  : null,
+              child: Opacity(
+                opacity: isBettingTime ? 1.0 : 0.5,
+                child: Container(
+                  margin: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: isSelected ? Border.all(color: Colors.amber, width: 3) : null,
+                    boxShadow: isSelected
+                        ? [const BoxShadow(color: Colors.amber, blurRadius: 10, spreadRadius: 2)]
+                        : [],
+                  ),
+                  child: Image.asset(
+                    path,
+                    fit: BoxFit.contain,
+                    errorBuilder: (ctx, err, stack) => const Icon(Icons.monetization_on, color: Colors.white, size: 60),
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -741,7 +1107,7 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: _buildBalanceDisplay(title: "Balance", amount: _formatCurrency(_balance)),
+          child: _buildBalanceDisplay(title: "Balance", amount: _formatCurrency(_myBalance)),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -752,24 +1118,36 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
   }
 
   Widget _buildBalanceDisplay({required String title, required String amount}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.pink.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12)),
-          const SizedBox(height: 4),
+    const String treasureIconPath = 'assets/greedy/treasure_icon.png';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (title == "Balance")
+          Image.asset(
+            treasureIconPath,
+            height: 44,
+            width: 44,
+            errorBuilder: (ctx, err, stack) => const Icon(Icons.monetization_on, color: Colors.white, size: 24),
+          )
+        else
           Text(
+            '$title:',
+            style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+            overflow: TextOverflow.ellipsis,
+          ),
+
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
             amount,
             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

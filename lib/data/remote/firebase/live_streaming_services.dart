@@ -5,18 +5,30 @@ class LiveStreamService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  static final _usersCollection = _firestore.collection('users');
+
   static Future<String> createRoom() async {
     final user = _auth.currentUser!;
     final roomRef = _firestore.collection('live_streams').doc();
     final participantRef = roomRef.collection('participants').doc(user.uid);
 
+    final userRef = _usersCollection.doc(user.uid);
+
+    final userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      throw Exception("User profile not found. Cannot create room.");
+    }
+
+    final userData = userDoc.data() as Map<String, dynamic>;
+    final String hostName = userData['displayName'] ?? 'Anonymous';
+    final String? hostPicture = userData['photoUrl'];
+
     final batch = _firestore.batch();
 
-    // Host room data
     batch.set(roomRef, {
       'hostId': user.uid,
-      'hostName': user.displayName ?? 'Anonymous',
-      'hostPicture': user.photoURL,
+      'hostName': hostName,
+      'hostPicture': hostPicture,
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
       'participantCount': 1,
@@ -27,8 +39,8 @@ class LiveStreamService {
     // Host participant data
     batch.set(participantRef, {
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': hostName,
+      'userPicture': hostPicture,
       'joinedAt': FieldValue.serverTimestamp(),
       'isOnline': true,
       'isMuted': false,
@@ -43,10 +55,24 @@ class LiveStreamService {
     return _firestore.collection('live_streams').where('isActive', isEqualTo: true).snapshots();
   }
 
+  // --- UPDATED: Fetches profile from Firestore before joining ---
   static Future<void> joinRoom(String roomId) async {
     final user = _auth.currentUser!;
     final roomRef = _firestore.collection('live_streams').doc(roomId);
     final participantRef = roomRef.collection('participants').doc(user.uid);
+
+    // 1. Fetch latest profile data (Outside transaction for speed)
+    final userDoc = await _usersCollection.doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    if (userDoc.exists) {
+      final userData = userDoc.data() as Map<String, dynamic>;
+      userName = userData['displayName'] ?? userName;
+      // Check standard 'photoUrl' or fallback to 'userPicture' if your schema varies
+      userPicture = userData['photoUrl'] ?? userData['userPicture'] ?? userPicture;
+    }
 
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
@@ -60,8 +86,8 @@ class LiveStreamService {
 
       transaction.set(participantRef, {
         'userId': user.uid,
-        'userName': user.displayName ?? 'Anonymous',
-        'userPicture': user.photoURL,
+        'userName': userName, // <-- Uses Firestore Name
+        'userPicture': userPicture, // <-- Uses Firestore Picture
         'joinedAt': FieldValue.serverTimestamp(),
         'isOnline': true,
         'isMuted': true,
@@ -130,12 +156,26 @@ class LiveStreamService {
     return _firestore.collection('live_streams').doc(roomId).snapshots();
   }
 
+  // --- UPDATED: Fetches profile from Firestore before requesting ---
   static Future<void> requestToJoin(String roomId) async {
     final user = _auth.currentUser!;
+
+    // 1. Fetch Profile Data
+    final userDoc = await _usersCollection.doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    if (userDoc.exists) {
+      final userData = userDoc.data() as Map<String, dynamic>;
+      userName = userData['displayName'] ?? userName;
+      userPicture = userData['photoUrl'] ?? userData['userPicture'] ?? userPicture;
+    }
+
     await _firestore.collection('live_streams').doc(roomId).collection('join_requests').doc(user.uid).set({
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': userName, // <-- Uses Firestore Name
+      'userPicture': userPicture, // <-- Uses Firestore Picture
       'requestedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -175,7 +215,7 @@ class LiveStreamService {
         'joinedAt': FieldValue.serverTimestamp(),
         'isOnline': true,
         'isMuted': true, // Guest joins muted by default
-        'isCameraOn': false, // **CRITICAL CHANGE**: Guest camera is OFF
+        'isCameraOn': false, // Guest camera is OFF
       });
 
       transaction.update(roomRef, {'participantCount': FieldValue.increment(1)});

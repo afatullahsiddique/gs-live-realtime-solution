@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import '../../../ui/video_streaming/bottomsheets/invite_pk_bottomsheet.dart';
 import 'profile_services.dart';
 
@@ -12,20 +11,31 @@ class VideoRoomService {
 
   static Future<String> createRoom() async {
     final user = _auth.currentUser!;
+
     final roomRef = _roomsCollection.doc();
-    final participantRef = roomRef.collection('participants').doc(user.uid);
     final userRef = _usersCollection.doc(user.uid);
+    final participantRef = roomRef.collection('participants').doc(user.uid);
+
+    final userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      throw Exception("User profile not found. Cannot create room.");
+    }
+
+    final userData = userDoc.data() as Map<String, dynamic>;
+    final String hostName = userData['displayName'] ?? 'Anonymous';
+    final String? hostPicture = userData['photoUrl'];
 
     final batch = _firestore.batch();
 
     batch.set(roomRef, {
       'hostId': user.uid,
-      'hostName': user.displayName ?? 'Anonymous',
-      'hostPicture': user.photoURL,
+      'hostName': hostName,
+      'hostPicture': hostPicture,
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
-      'participantCount': 1, // Total users in room
-      'onCallCount': 1, // <-- NEW: Users on call
+      'participantCount': 1,
+      'onCallCount': 1,
       'isLocked': false,
       'password': null,
       'pkState': {'isPK': false},
@@ -33,13 +43,13 @@ class VideoRoomService {
 
     batch.set(participantRef, {
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': hostName,
+      'userPicture': hostPicture,
       'joinedAt': FieldValue.serverTimestamp(),
       'isOnline': true,
       'isMuted': false,
       'isCameraOn': true,
-      'onCall': true, // <-- NEW
+      'onCall': true,
     });
 
     batch.update(userRef, {'currentRoomId': roomRef.id});
@@ -52,11 +62,24 @@ class VideoRoomService {
     return _roomsCollection.where('isActive', isEqualTo: true).snapshots();
   }
 
-  // This function is now for viewers to join (they are NOT on call)
+  // --- UPDATED: joinRoom fetches profile from Firestore ---
   static Future<void> joinRoom(String roomId) async {
     final user = _auth.currentUser!;
     final roomRef = _roomsCollection.doc(roomId);
     final participantRef = roomRef.collection('participants').doc(user.uid);
+
+    // 1. Fetch latest profile data from Firestore (Outside transaction)
+    final userDoc = await _usersCollection.doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    if (userDoc.exists) {
+      final userData = userDoc.data() as Map<String, dynamic>;
+      userName = userData['displayName'] ?? userName;
+      // Check both 'photoUrl' (common in your code) and fallback to 'photoURL'
+      userPicture = userData['photoUrl'] ?? userData['userPicture'] ?? userPicture;
+    }
 
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
@@ -73,8 +96,8 @@ class VideoRoomService {
       if (!participantSnapshot.exists) {
         transaction.set(participantRef, {
           'userId': user.uid,
-          'userName': user.displayName ?? 'Anonymous',
-          'userPicture': user.photoURL,
+          'userName': userName, // <-- Uses Firestore Name
+          'userPicture': userPicture, // <-- Uses Firestore Picture
           'joinedAt': FieldValue.serverTimestamp(),
           'isOnline': true,
           'isMuted': true,
@@ -128,7 +151,6 @@ class VideoRoomService {
       print("Error getting room info before delete: $e");
     }
 
-    // --- NEW: If in PK, end it first ---
     if (pkState['isPK'] == true && pkState.containsKey('opponentRoomId')) {
       try {
         await endPKBattle(roomId, pkState['opponentRoomId']);
@@ -136,7 +158,6 @@ class VideoRoomService {
         print("Error ending PK battle during room deletion: $e");
       }
     }
-    // ---
 
     final participants = await roomDocRef.collection('participants').get();
     final joinRequests = await roomDocRef.collection('join_requests').get();
@@ -186,9 +207,22 @@ class VideoRoomService {
     return _roomsCollection.doc(roomId).snapshots();
   }
 
+  // --- UPDATED: requestToJoin ALSO fetches profile from Firestore ---
   static Future<void> requestToJoin(String roomId) async {
     final user = _auth.currentUser!;
     final roomRef = _roomsCollection.doc(roomId);
+
+    // 1. Fetch Profile Data
+    final userDoc = await _usersCollection.doc(user.uid).get();
+
+    String userName = user.displayName ?? 'Anonymous';
+    String? userPicture = user.photoURL;
+
+    if (userDoc.exists) {
+      final userData = userDoc.data() as Map<String, dynamic>;
+      userName = userData['displayName'] ?? userName;
+      userPicture = userData['photoUrl'] ?? userData['userPicture'] ?? userPicture;
+    }
 
     // Check if room is in PK before allowing request
     final roomDoc = await roomRef.get();
@@ -204,8 +238,8 @@ class VideoRoomService {
 
     await roomRef.collection('join_requests').doc(user.uid).set({
       'userId': user.uid,
-      'userName': user.displayName ?? 'Anonymous',
-      'userPicture': user.photoURL,
+      'userName': userName, // <-- Uses Firestore Name
+      'userPicture': userPicture, // <-- Uses Firestore Picture
       'requestedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -300,7 +334,6 @@ class VideoRoomService {
     } else {
       throw Exception("${receiverUser.name}'s room does not exist.");
     }
-    // ---
 
     final inviteRef = _roomsCollection.doc(receiverRoomId).collection('pk_invites').doc(senderRoomId);
 
@@ -313,7 +346,7 @@ class VideoRoomService {
       'receiverHostId': receiverUser.id,
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
-      'durationInMinutes': durationInMinutes, // --- NEW ---
+      'durationInMinutes': durationInMinutes,
     });
   }
 
@@ -327,9 +360,6 @@ class VideoRoomService {
         .map((snapshot) => snapshot.docs.map((doc) => PKInvite.fromFirestore(doc)).toList());
   }
 
-  /// REQUIRES A FIRESTORE INDEX (Collection Group: 'pk_invites')
-  /// 1. senderRoomId (Ascending)
-  /// 2. status (Ascending)
   static Stream<List<PKInvite>> getSentPKInvitesStream(String mySenderRoomId) {
     return _firestore
         .collectionGroup('pk_invites')
@@ -387,19 +417,16 @@ class VideoRoomService {
   static Future<void> endPKBattle(String myRoomId, String opponentRoomId) async {
     final batch = _firestore.batch();
 
-    // 1. Clear my PK state
     final myRoomRef = _roomsCollection.doc(myRoomId);
     batch.update(myRoomRef, {
       'pkState': {'isPK': false},
     });
 
-    // 2. Clear the opponent's PK state
     final opponentRoomRef = _roomsCollection.doc(opponentRoomId);
     batch.update(opponentRoomRef, {
       'pkState': {'isPK': false},
     });
 
-    // 3. Clean up the 'accepted' invite docs from both rooms
     final myInvitesRef = myRoomRef.collection('pk_invites').doc(opponentRoomId);
     batch.delete(myInvitesRef);
 
@@ -409,9 +436,7 @@ class VideoRoomService {
     await batch.commit();
   }
 
-  // This function is now less relevant as endPKBattle is more specific
   static Future<void> clearPKInvite(PKInvite invite) async {
-    // This is called by the SENDER after the PK is over
     final data = await _roomsCollection.doc(invite.receiverRoomId).collection('pk_invites').doc(invite.id).get();
 
     if (data.exists) {

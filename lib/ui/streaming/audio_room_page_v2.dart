@@ -7,6 +7,8 @@ import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
+
+import '../../core/widgets/auto_scroll_text.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
@@ -137,6 +139,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   bool _isInitialized = false;
   bool _isMoveAllowed = true;
   bool _isSeatApprovalRequired = true;
+  String _currentUserName = "Me";
 
   Duration welcomeTime = Duration(milliseconds: 3500);
 
@@ -227,20 +230,40 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       }
     }
   }
+
   Future<void> _finishInitialization() async {
     if (!await _checkAudioPermissions()) {
       if (mounted) context.pop();
       return;
     }
 
+    final currentUser = _auth.currentUser!;
+    try {
+      final userDoc = await ProfileService.getUserProfile(currentUser.uid);
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _currentUserName = data['displayName'] ?? "Unknown";
+        });
+      } else {
+        setState(() {
+          _currentUserName = currentUser.displayName ?? "Unknown";
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user name: $e");
+      setState(() {
+        _currentUserName = currentUser.displayName ?? "Unknown";
+      });
+    }
+
     await ZegoUIKit().init(
-      appID: 751798122, // Your App ID
-      appSign: "ec25b1cfc409394987c89a717dd124dce925283695e2ebc36a37882feda0ef84", // Your App Sign
+      appID: 751798122,
+      appSign: "ec25b1cfc409394987c89a717dd124dce925283695e2ebc36a37882feda0ef84",
       scenario: ZegoScenario.Default,
     );
 
-    final currentUser = _auth.currentUser!;
-    ZegoUIKit().login(currentUser.uid, currentUser.displayName ?? "Unknown");
+    ZegoUIKit().login(currentUser.uid, _currentUserName);
     await ZegoUIKit().joinRoom(widget.roomID);
 
     ZegoUIKit().turnMicrophoneOn(widget.isHost);
@@ -250,10 +273,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     if (!widget.isHost) {
       await RoomService.joinRoom(widget.roomID);
       _sendJoinMessage();
-
-      // FIX: Show the join animation for the user who just entered
-      final currentUserName = _auth.currentUser?.displayName ?? "You";
-      _showJoinAnimation(currentUserName);
+      _showJoinAnimation(_currentUserName);
     }
 
     _setupListeners();
@@ -379,7 +399,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         final String hostId = roomData['hostId'] ?? '';
 
         final newGuest = updatedParticipants.firstWhere(
-              (p) => !oldParticipantIds.contains(p.userId) && p.userId != hostId,
+          (p) => !oldParticipantIds.contains(p.userId) && p.userId != hostId,
           orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
         );
 
@@ -388,24 +408,21 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         }
       }
 
-      // FIX 2: Turn on microphone when participant gets a seat or becomes co-host
       if (mounted) {
         final currentUserId = _auth.currentUser!.uid;
         final oldCurrentUser = _participants.firstWhere(
-              (p) => p.userId == currentUserId,
+          (p) => p.userId == currentUserId,
           orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
         );
         final newCurrentUser = updatedParticipants.firstWhere(
-              (p) => p.userId == currentUserId,
+          (p) => p.userId == currentUserId,
           orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
         );
 
-        // Check if user just got a seat or became co-host
         final bool wasListener = oldCurrentUser.seatNo == -1 && !oldCurrentUser.isCoHost;
         final bool isNowSpeaker = newCurrentUser.seatNo > 0 || newCurrentUser.isCoHost;
 
         if (wasListener && isNowSpeaker && !newCurrentUser.isMuted) {
-          // User just got accepted to speak, turn on their mic
           ZegoUIKit().turnMicrophoneOn(true);
         }
       }
@@ -429,13 +446,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
   void _showJoinAnimation(String userName) {
     _joinAnimationTimer?.cancel();
-
     _joinAnimationController.forward(from: 0.0);
-
     setState(() {
       _newJoinerName = userName;
     });
-
     _joinAnimationTimer = Timer(welcomeTime, () {
       setState(() {
         _newJoinerName = null;
@@ -615,19 +629,19 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
           child: SafeArea(
             child: _isInitialized
                 ? Stack(
-              children: [
-                Column(
-                  children: [
-                    _buildAppBar(),
-                    _buildHostStatsRow(),
-                    Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
-                    Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
-                    _buildChatInput(),
-                  ],
-                ),
-                Center(child: _buildJoinAnimationOverlay()),
-              ],
-            )
+                    children: [
+                      Column(
+                        children: [
+                          _buildAppBar(),
+                          _buildHostStatsRow(),
+                          Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
+                          Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
+                          _buildChatInput(),
+                        ],
+                      ),
+                      Center(child: _buildJoinAnimationOverlay()),
+                    ],
+                  )
                 : const Center(child: CircularProgressIndicator(color: Colors.pink)),
           ),
         ),
@@ -692,10 +706,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      roomData["hostName"],
-                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
+                    // <--- UPDATED: Host name with AutoScrollText
+                    SizedBox(
+                      width: 120,
+                      child: AutoScrollText(
+                        text: roomData["hostName"],
+                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
                     ),
                     // Follower Count
                     StreamBuilder<DocumentSnapshot>(
@@ -719,7 +736,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             ),
           ),
 
-          // Guest-only Follow Button
           if (isGuest)
             StreamBuilder<bool>(
               stream: ProfileService.isFollowing(hostId),
@@ -763,7 +779,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
           const Spacer(),
 
-          // Participant avatars
           _buildParticipantAvatars(guestParticipants),
 
           GestureDetector(
@@ -890,31 +905,31 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             .asMap()
             .entries
             .map((entry) {
-          final index = entry.key;
-          final participant = entry.value;
-          final double leftPosition = index * overlap;
+              final index = entry.key;
+              final participant = entry.value;
+              final double leftPosition = index * overlap;
 
-          return Positioned(
-            left: leftPosition,
-            child: Container(
-              width: avatarSize,
-              height: avatarSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1), // White border
-              ),
-              child: CircleAvatar(
-                radius: (avatarSize / 2) - 1, // Adjust for border
-                backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
-                    ? NetworkImage(participant.userPicture!)
-                    : null,
-                child: (participant.userPicture == null || participant.userPicture!.isEmpty)
-                    ? const Icon(Icons.person, size: 12, color: Colors.white)
-                    : null,
-              ),
-            ),
-          );
-        })
+              return Positioned(
+                left: leftPosition,
+                child: Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1), // White border
+                  ),
+                  child: CircleAvatar(
+                    radius: (avatarSize / 2) - 1, // Adjust for border
+                    backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
+                        ? NetworkImage(participant.userPicture!)
+                        : null,
+                    child: (participant.userPicture == null || participant.userPicture!.isEmpty)
+                        ? const Icon(Icons.person, size: 12, color: Colors.white)
+                        : null,
+                  ),
+                ),
+              );
+            })
             .toList()
             .reversed // Show from front to back
             .toList(),
@@ -966,10 +981,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 child: ClipOval(
                   child: imageUrl != null && imageUrl.isNotEmpty
                       ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 40),
-                  )
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 40),
+                        )
                       : const Icon(Icons.person, color: Colors.white, size: 40),
                 ),
               ),
@@ -986,12 +1001,17 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            name,
-            style: TextStyle(
-              color: isHost ? Colors.pink : Colors.white,
-              fontWeight: isHost ? FontWeight.bold : FontWeight.normal,
-              fontSize: 16,
+          // <--- UPDATED: Streamer/Co-host name with AutoScrollText
+          SizedBox(
+            width: 80,
+            child: AutoScrollText(
+              text: name,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isHost ? Colors.pink : Colors.white,
+                fontWeight: isHost ? FontWeight.bold : FontWeight.normal,
+                fontSize: 16,
+              ),
             ),
           ),
         ],
@@ -1008,13 +1028,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             onTap: roomData['hostId'] == _auth.currentUser!.uid
                 ? null // It's me, do nothing
                 : () {
-              showProfileInfoBottomSheet(
-                context,
-                userId: roomData['hostId'],
-                hostId: roomData['hostId'],
-                roomId: widget.roomID,
-              );
-            },
+                    showProfileInfoBottomSheet(
+                      context,
+                      userId: roomData['hostId'],
+                      hostId: roomData['hostId'],
+                      roomId: widget.roomID,
+                    );
+                  },
             child: buildStreamerSeat(
               imageUrl: roomData['hostPicture'],
               name: roomData['hostName'],
@@ -1027,23 +1047,23 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             GestureDetector(
               onTap: coHost.userId != _auth.currentUser!.uid
                   ? () {
-                // It's NOT me, show profile
-                showProfileInfoBottomSheet(
-                  context,
-                  userId: coHost!.userId,
-                  hostId: roomData['hostId'],
-                  roomId: widget.roomID,
-                );
-              }
+                      // It's NOT me, show profile
+                      showProfileInfoBottomSheet(
+                        context,
+                        userId: coHost!.userId,
+                        hostId: roomData['hostId'],
+                        roomId: widget.roomID,
+                      );
+                    }
                   : () async {
-                // It IS me, step down
-                try {
-                  await RoomService.stepDownFromCoHost(widget.roomID);
-                  ZegoUIKit().turnMicrophoneOn(false);
-                } catch (e) {
-                  debugPrint("Error stepping down from co-host: $e");
-                }
-              },
+                      // It IS me, step down
+                      try {
+                        await RoomService.stepDownFromCoHost(widget.roomID);
+                        ZegoUIKit().turnMicrophoneOn(false);
+                      } catch (e) {
+                        debugPrint("Error stepping down from co-host: $e");
+                      }
+                    },
               child: buildStreamerSeat(
                 imageUrl: coHost.userPicture,
                 name: coHost.userName,
@@ -1055,7 +1075,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             Builder(
               builder: (context) {
                 final currentUserParticipant = _participants.firstWhere(
-                      (p) => p.userId == _auth.currentUser!.uid,
+                  (p) => p.userId == _auth.currentUser!.uid,
                   orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
                 );
                 final bool canRequestCoHost = !widget.isHost && !currentUserParticipant.isCoHost;
@@ -1063,25 +1083,25 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                   onTap: !canRequestCoHost
                       ? null
                       : () async {
-                    try {
-                      await RoomService.requestToBeCoHost(widget.roomID);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Co-host request sent. Please wait for host approval.'),
-                            backgroundColor: Colors.pink,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      debugPrint("Error requesting to be co-host: $e");
-                      if (mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-                      }
-                    }
-                  },
+                          try {
+                            await RoomService.requestToBeCoHost(widget.roomID);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Co-host request sent. Please wait for host approval.'),
+                                  backgroundColor: Colors.pink,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint("Error requesting to be co-host: $e");
+                            if (mounted) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+                            }
+                          }
+                        },
                   child: Column(
                     children: [
                       Container(
@@ -1252,23 +1272,23 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     return GestureDetector(
       onTap: !canLeaveSeat
           ? () {
-        // It's NOT me, show profile
-        showProfileInfoBottomSheet(
-          context,
-          userId: participant.userId,
-          hostId: roomData['hostId'],
-          roomId: widget.roomID,
-        );
-      }
+              // It's NOT me, show profile
+              showProfileInfoBottomSheet(
+                context,
+                userId: participant.userId,
+                hostId: roomData['hostId'],
+                roomId: widget.roomID,
+              );
+            }
           : () async {
-        // It IS me, leave seat
-        try {
-          await RoomService.leaveSeat(widget.roomID);
-          ZegoUIKit().turnMicrophoneOn(false);
-        } catch (e) {
-          debugPrint("Error leaving seat: $e");
-        }
-      },
+              // It IS me, leave seat
+              try {
+                await RoomService.leaveSeat(widget.roomID);
+                ZegoUIKit().turnMicrophoneOn(false);
+              } catch (e) {
+                debugPrint("Error leaving seat: $e");
+              }
+            },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1282,22 +1302,22 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 child: participant.zegoUser == null
                     ? _buildAvatar(participant)
                     : StreamBuilder<double>(
-                  stream: participant.zegoUser!.soundLevel,
-                  builder: (context, snapshot) {
-                    final isSpeaking = (snapshot.data ?? 0) > 10;
-                    return Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        _buildAvatar(participant, isSpeaking: isSpeaking),
-                        if (isSpeaking)
-                          Transform.scale(
-                            scale: 1.35,
-                            child: SVGAEasyPlayer(assetsName: "assets/svga/talking.svga", fit: BoxFit.cover),
-                          ),
-                      ],
-                    );
-                  },
-                ),
+                        stream: participant.zegoUser!.soundLevel,
+                        builder: (context, snapshot) {
+                          final isSpeaking = (snapshot.data ?? 0) > 10;
+                          return Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              _buildAvatar(participant, isSpeaking: isSpeaking),
+                              if (isSpeaking)
+                                Transform.scale(
+                                  scale: 1.35,
+                                  child: SVGAEasyPlayer(assetsName: "assets/svga/talking.svga", fit: BoxFit.cover),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
               ),
               if (participant.isMuted)
                 Positioned(
@@ -1312,14 +1332,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             ],
           ),
           const SizedBox(height: 4),
+          // <--- UPDATED: Occupied Seat Name with AutoScrollText
           SizedBox(
             width: 70,
-            child: Text(
-              participant.userName,
-              style: const TextStyle(color: Colors.white, fontSize: 10),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: AutoScrollText(
+              text: participant.userName,
               textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
             ),
           ),
         ],
@@ -1338,10 +1357,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       child: ClipOval(
         child: participant.userPicture != null && participant.userPicture!.isNotEmpty
             ? Image.network(
-          participant.userPicture!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _defaultAvatarContent(participant.userName),
-        )
+                participant.userPicture!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _defaultAvatarContent(participant.userName),
+              )
             : _defaultAvatarContent(participant.userName),
       ),
     );
@@ -1369,7 +1388,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     }
     final bool isListener =
         !widget.isHost &&
-            (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
+        (currentUserParticipant == null || (currentUserParticipant.seatNo == -1 && !currentUserParticipant.isCoHost));
 
     return Visibility(
       visible: isListener && _isSeatApprovalRequired,
@@ -1487,6 +1506,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                           ),
                         ),
                       ),
+                      // Chat Sender Name - Kept as regular Text as requested
                       Text(
                         "${m.username}: ",
                         style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
@@ -1517,7 +1537,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
     final bool isSpeakerOrCoHost =
         widget.isHost ||
-            (currentUserParticipant != null && (currentUserParticipant.isCoHost || currentUserParticipant.seatNo > 0));
+        (currentUserParticipant != null && (currentUserParticipant.isCoHost || currentUserParticipant.seatNo > 0));
 
     final bool isCurrentlyMuted = currentUserParticipant?.isMuted ?? true;
     final int totalRequests = _coHostRequests.length + _speakerRequests.length;
@@ -1660,7 +1680,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         _messages.add(
           ChatMessage(
             userId: _auth.currentUser!.uid,
-            username: _auth.currentUser?.displayName ?? "Me",
+            username: _currentUserName,
             message: messageText,
             timestamp: DateTime.now(),
           ),
@@ -1677,6 +1697,19 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     const messageText = "Just joined the room!";
     try {
       await ZegoUIKit().sendInRoomMessage(messageText);
+      if (mounted) {
+        setState(() {
+          _messages.add(
+            ChatMessage(
+              userId: _auth.currentUser!.uid,
+              username: _currentUserName,
+              message: messageText,
+              timestamp: DateTime.now(),
+            ),
+          );
+        });
+        _scrollToBottom(); // Make sure to scroll to the bottom
+      }
     } catch (e) {
       debugPrint('Error sending join message: $e');
     }

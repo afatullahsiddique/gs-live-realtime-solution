@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
+import '../../core/widgets/auto_scroll_text.dart';
 import '../../data/remote/firebase/profile_services.dart';
 import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
@@ -123,6 +124,8 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
   int _pkScoreRed = 0;
 
   bool _isStartingPKAnimation = false;
+
+  String _currentUserName = "Me";
 
   // --- Welcome Animation Vars ---
   Duration welcomeTime = Duration(milliseconds: 3500);
@@ -242,7 +245,29 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
     ZegoUIKit().updateVideoViewMode(true);
 
     final currentUser = _auth.currentUser!;
-    ZegoUIKit().login(currentUser.uid, currentUser.displayName ?? "Unknown");
+
+    // --- ADD THIS BLOCK TO FETCH USERNAME ---
+    try {
+      final userDoc = await ProfileService.getUserProfile(currentUser.uid);
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _currentUserName = data['displayName'] ?? "Unknown";
+        });
+      } else {
+        setState(() {
+          _currentUserName = currentUser.displayName ?? "Unknown";
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user name: $e");
+      setState(() {
+        _currentUserName = currentUser.displayName ?? "Unknown"; // Fallback
+      });
+    }
+    // --- END OF BLOCK ---
+
+    ZegoUIKit().login(currentUser.uid, _currentUserName); // <-- USE FETCHED NAME
     await ZegoUIKit().joinRoom(widget.roomID);
 
     ZegoUIKit().turnMicrophoneOn(widget.isHost);
@@ -257,8 +282,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
       }
       _sendJoinMessage();
 
-      final currentUserName = _auth.currentUser?.displayName ?? "You";
-      _showJoinAnimation(currentUserName);
+      _showJoinAnimation(_currentUserName); // <-- USE FETCHED NAME
     }
 
     _setupListeners();
@@ -518,6 +542,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
+          // USE AutoScrollText for long host names in dialog
           '${invite.senderHostName} wants to start a ${invite.durationInMinutes}-minute PK. What do you want to do?',
           style: const TextStyle(color: Colors.white70),
         ),
@@ -918,10 +943,13 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
                                   style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                               ),
-                            Text(
-                              roomData["hostName"],
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-                              overflow: TextOverflow.ellipsis,
+                            // REPLACED Text with AutoScrollText
+                            SizedBox(
+                              width: 120, // Constrain width for scrolling
+                              child: AutoScrollText(
+                                text: roomData["hostName"],
+                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                              ),
                             ),
                           ],
                         ),
@@ -1077,12 +1105,17 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
           child: Row(
             children: [
               Expanded(
-                child: _buildTeamLayout(participants: _participants, hostName: roomData['hostName'] ?? 'Host A'),
+                child: _buildTeamLayout(
+                  participants: _participants,
+                  hostName: roomData['hostName'] ?? 'Host A',
+                  isPKTeam: true,
+                ), // Pass PK status
               ),
               Expanded(
                 child: _buildTeamLayout(
                   participants: _opponentParticipants,
                   hostName: _pkState['opponentHostName'] ?? 'Host B',
+                  isPKTeam: true, // Pass PK status
                 ),
               ),
             ],
@@ -1104,6 +1137,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
     required List<VideoParticipant> participants,
     required String hostName,
     bool isHost = false,
+    bool isPKTeam = false,
   }) {
     if (participants.isEmpty) {
       if (isHost) {
@@ -1331,9 +1365,14 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
                         ),
                       ),
                     ),
-                    Text(
-                      "${m.username}: ",
-                      style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+                    // Only the message text should NOT be autoscroll text,
+                    // but the username here should be to prevent overflow in chat bubbles.
+                    SizedBox(
+                      width: 120, // Constrain width for scrolling
+                      child: Text(
+                        "${m.username}: ",
+                        style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+                      ),
                     ),
                   ],
                 ),
@@ -1377,6 +1416,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
                   pendingInvites: _pendingInvites,
                   currentRoomId: widget.roomID,
                   isHost: widget.isHost,
+                  hostName: roomData['hostName'] ?? 'Host',
                 );
               },
               child: Container(
@@ -1544,6 +1584,18 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
     const messageText = "Just joined the room!";
     try {
       await ZegoUIKit().sendInRoomMessage(messageText);
+      if (mounted) {
+        setState(() {
+          _messages.add(
+            ChatMessage(
+              userId: _auth.currentUser!.uid,
+              username: _currentUserName,
+              message: messageText,
+              timestamp: DateTime.now(),
+            ),
+          );
+        });
+      }
     } catch (e) {
       debugPrint('Error sending join message: $e');
     }
@@ -1560,7 +1612,7 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
           0,
           ChatMessage(
             userId: _auth.currentUser?.uid ?? '',
-            username: _auth.currentUser?.displayName ?? "Me",
+            username: _currentUserName,
             message: messageText,
             timestamp: DateTime.now(),
           ),

@@ -1,15 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/video_room_services.dart';
 import '../../../data/remote/firebase/profile_services.dart';
 import '../../../theme/app_theme.dart';
 
 void showInvitePKBottomSheet(
-    BuildContext context, {
-      required List<PKInvite> pendingInvites,
-      required String currentRoomId,
-    }) {
+  BuildContext context, {
+  required List<PKInvite> pendingInvites,
+  required String currentRoomId,
+}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF2d1b2b),
@@ -72,8 +73,7 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
             ),
           ),
           const Divider(color: Colors.white24, height: 1, thickness: 1),
-          if (widget.pendingInvites.isNotEmpty)
-            _buildReceivedInvitesSection(widget.pendingInvites),
+          if (widget.pendingInvites.isNotEmpty) _buildReceivedInvitesSection(widget.pendingInvites),
           const Padding(
             padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
             child: Row(
@@ -93,10 +93,7 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
                   return const Center(child: CircularProgressIndicator(color: Colors.pink));
                 }
                 if (snapshot.hasError) {
-                  return _EmptyListWidget(
-                    icon: Icons.error_outline,
-                    message: 'Failed to load list: ${snapshot.error}',
-                  );
+                  return _EmptyListWidget(icon: Icons.error_outline, message: 'Failed to load list: ${snapshot.error}');
                 }
 
                 final allMutuals = snapshot.data ?? [];
@@ -168,10 +165,9 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              invite.senderHostName,
+            child: AutoScrollText(
+              text: invite.senderHostName,
               style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 12),
@@ -186,10 +182,9 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
               // --- MODIFIED: Pass invite to acceptPKInvite ---
               VideoRoomService.acceptPKInvite(widget.currentRoomId, invite);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('PK accepted with ${invite.senderHostName}!'),
-                backgroundColor: Colors.green,
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('PK accepted with ${invite.senderHostName}!'), backgroundColor: Colors.green),
+              );
               // The room listener will handle starting the video
             },
             style: ElevatedButton.styleFrom(
@@ -221,10 +216,9 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              user.name,
+            child: AutoScrollText(
+              text: user.name,
               style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 12),
@@ -251,7 +245,10 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2d1b2b),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Set PK Duration', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Set PK Duration',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -287,17 +284,15 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
       );
       if (mounted) {
         Navigator.pop(context); // Close the main bottom sheet
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('PK invite sent!'),
-          backgroundColor: Colors.pink,
-        ));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('PK invite sent!'), backgroundColor: Colors.pink));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to send invite: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send invite: ${e.toString()}'), backgroundColor: Colors.red));
       }
     }
   }
@@ -375,4 +370,3 @@ class PKInvite {
     );
   }
 }
-

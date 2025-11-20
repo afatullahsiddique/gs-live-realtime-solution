@@ -25,6 +25,10 @@ enum Routes {
   videoRoom,
   liveStream,
   greedy,
+  spinner,
+  editProfile,
+  applyHosting,
+  applyAgency,
 }
 
 extension RoutesExtension on Routes {
@@ -84,6 +88,14 @@ extension RoutesExtension on Routes {
         return '/liveStream';
       case Routes.greedy:
         return '/greedy';
+      case Routes.spinner:
+        return '/spinner';
+      case Routes.editProfile:
+        return '/editProfile';
+      case Routes.applyHosting:
+        return '/applyHosting';
+      case Routes.applyAgency:
+        return '/applyAgency';
     }
   }
 }
