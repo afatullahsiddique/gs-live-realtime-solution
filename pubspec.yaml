@@ -1,5 +1,5 @@
 name: cute_live
-description: "App for Cute Live"
+description: "App for GF LIVE"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -60,4 +60,4 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/gf_live.png"

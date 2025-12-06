@@ -1,6 +1,6 @@
 # cute_live
 
-App for Cute Live
+App for GF LIVE
 
 ## Getting Started
 

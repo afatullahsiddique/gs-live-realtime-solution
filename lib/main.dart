@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
           return MaterialApp.router(
             routerConfig: MyRouter.router,
             debugShowCheckedModeBanner: false,
-            title: 'Cute Live',
+            title: 'GF LIVE',
             themeMode: ThemeMode.light,
             theme: AppTheme.themeData(),
           );

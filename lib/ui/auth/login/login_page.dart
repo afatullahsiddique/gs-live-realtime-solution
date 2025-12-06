@@ -118,7 +118,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         ShaderMask(
           shaderCallback: (bounds) => AppColors.textGradientShader(bounds),
           child: const Text(
-            'Welcome to CUTE LIVE',
+            'Welcome to GF LIVE',
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ),
