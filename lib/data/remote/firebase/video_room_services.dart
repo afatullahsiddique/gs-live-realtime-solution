@@ -1,23 +1,30 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../ui/video_streaming/bottomsheets/invite_pk_bottomsheet.dart';
-import 'profile_services.dart';
+import 'package:firebase_database/firebase_database.dart';
 
+/// Service class for managing video rooms using Firebase RTDB and Firestore
 class VideoRoomService {
+  // Firebase Instances
+  static final FirebaseDatabase _database = FirebaseDatabase.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final _usersCollection = _firestore.collection('users');
-  static final _roomsCollection = _firestore.collection('video_rooms');
 
+  // Collection & Reference Paths
+  static final _usersCollection = _firestore.collection('users');
+  static final DatabaseReference _roomsRef = _database.ref('video_rooms');
+  static final DatabaseReference _connectedRef = _database.ref('.info/connected');
+
+  // ============================================================================
+  // ROOM MANAGEMENT
+  // ============================================================================
+
+  /// Creates a new video room and returns the room ID
   static Future<String> createRoom() async {
     final user = _auth.currentUser!;
+    final roomRef = _roomsRef.push();
+    final roomId = roomRef.key!;
 
-    final roomRef = _roomsCollection.doc();
-    final userRef = _usersCollection.doc(user.uid);
-    final participantRef = roomRef.collection('participants').doc(user.uid);
-
-    final userDoc = await userRef.get();
-
+    final userDoc = await _usersCollection.doc(user.uid).get();
     if (!userDoc.exists) {
       throw Exception("User profile not found. Cannot create room.");
     }
@@ -25,422 +32,284 @@ class VideoRoomService {
     final userData = userDoc.data() as Map<String, dynamic>;
     final String hostName = userData['displayName'] ?? 'Anonymous';
     final String? hostPicture = userData['photoUrl'];
+    final String displayId = userData['displayId'] ?? '';
 
-    final batch = _firestore.batch();
-
-    batch.set(roomRef, {
+    await roomRef.set({
       'hostId': user.uid,
+      'hostDisplayId': displayId,
       'hostName': hostName,
       'hostPicture': hostPicture,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': ServerValue.timestamp,
       'isActive': true,
       'participantCount': 1,
       'onCallCount': 1,
       'isLocked': false,
       'password': null,
-      'pkState': {'isPK': false},
     });
 
-    batch.set(participantRef, {
+    final participantRef = roomRef.child('participants/${user.uid}');
+    await participantRef.set({
       'userId': user.uid,
+      'displayId': displayId,
       'userName': hostName,
       'userPicture': hostPicture,
-      'joinedAt': FieldValue.serverTimestamp(),
+      'joinedAt': ServerValue.timestamp,
       'isOnline': true,
       'isMuted': false,
       'isCameraOn': true,
       'onCall': true,
     });
 
-    batch.update(userRef, {'currentRoomId': roomRef.id});
+    await _setupPresence(roomId, user.uid, isOnCall: true, isHost: true);
 
-    await batch.commit();
-    return roomRef.id;
+    return roomId;
   }
 
-  static Stream<QuerySnapshot> getAllRooms() {
-    return _roomsCollection.where('isActive', isEqualTo: true).snapshots();
+  /// Gets a stream of all active rooms
+  static Stream<DatabaseEvent> getAllRooms() {
+    return _roomsRef.orderByChild('isActive').equalTo(true).onValue;
   }
 
-  // --- UPDATED: joinRoom fetches profile from Firestore ---
+  /// Gets room information for a specific room ID
+  static Future<DataSnapshot> getRoomInfo(String roomId) {
+    return _roomsRef.child(roomId).get();
+  }
+
+  /// Gets a stream of room data changes
+  static Stream<DatabaseEvent> getRoomStream(String roomId) {
+    return _roomsRef.child(roomId).onValue;
+  }
+
+  /// Deletes a room completely
+  static Future<void> deleteRoom(String roomId) async {
+    final roomRef = _roomsRef.child(roomId);
+    await roomRef.onDisconnect().cancel();
+    await roomRef.remove();
+  }
+
+  // ============================================================================
+  // PARTICIPANT MANAGEMENT
+  // ============================================================================
+
+  /// Joins an existing room as a participant
   static Future<void> joinRoom(String roomId) async {
     final user = _auth.currentUser!;
-    final roomRef = _roomsCollection.doc(roomId);
-    final participantRef = roomRef.collection('participants').doc(user.uid);
+    final roomRef = _roomsRef.child(roomId);
+    final participantRef = roomRef.child('participants/${user.uid}');
 
-    // 1. Fetch latest profile data from Firestore (Outside transaction)
     final userDoc = await _usersCollection.doc(user.uid).get();
-
     String userName = user.displayName ?? 'Anonymous';
     String? userPicture = user.photoURL;
+    String displayId = '';
 
     if (userDoc.exists) {
       final userData = userDoc.data() as Map<String, dynamic>;
       userName = userData['displayName'] ?? userName;
-      // Check both 'photoUrl' (common in your code) and fallback to 'photoURL'
+      displayId = userData['displayId'] ?? '';
       userPicture = userData['photoUrl'] ?? userData['userPicture'] ?? userPicture;
     }
 
-    await _firestore.runTransaction((transaction) async {
-      final roomSnapshot = await transaction.get(roomRef);
-      if (!roomSnapshot.exists) throw Exception("Room does not exist.");
+    final participantSnapshot = await participantRef.get();
+    if (!participantSnapshot.exists) {
+      await participantRef.set({
+        'userId': user.uid,
+        'displayId': displayId,
+        'userName': userName,
+        'userPicture': userPicture,
+        'joinedAt': ServerValue.timestamp,
+        'isOnline': true,
+        'isMuted': true,
+        'isCameraOn': false,
+        'onCall': false,
+      });
 
-      final roomData = roomSnapshot.data() as Map<String, dynamic>;
-      final pkState = roomData['pkState'] as Map<String, dynamic>? ?? {'isPK': false};
-
-      if (pkState['isPK'] == true) {
-        throw Exception("Cannot join room: PK battle is in progress.");
-      }
-
-      final participantSnapshot = await transaction.get(participantRef);
-      if (!participantSnapshot.exists) {
-        transaction.set(participantRef, {
-          'userId': user.uid,
-          'userName': userName, // <-- Uses Firestore Name
-          'userPicture': userPicture, // <-- Uses Firestore Picture
-          'joinedAt': FieldValue.serverTimestamp(),
-          'isOnline': true,
-          'isMuted': true,
-          'isCameraOn': false,
-          'onCall': false,
-        });
-
-        transaction.update(roomRef, {'participantCount': FieldValue.increment(1)});
-      }
-    });
+      await roomRef.child('participantCount').set(ServerValue.increment(1));
+      await _setupPresence(roomId, user.uid, isOnCall: false, isHost: false);
+    }
   }
 
+  /// Leaves a room as a participant
   static Future<void> leaveRoom(String roomId) async {
     final user = _auth.currentUser!;
-    final roomRef = _roomsCollection.doc(roomId);
-    final participantRef = roomRef.collection('participants').doc(user.uid);
+    final roomRef = _roomsRef.child(roomId);
+    final participantRef = roomRef.child('participants/${user.uid}');
 
-    await _firestore.runTransaction((transaction) async {
-      final participantDoc = await transaction.get(participantRef);
-      if (participantDoc.exists) {
-        final participantData = participantDoc.data() as Map<String, dynamic>;
-        final bool wasOnCall = participantData['onCall'] ?? false;
+    await participantRef.onDisconnect().cancel();
+    await roomRef.child('participantCount').onDisconnect().cancel();
 
-        transaction.delete(participantRef);
+    final participantSnapshot = await participantRef.get();
+    if (participantSnapshot.exists) {
+      final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
+      final bool wasOnCall = participantData['onCall'] ?? false;
 
-        final roomUpdateData = {'participantCount': FieldValue.increment(-1)};
+      await participantRef.remove();
+      await roomRef.child('participantCount').set(ServerValue.increment(-1));
 
-        if (wasOnCall) {
-          roomUpdateData['onCallCount'] = FieldValue.increment(-1);
+      if (wasOnCall) {
+        await roomRef.child('onCallCount').set(ServerValue.increment(-1));
+      }
+    }
+  }
+
+  /// Gets a stream of participants in a room
+  static Stream<DatabaseEvent> getRoomParticipants(String roomId) {
+    return _roomsRef.child('$roomId/participants').orderByChild('joinedAt').onValue;
+  }
+
+  /// Sets up presence detection for connected/disconnected users
+  static Future<void> _setupPresence(
+    String roomId,
+    String userId, {
+    required bool isOnCall,
+    required bool isHost,
+  }) async {
+    final participantRef = _roomsRef.child('$roomId/participants/$userId');
+    final roomRef = _roomsRef.child(roomId);
+
+    _connectedRef.onValue.listen((event) async {
+      if (event.snapshot.value == true) {
+        if (isHost) {
+          await roomRef.child('participantCount').onDisconnect().cancel();
+          await roomRef.onDisconnect().remove();
+        } else {
+          await participantRef.onDisconnect().remove();
+          await roomRef.child('participantCount').onDisconnect().set(ServerValue.increment(-1));
+
+          if (isOnCall) {
+            await roomRef.child('onCallCount').onDisconnect().set(ServerValue.increment(-1));
+          }
         }
-
-        transaction.update(roomRef, roomUpdateData);
+        await participantRef.child('isOnline').set(true);
       }
     });
   }
 
-  static Future<void> deleteRoom(String roomId) async {
-    final roomDocRef = _roomsCollection.doc(roomId);
+  // ============================================================================
+  // PARTICIPANT STATE MANAGEMENT
+  // ============================================================================
 
-    String? hostId;
-    Map<String, dynamic> pkState = {'isPK': false};
-
-    try {
-      final roomDoc = await roomDocRef.get();
-      if (roomDoc.exists) {
-        final data = roomDoc.data() as Map<String, dynamic>;
-        hostId = data['hostId'];
-        pkState = data['pkState'] ?? {'isPK': false};
-      }
-    } catch (e) {
-      print("Error getting room info before delete: $e");
-    }
-
-    if (pkState['isPK'] == true && pkState.containsKey('opponentRoomId')) {
-      try {
-        await endPKBattle(roomId, pkState['opponentRoomId']);
-      } catch (e) {
-        print("Error ending PK battle during room deletion: $e");
-      }
-    }
-
-    final participants = await roomDocRef.collection('participants').get();
-    final joinRequests = await roomDocRef.collection('join_requests').get();
-    final pkInvites = await roomDocRef.collection('pk_invites').get();
-
-    final batch = _firestore.batch();
-
-    for (var doc in participants.docs) {
-      batch.delete(doc.reference);
-    }
-    for (var doc in joinRequests.docs) {
-      batch.delete(doc.reference);
-    }
-    for (var doc in pkInvites.docs) {
-      batch.delete(doc.reference);
-    }
-
-    batch.delete(roomDocRef);
-
-    if (hostId != null) {
-      final userRef = _usersCollection.doc(hostId);
-      batch.update(userRef, {'currentRoomId': null});
-    }
-
-    await batch.commit();
-  }
-
+  /// Toggles mute state for current user
   static Future<void> toggleMuteState(String roomId, bool newMuteState) async {
     final user = _auth.currentUser!;
-    await _roomsCollection.doc(roomId).collection('participants').doc(user.uid).update({'isMuted': newMuteState});
+    await _roomsRef.child('$roomId/participants/${user.uid}').update({'isMuted': newMuteState});
   }
 
+  /// Toggles camera state for current user
   static Future<void> toggleCameraState(String roomId, bool isCameraOn) async {
     final user = _auth.currentUser!;
-    await _roomsCollection.doc(roomId).collection('participants').doc(user.uid).update({'isCameraOn': isCameraOn});
+    await _roomsRef.child('$roomId/participants/${user.uid}').update({'isCameraOn': isCameraOn});
   }
 
-  static Future<DocumentSnapshot> getRoomInfo(String roomId) {
-    return _roomsCollection.doc(roomId).get();
-  }
+  // ============================================================================
+  // JOIN REQUESTS
+  // ============================================================================
 
-  static Stream<QuerySnapshot> getRoomParticipants(String roomId) {
-    return _roomsCollection.doc(roomId).collection('participants').orderBy('joinedAt').snapshots();
-  }
-
-  static Stream<DocumentSnapshot> getRoomStream(String roomId) {
-    return _roomsCollection.doc(roomId).snapshots();
-  }
-
-  // --- UPDATED: requestToJoin ALSO fetches profile from Firestore ---
+  /// Sends a request to join a room
   static Future<void> requestToJoin(String roomId) async {
     final user = _auth.currentUser!;
-    final roomRef = _roomsCollection.doc(roomId);
+    final roomRef = _roomsRef.child(roomId);
 
-    // 1. Fetch Profile Data
     final userDoc = await _usersCollection.doc(user.uid).get();
-
     String userName = user.displayName ?? 'Anonymous';
     String? userPicture = user.photoURL;
+    String displayId = '';
 
     if (userDoc.exists) {
       final userData = userDoc.data() as Map<String, dynamic>;
       userName = userData['displayName'] ?? userName;
+      displayId = userData['displayId'] ?? '';
       userPicture = userData['photoUrl'] ?? userData['userPicture'] ?? userPicture;
     }
 
-    // Check if room is in PK before allowing request
-    final roomDoc = await roomRef.get();
-    if (roomDoc.exists) {
-      final data = roomDoc.data() as Map<String, dynamic>;
-      final pkState = data['pkState'] as Map<String, dynamic>? ?? {'isPK': false};
-      if (pkState['isPK'] == true) {
-        throw Exception("Cannot join room: PK battle is in progress.");
-      }
-    } else {
+    final roomSnapshot = await roomRef.get();
+    if (!roomSnapshot.exists) {
       throw Exception("Room does not exist.");
     }
 
-    await roomRef.collection('join_requests').doc(user.uid).set({
+    await roomRef.child('join_requests/${user.uid}').set({
       'userId': user.uid,
-      'userName': userName, // <-- Uses Firestore Name
-      'userPicture': userPicture, // <-- Uses Firestore Picture
-      'requestedAt': FieldValue.serverTimestamp(),
+      'displayId': displayId,
+      'userName': userName,
+      'userPicture': userPicture,
+      'requestedAt': ServerValue.timestamp,
     });
   }
 
-  static Stream<QuerySnapshot> getJoinRequestsStream(String roomId) {
-    return _roomsCollection.doc(roomId).collection('join_requests').orderBy('requestedAt').snapshots();
+  /// Gets a stream of join requests for a room
+  static Stream<DatabaseEvent> getJoinRequestsStream(String roomId) {
+    return _roomsRef.child('$roomId/join_requests').orderByChild('requestedAt').onValue;
   }
 
+  /// Approves a join request
   static Future<void> approveJoinRequest(String roomId, String requestId, String userId) async {
-    final roomRef = _roomsCollection.doc(roomId);
-    final requestRef = roomRef.collection('join_requests').doc(requestId);
-    final participantRef = roomRef.collection('participants').doc(userId);
+    final roomRef = _roomsRef.child(roomId);
+    final requestRef = roomRef.child('join_requests/$requestId');
+    final participantRef = roomRef.child('participants/$userId');
 
-    await _firestore.runTransaction((transaction) async {
-      final roomSnapshot = await transaction.get(roomRef);
-      if (!roomSnapshot.exists) throw Exception("Room does not exist.");
+    final roomSnapshot = await roomRef.get();
+    if (!roomSnapshot.exists) throw Exception("Room does not exist.");
 
-      final roomData = roomSnapshot.data() as Map<String, dynamic>;
-      final currentOnCallCount = roomData['onCallCount'] ?? 0;
-      final pkState = roomData['pkState'] as Map<String, dynamic>? ?? {'isPK': false};
+    final roomData = roomSnapshot.value as Map<dynamic, dynamic>;
+    final currentOnCallCount = roomData['onCallCount'] ?? 0;
 
-      if (pkState['isPK'] == true) {
-        throw Exception("Cannot approve request: PK battle is in progress.");
-      }
+    if (currentOnCallCount >= 4) {
+      throw Exception("The room is full. Cannot approve more participants.");
+    }
 
-      // Use the onCallCount for the limit
-      if (currentOnCallCount >= 4) {
-        throw Exception("The room is full. Cannot approve more participants.");
-      }
-
-      final requestSnapshot = await transaction.get(requestRef);
-      if (!requestSnapshot.exists) throw Exception("Request no longer exists.");
-
-      transaction.update(participantRef, {'isMuted': false, 'isCameraOn': true, 'onCall': true});
-
-      // Increment ONLY the onCallCount
-      transaction.update(roomRef, {'onCallCount': FieldValue.increment(1)});
-      transaction.delete(requestRef);
-    });
+    await participantRef.update({'isMuted': false, 'isCameraOn': true, 'onCall': true});
+    await roomRef.child('onCallCount').set(ServerValue.increment(1));
+    await requestRef.remove();
   }
 
+  /// Rejects a join request
   static Future<void> rejectJoinRequest(String roomId, String requestId) async {
-    await _roomsCollection.doc(roomId).collection('join_requests').doc(requestId).delete();
+    await _roomsRef.child('$roomId/join_requests/$requestId').remove();
   }
 
-  static Future<void> demoteAllParticipantsToViewers(String roomId, String hostId) async {
-    final roomRef = _roomsCollection.doc(roomId);
-    final participantsRef = roomRef.collection('participants');
+  // ============================================================================
+  // USER ROOM QUERIES
+  // ============================================================================
 
+  /// Finds the active room where the user is the host
+  static Future<String?> getUserActiveRoom(String userId) async {
     try {
-      final participantsSnapshot = await participantsRef.get();
-      final batch = _firestore.batch();
+      final snapshot = await _roomsRef.orderByChild('hostId').equalTo(userId).limitToFirst(1).get();
 
-      int onCallCount = 0;
+      if (snapshot.exists) {
+        final rooms = snapshot.value as Map<dynamic, dynamic>;
+        return rooms.keys.first;
+      }
+      return null;
+    } catch (e) {
+      print("Error checking user active room: $e");
+      return null;
+    }
+  }
 
-      for (final doc in participantsSnapshot.docs) {
-        if (doc.id == hostId) {
-          batch.update(doc.reference, {'onCall': true, 'isCameraOn': true});
-          onCallCount = 1;
-        } else {
-          batch.update(doc.reference, {'onCall': false, 'isMuted': true, 'isCameraOn': false});
+  /// Finds any room where the user is present (as host or participant)
+  static Future<String?> getUserCurrentRoom(String userId) async {
+    try {
+      final hostingRoom = await getUserActiveRoom(userId);
+      if (hostingRoom != null) return hostingRoom;
+
+      final snapshot = await _roomsRef.orderByChild('isActive').equalTo(true).get();
+
+      if (snapshot.exists) {
+        final rooms = snapshot.value as Map<dynamic, dynamic>;
+
+        for (final entry in rooms.entries) {
+          final roomId = entry.key;
+          final participantsSnapshot = await _roomsRef.child('$roomId/participants/$userId').get();
+
+          if (participantsSnapshot.exists) {
+            return roomId;
+          }
         }
       }
-
-      batch.update(roomRef, {'onCallCount': onCallCount});
-
-      await batch.commit();
-      print("Demoted all participants to viewers for PK.");
+      return null;
     } catch (e) {
-      print("Error demoting participants: $e");
-    }
-  }
-
-  static Future<void> sendPKInvite({
-    required String senderRoomId,
-    required SimpleUser receiverUser,
-    required int durationInMinutes,
-  }) async {
-    final user = _auth.currentUser!;
-    final receiverRoomId = receiverUser.currentRoomId;
-    if (receiverRoomId == null) {
-      throw Exception("${receiverUser.name} is not in a room.");
-    }
-
-    final receiverRoomDoc = await _roomsCollection.doc(receiverRoomId).get();
-    if (receiverRoomDoc.exists) {
-      final data = receiverRoomDoc.data() as Map<String, dynamic>;
-      final pkState = data['pkState'] as Map<String, dynamic>? ?? {'isPK': false};
-      if (pkState['isPK'] == true) {
-        throw Exception("${receiverUser.name} is already in a PK battle.");
-      }
-    } else {
-      throw Exception("${receiverUser.name}'s room does not exist.");
-    }
-
-    final inviteRef = _roomsCollection.doc(receiverRoomId).collection('pk_invites').doc(senderRoomId);
-
-    await inviteRef.set({
-      'senderRoomId': senderRoomId,
-      'senderHostId': user.uid,
-      'senderHostName': user.displayName ?? 'Anonymous',
-      'senderHostPicture': user.photoURL,
-      'receiverRoomId': receiverRoomId,
-      'receiverHostId': receiverUser.id,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'durationInMinutes': durationInMinutes,
-    });
-  }
-
-  static Stream<List<PKInvite>> getPKInvitesStream(String myRoomId) {
-    return _roomsCollection
-        .doc(myRoomId)
-        .collection('pk_invites')
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => PKInvite.fromFirestore(doc)).toList());
-  }
-
-  static Stream<List<PKInvite>> getSentPKInvitesStream(String mySenderRoomId) {
-    return _firestore
-        .collectionGroup('pk_invites')
-        .where('senderRoomId', isEqualTo: mySenderRoomId)
-        .where('status', isEqualTo: 'accepted')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => PKInvite.fromFirestore(doc)).toList());
-  }
-
-  static Future<void> acceptPKInvite(String myRoomId, PKInvite invite) async {
-    final batch = _firestore.batch();
-    final myRoomRef = _roomsCollection.doc(myRoomId);
-    final senderRoomRef = _roomsCollection.doc(invite.senderRoomId);
-
-    final myRoomDoc = await myRoomRef.get();
-    final myRoomData = myRoomDoc.data() as Map<String, dynamic>;
-
-    final int duration = invite.durationInMinutes;
-    final pkEndTime = Timestamp.fromDate(DateTime.now().add(Duration(minutes: duration)));
-
-    batch.update(myRoomRef, {
-      'pkState': {
-        'isPK': true,
-        'opponentRoomId': invite.senderRoomId,
-        'opponentHostId': invite.senderHostId,
-        'opponentHostName': invite.senderHostName,
-        'role': 'receiver',
-        'durationInMinutes': duration,
-        'pkEndTime': pkEndTime,
-      },
-    });
-
-    batch.update(senderRoomRef, {
-      'pkState': {
-        'isPK': true,
-        'opponentRoomId': myRoomId,
-        'opponentHostId': myRoomData['hostId'],
-        'opponentHostName': myRoomData['hostName'],
-        'role': 'sender',
-        'durationInMinutes': duration,
-        'pkEndTime': pkEndTime,
-      },
-    });
-
-    final inviteRef = myRoomRef.collection('pk_invites').doc(invite.id);
-    batch.update(inviteRef, {'status': 'accepted'});
-
-    await batch.commit();
-  }
-
-  static Future<void> rejectPKInvite(String myRoomId, PKInvite invite) async {
-    await _roomsCollection.doc(myRoomId).collection('pk_invites').doc(invite.id).delete();
-  }
-
-  static Future<void> endPKBattle(String myRoomId, String opponentRoomId) async {
-    final batch = _firestore.batch();
-
-    final myRoomRef = _roomsCollection.doc(myRoomId);
-    batch.update(myRoomRef, {
-      'pkState': {'isPK': false},
-    });
-
-    final opponentRoomRef = _roomsCollection.doc(opponentRoomId);
-    batch.update(opponentRoomRef, {
-      'pkState': {'isPK': false},
-    });
-
-    final myInvitesRef = myRoomRef.collection('pk_invites').doc(opponentRoomId);
-    batch.delete(myInvitesRef);
-
-    final opponentInvitesRef = opponentRoomRef.collection('pk_invites').doc(myRoomId);
-    batch.delete(opponentInvitesRef);
-
-    await batch.commit();
-  }
-
-  static Future<void> clearPKInvite(PKInvite invite) async {
-    final data = await _roomsCollection.doc(invite.receiverRoomId).collection('pk_invites').doc(invite.id).get();
-
-    if (data.exists) {
-      await data.reference.delete();
+      print("Error checking user current room: $e");
+      return null;
     }
   }
 }

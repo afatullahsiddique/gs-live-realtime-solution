@@ -42,7 +42,7 @@ class _MainPageState extends State<MainPage> {
         context.go(Routes.hostPage.path);
         break;
       case 3:
-        context.push(Routes.home.path);
+        context.push(Routes.inbox.path);
         break;
       case 4:
         context.push(Routes.profile.path);

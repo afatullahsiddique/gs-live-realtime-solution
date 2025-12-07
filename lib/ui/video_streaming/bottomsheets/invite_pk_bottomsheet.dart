@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cute_live/data/remote/firebase/live_streaming_services.dart';
 import '../../../core/widgets/auto_scroll_text.dart';
-import '../../../data/remote/firebase/video_room_services.dart';
 import '../../../data/remote/firebase/profile_services.dart';
 import '../../../theme/app_theme.dart';
 
+/// Shows the PK invite bottom sheet
 void showInvitePKBottomSheet(
   BuildContext context, {
   required List<PKInvite> pendingInvites,
@@ -33,6 +34,7 @@ void showInvitePKBottomSheet(
   );
 }
 
+/// Bottom sheet widget for inviting users to PK battles
 class InvitePKBottomSheet extends StatefulWidget {
   final ScrollController scrollController;
   final List<PKInvite> pendingInvites;
@@ -56,7 +58,22 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
   @override
   void initState() {
     super.initState();
-    _mutualsFuture = ProfileService.getMutualsList(_currentUserId);
+    _mutualsFuture = _loadMutualsWithRoomStatus();
+  }
+
+  /// Loads mutuals list and checks their active room status from RTDB
+  Future<List<SimpleUser>> _loadMutualsWithRoomStatus() async {
+    final mutuals = await ProfileService.getMutualsList(_currentUserId);
+
+    final mutualsWithRoomStatus = await Future.wait(
+      mutuals.map((mutual) async {
+        final activeRoomId = await LiveStreamService.getUserActiveRoom(mutual.id);
+
+        return SimpleUser(id: mutual.id, name: mutual.name, pictureUrl: mutual.pictureUrl, currentRoomId: activeRoomId);
+      }),
+    );
+
+    return mutualsWithRoomStatus;
   }
 
   @override
@@ -73,7 +90,7 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
             ),
           ),
           const Divider(color: Colors.white24, height: 1, thickness: 1),
-          if (widget.pendingInvites.isNotEmpty) _buildReceivedInvitesSection(widget.pendingInvites),
+          if (widget.pendingInvites.isNotEmpty) _buildReceivedInvitesSection(),
           const Padding(
             padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
             child: Row(
@@ -85,46 +102,14 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
               ],
             ),
           ),
-          Expanded(
-            child: FutureBuilder<List<SimpleUser>>(
-              future: _mutualsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Colors.pink));
-                }
-                if (snapshot.hasError) {
-                  return _EmptyListWidget(icon: Icons.error_outline, message: 'Failed to load list: ${snapshot.error}');
-                }
-
-                final allMutuals = snapshot.data ?? [];
-
-                final availableHosts = allMutuals.where((user) => user.currentRoomId != null).toList();
-
-                if (availableHosts.isEmpty) {
-                  return const _EmptyListWidget(
-                    icon: Icons.people_outline,
-                    message: 'No mutuals are currently hosting.',
-                  );
-                }
-
-                return ListView.builder(
-                  controller: widget.scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  itemCount: availableHosts.length,
-                  itemBuilder: (context, index) {
-                    final user = availableHosts[index];
-                    return _buildUserRow(user);
-                  },
-                );
-              },
-            ),
-          ),
+          Expanded(child: _buildAvailableHostsList()),
         ],
       ),
     );
   }
 
-  Widget _buildReceivedInvitesSection(List<PKInvite> invites) {
+  /// Builds the section showing received PK invites
+  Widget _buildReceivedInvitesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -138,17 +123,15 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: invites.length,
-          itemBuilder: (context, index) {
-            final invite = invites[index];
-            return _buildReceivedInviteRow(invite);
-          },
+          itemCount: widget.pendingInvites.length,
+          itemBuilder: (context, index) => _buildReceivedInviteRow(widget.pendingInvites[index]),
         ),
         const Divider(color: Colors.white24, height: 1, thickness: 1, indent: 16, endIndent: 16),
       ],
     );
   }
 
+  /// Builds a row for a received PK invite
   Widget _buildReceivedInviteRow(PKInvite invite) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -172,21 +155,11 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
           ),
           const SizedBox(width: 12),
           TextButton(
-            onPressed: () {
-              VideoRoomService.rejectPKInvite(widget.currentRoomId, invite);
-            },
+            onPressed: () => _rejectInvite(invite),
             child: const Text('Reject', style: TextStyle(color: Colors.redAccent)),
           ),
           ElevatedButton(
-            onPressed: () {
-              // --- MODIFIED: Pass invite to acceptPKInvite ---
-              VideoRoomService.acceptPKInvite(widget.currentRoomId, invite);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('PK accepted with ${invite.senderHostName}!'), backgroundColor: Colors.green),
-              );
-              // The room listener will handle starting the video
-            },
+            onPressed: () => _acceptInvite(invite),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -200,6 +173,40 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
     );
   }
 
+  /// Builds the list of available hosts to invite
+  Widget _buildAvailableHostsList() {
+    return FutureBuilder<List<SimpleUser>>(
+      future: _mutualsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Colors.pink));
+        }
+
+        if (snapshot.hasError) {
+          return _EmptyListWidget(icon: Icons.error_outline, message: 'Failed to load list: ${snapshot.error}');
+        }
+
+        final allMutuals = snapshot.data ?? [];
+
+        final availableHosts = allMutuals
+            .where((user) => user.currentRoomId != null && user.currentRoomId != widget.currentRoomId)
+            .toList();
+
+        if (availableHosts.isEmpty) {
+          return const _EmptyListWidget(icon: Icons.people_outline, message: 'No mutuals are currently hosting.');
+        }
+
+        return ListView.builder(
+          controller: widget.scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          itemCount: availableHosts.length,
+          itemBuilder: (context, index) => _buildUserRow(availableHosts[index]),
+        );
+      },
+    );
+  }
+
+  /// Builds a row for a user that can be invited
   Widget _buildUserRow(SimpleUser user) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -223,7 +230,6 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
           ),
           const SizedBox(width: 12),
           ElevatedButton(
-            // --- MODIFIED: Show timer selection dialog first ---
             onPressed: () => _showTimerSelectionDialog(user),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -238,7 +244,7 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
     );
   }
 
-  // --- NEW: Timer Selection Dialog ---
+  /// Shows dialog to select PK duration
   Future<void> _showTimerSelectionDialog(SimpleUser user) async {
     final int? selectedDuration = await showDialog<int>(
       context: context,
@@ -252,38 +258,38 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              title: const Text('5 Minutes', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.of(context).pop(5),
-            ),
-            ListTile(
-              title: const Text('7 Minutes', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.of(context).pop(7),
-            ),
-            ListTile(
-              title: const Text('10 Minutes', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.of(context).pop(10),
-            ),
+            _buildDurationOption(context, '5 Minutes', 5),
+            _buildDurationOption(context, '7 Minutes', 7),
+            _buildDurationOption(context, '10 Minutes', 10),
           ],
         ),
       ),
     );
 
     if (selectedDuration != null && mounted) {
-      _sendInvite(user, selectedDuration);
+      await _sendInvite(user, selectedDuration);
     }
   }
 
-  // --- NEW: Send Invite Logic (extracted) ---
+  /// Builds a duration option in the selection dialog
+  Widget _buildDurationOption(BuildContext context, String label, int minutes) {
+    return ListTile(
+      title: Text(label, style: const TextStyle(color: Colors.white)),
+      onTap: () => Navigator.of(context).pop(minutes),
+    );
+  }
+
+  /// Sends a PK invite to the specified user
   Future<void> _sendInvite(SimpleUser user, int durationInMinutes) async {
     try {
-      await VideoRoomService.sendPKInvite(
+      await LiveStreamService.sendPKInvite(
         senderRoomId: widget.currentRoomId,
-        receiverUser: user,
+        receiverUserId: user.id,
         durationInMinutes: durationInMinutes,
       );
+
       if (mounted) {
-        Navigator.pop(context); // Close the main bottom sheet
+        Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('PK invite sent!'), backgroundColor: Colors.pink));
@@ -296,8 +302,26 @@ class _InvitePKBottomSheetState extends State<InvitePKBottomSheet> {
       }
     }
   }
+
+  /// Accepts a received PK invite
+  Future<void> _acceptInvite(PKInvite invite) async {
+    await LiveStreamService.acceptPKInvite(widget.currentRoomId, invite);
+
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PK accepted with ${invite.senderHostName}!'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  /// Rejects a received PK invite
+  Future<void> _rejectInvite(PKInvite invite) async {
+    await LiveStreamService.rejectPKInvite(widget.currentRoomId, invite);
+  }
 }
 
+/// Empty state widget
 class _EmptyListWidget extends StatelessWidget {
   final String message;
   final IconData icon;
@@ -326,20 +350,21 @@ class _EmptyListWidget extends StatelessWidget {
   }
 }
 
-// --- PKInvite Model (MODIFIED) ---
+// ============================================================================
+// DATA MODELS
+// ============================================================================
+
+/// Model representing a PK battle invite
 class PKInvite {
-  final String id; // The document ID (which is the sender's room ID)
+  final String id;
   final String senderRoomId;
   final String senderHostId;
   final String senderHostName;
   final String? senderHostPicture;
-
   final String receiverRoomId;
   final String receiverHostId;
-
-  final String status; // 'pending', 'accepted'
-  final Timestamp createdAt;
-  final int durationInMinutes; // --- NEW ---
+  final int durationInMinutes;
+  final bool isRandom;
 
   PKInvite({
     required this.id,
@@ -349,11 +374,26 @@ class PKInvite {
     this.senderHostPicture,
     required this.receiverRoomId,
     required this.receiverHostId,
-    required this.status,
-    required this.createdAt,
-    required this.durationInMinutes, // --- NEW ---
+    required this.durationInMinutes,
+    this.isRandom = false,
   });
 
+  /// Creates a PKInvite from Firebase Realtime Database data
+  factory PKInvite.fromRTDB(String key, Map<dynamic, dynamic> data) {
+    return PKInvite(
+      id: key,
+      senderRoomId: data['senderRoomId'] ?? '',
+      senderHostId: data['senderHostId'] ?? '',
+      senderHostName: data['senderHostName'] ?? 'Unknown',
+      senderHostPicture: data['senderHostPicture'],
+      receiverRoomId: data['receiverRoomId'] ?? '',
+      receiverHostId: data['receiverHostId'] ?? '',
+      durationInMinutes: data['durationInMinutes'] ?? 5,
+      isRandom: data['isRandom'] ?? false,
+    );
+  }
+
+  /// Creates a PKInvite from Firestore document
   factory PKInvite.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return PKInvite(
@@ -364,9 +404,18 @@ class PKInvite {
       senderHostPicture: data['senderHostPicture'],
       receiverRoomId: data['receiverRoomId'] ?? '',
       receiverHostId: data['receiverHostId'] ?? '',
-      status: data['status'] ?? 'pending',
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      durationInMinutes: data['durationInMinutes'] ?? 5, // --- NEW (default to 5) ---
+      durationInMinutes: data['durationInMinutes'] ?? 5,
+      isRandom: data['isRandom'] ?? false,
     );
   }
+}
+
+/// Simple user model for displaying in the invite list
+class SimpleUser {
+  final String id;
+  final String name;
+  final String? pictureUrl;
+  final String? currentRoomId;
+
+  SimpleUser({required this.id, required this.name, this.pictureUrl, this.currentRoomId});
 }

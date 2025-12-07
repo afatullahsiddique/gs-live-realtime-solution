@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>645699802815-1jggcnid488b836op4g2g4alicoa5te5.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.645699802815-1jggcnid488b836op4g2g4alicoa5te5</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>645699802815-h0nltv1fakn5vjmppv6ts2r1q1n22l5p.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyBd_CgY12lToRCHNhob9MNLV1Vfv_uNT-w</string>
 	<key>GCM_SENDER_ID</key>
@@ -26,5 +32,7 @@
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
 	<string>1:645699802815:ios:6626c06fee76fe86b7580a</string>
+	<key>DATABASE_URL</key>
+	<string>https://cute-live-app-default-rtdb.firebaseio.com</string>
 </dict>
 </plist>

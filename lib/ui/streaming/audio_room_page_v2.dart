@@ -1,20 +1,28 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cute_live/core/utils/view_count.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
+import 'package:zego_express_engine/zego_express_engine.dart';
 
+import '../../core/utils/const.dart';
 import '../../core/widgets/auto_scroll_text.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
 import '../video_streaming/bottomsheets/profile_info_bottomsheet.dart';
+import 'bottomsheets/emoji_bottomsheet.dart';
+import 'bottomsheets/gifts_bottomsheet.dart';
 import 'bottomsheets/participants_bottomsheet.dart';
+import 'bottomsheets/play_music_bottomsheet.dart';
 import 'bottomsheets/requests_bottomsheet.dart';
+import 'bottomsheets/audio_tools_bottomsheet.dart';
 
 class CoHostRequest {
   final String requestId;
@@ -24,10 +32,9 @@ class CoHostRequest {
 
   CoHostRequest({required this.requestId, required this.userId, required this.userName, this.userPicture});
 
-  factory CoHostRequest.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory CoHostRequest.fromRTDB(String key, Map<dynamic, dynamic> data) {
     return CoHostRequest(
-      requestId: doc.id,
+      requestId: key,
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? 'Unknown',
       userPicture: data['userPicture'],
@@ -43,10 +50,9 @@ class SpeakerRequest {
 
   SpeakerRequest({required this.requestId, required this.userId, required this.userName, this.userPicture});
 
-  factory SpeakerRequest.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory SpeakerRequest.fromRTDB(String key, Map<dynamic, dynamic> data) {
     return SpeakerRequest(
-      requestId: doc.id,
+      requestId: key,
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? 'Unknown',
       userPicture: data['userPicture'],
@@ -73,10 +79,9 @@ class RoomParticipant {
     this.zegoUser,
   });
 
-  factory RoomParticipant.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory RoomParticipant.fromRTDB(String key, Map<dynamic, dynamic> data) {
     return RoomParticipant(
-      userId: data['userId'] ?? doc.id,
+      userId: data['userId'] ?? key,
       userName: data['userName'] ?? 'Unknown',
       userPicture: data.containsKey('userPicture') ? data['userPicture'] : null,
       seatNo: data['seatNo'] ?? -1,
@@ -107,6 +112,15 @@ class ChatMessage {
   ChatMessage({required this.userId, required this.username, required this.message, required this.timestamp});
 }
 
+class EmojiEvent {
+  final String senderId;
+  final String senderName;
+  final String emojiUrl;
+  final String emojiName;
+
+  EmojiEvent({required this.senderId, required this.senderName, required this.emojiUrl, required this.emojiName});
+}
+
 class AudioRoomPage extends StatefulWidget {
   final String roomID;
   final bool isHost;
@@ -118,18 +132,18 @@ class AudioRoomPage extends StatefulWidget {
 }
 
 class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProviderStateMixin {
+  late MusicPlayerManager _musicPlayerManager;
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Stream Subscriptions
   StreamSubscription? _roomSubscription;
   StreamSubscription? _messageSubscription;
   StreamSubscription? _participantsSubscription;
   StreamSubscription? _speakerRequestsSubscription;
   StreamSubscription? _coHostRequestsSubscription;
+  StreamSubscription? _emojiSubscription;
 
-  // State Variables
   late Map<String, dynamic> roomData;
   List<RoomParticipant> _participants = [];
   List<ChatMessage> _messages = [];
@@ -139,14 +153,18 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   bool _isInitialized = false;
   bool _isMoveAllowed = true;
   bool _isSeatApprovalRequired = true;
+  bool _roomDoesNotExist = false;
   String _currentUserName = "Me";
+  String _roomNotice = "";
 
   Duration welcomeTime = Duration(milliseconds: 3500);
 
   Timer? _joinAnimationTimer;
   String? _newJoinerName;
 
-  // Animation Variables
+  EmojiEvent? _currentEmojiEvent;
+  Timer? _emojiTimer;
+
   late AnimationController _joinAnimationController;
   late Animation<Offset> _joinAnimationOffset;
 
@@ -170,9 +188,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
           begin: const Offset(0.0, 0.0),
           end: const Offset(-1.5, 0.0),
         ).chain(CurveTween(curve: Curves.linear)),
-        weight: 1.0, // 2 parts of the duration
+        weight: 1.0,
       ),
     ]).animate(_joinAnimationController);
+
+    _musicPlayerManager = MusicPlayerManager();
 
     _initialize();
   }
@@ -184,11 +204,15 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     _participantsSubscription?.cancel();
     _speakerRequestsSubscription?.cancel();
     _coHostRequestsSubscription?.cancel();
+    _emojiSubscription?.cancel();
+    _emojiTimer?.cancel();
+
     _chatController.dispose();
     _chatScrollController.dispose();
     _joinAnimationTimer?.cancel();
 
     _joinAnimationController.dispose();
+    _musicPlayerManager.dispose();
 
     if (_isInitialized) {
       if (widget.isHost) {
@@ -207,10 +231,14 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     try {
       final roomDoc = await RoomService.getRoomInfo(widget.roomID);
       if (!roomDoc.exists) {
-        if (mounted) context.pop();
+        if (mounted) {
+          setState(() {
+            _roomDoesNotExist = true;
+          });
+        }
         return;
       }
-      roomData = roomDoc.data() as Map<String, dynamic>;
+      roomData = Map<String, dynamic>.from(roomDoc.value as Map);
 
       final bool isLocked = roomData['isLocked'] ?? false;
 
@@ -257,11 +285,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       });
     }
 
-    await ZegoUIKit().init(
-      appID: 751798122,
-      appSign: "ec25b1cfc409394987c89a717dd124dce925283695e2ebc36a37882feda0ef84",
-      scenario: ZegoScenario.Default,
-    );
+    await ZegoUIKit().init(appID: appId, appSign: appSign, scenario: ZegoScenario.Default);
 
     ZegoUIKit().login(currentUser.uid, _currentUserName);
     await ZegoUIKit().joinRoom(widget.roomID);
@@ -277,6 +301,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     }
 
     _setupListeners();
+    _musicPlayerManager.initialize();
     setState(() => _isInitialized = true);
   }
 
@@ -353,13 +378,14 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   }
 
   void _setupListeners() {
-    _roomSubscription = RoomService.getRoomStream(widget.roomID).listen((doc) {
-      if (doc.exists && mounted) {
+    _roomSubscription = RoomService.getRoomStream(widget.roomID).listen((event) {
+      if (event.snapshot.exists && mounted) {
         setState(() {
-          roomData = doc.data() as Map<String, dynamic>;
+          roomData = Map<String, dynamic>.from(event.snapshot.value as Map);
           _participantCount = roomData['participantCount'] ?? 0;
           _isMoveAllowed = roomData['isMoveAllowed'] ?? true;
           _isSeatApprovalRequired = roomData['isSeatApprovalRequired'] ?? true;
+          _roomNotice = roomData['notice'] ?? "";
         });
       } else {
         if (mounted) context.pop();
@@ -382,10 +408,17 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       }
     });
 
-    _participantsSubscription = RoomService.getRoomParticipants(widget.roomID).listen((snapshot) {
+    _participantsSubscription = RoomService.getRoomParticipants(widget.roomID).listen((event) {
+      if (!event.snapshot.exists) {
+        if (mounted) setState(() => _participants = []);
+        return;
+      }
+
       final zegoUsers = ZegoUIKit().getAllUsers();
-      final updatedParticipants = snapshot.docs.map((doc) {
-        final participant = RoomParticipant.fromFirestore(doc);
+      final participantsMap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+
+      final updatedParticipants = participantsMap.entries.map((entry) {
+        final participant = RoomParticipant.fromRTDB(entry.key, entry.value);
         try {
           final zegoUser = zegoUsers.firstWhere((user) => user.id == participant.userId);
           return participant.copyWith(zegoUser: zegoUser);
@@ -430,18 +463,73 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       if (mounted) setState(() => _participants = updatedParticipants);
     });
 
+    _emojiSubscription = RoomService.getEmojiStream(widget.roomID).listen((event) {
+      if (!mounted || !event.snapshot.exists) return;
+
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      final timestamp = data['timestamp'] as int? ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      if (now - timestamp < 5000) {
+        _showEmoji(
+          senderId: data['senderId'] ?? '',
+          senderName: data['senderName'] ?? 'Unknown',
+          emojiUrl: data['emojiUrl'] ?? '',
+          emojiName: data['emojiName'] ?? '',
+        );
+      }
+    });
+
     if (widget.isHost) {
-      _speakerRequestsSubscription = RoomService.getSpeakerRequestsStream(widget.roomID).listen((snapshot) {
-        if (mounted) {
-          setState(() => _speakerRequests = snapshot.docs.map((doc) => SpeakerRequest.fromFirestore(doc)).toList());
+      _speakerRequestsSubscription = RoomService.getSpeakerRequestsStream(widget.roomID).listen((event) {
+        if (!event.snapshot.exists) {
+          if (mounted) setState(() => _speakerRequests = []);
+          return;
         }
+
+        final requestsMap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+        final requests = requestsMap.entries.map((entry) => SpeakerRequest.fromRTDB(entry.key, entry.value)).toList();
+
+        if (mounted) setState(() => _speakerRequests = requests);
       });
-      _coHostRequestsSubscription = RoomService.getCoHostRequestsStream(widget.roomID).listen((snapshot) {
-        if (mounted) {
-          setState(() => _coHostRequests = snapshot.docs.map((doc) => CoHostRequest.fromFirestore(doc)).toList());
+
+      _coHostRequestsSubscription = RoomService.getCoHostRequestsStream(widget.roomID).listen((event) {
+        if (!event.snapshot.exists) {
+          if (mounted) setState(() => _coHostRequests = []);
+          return;
         }
+
+        final requestsMap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+        final requests = requestsMap.entries.map((entry) => CoHostRequest.fromRTDB(entry.key, entry.value)).toList();
+
+        if (mounted) setState(() => _coHostRequests = requests);
       });
     }
+  }
+
+  void _showEmoji({
+    required String senderId,
+    required String senderName,
+    required String emojiUrl,
+    required String emojiName,
+  }) {
+    _emojiTimer?.cancel();
+    setState(() {
+      _currentEmojiEvent = EmojiEvent(
+        senderId: senderId,
+        senderName: senderName,
+        emojiUrl: emojiUrl,
+        emojiName: emojiName,
+      );
+    });
+
+    _emojiTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _currentEmojiEvent = null;
+        });
+      }
+    });
   }
 
   void _showJoinAnimation(String userName) {
@@ -455,6 +543,22 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         _newJoinerName = null;
       });
     });
+  }
+
+  // Helper methods for emoji display on avatars
+  bool _shouldShowEmoji(String userId) {
+    return _currentEmojiEvent != null && _currentEmojiEvent!.senderId == userId;
+  }
+
+  Widget _buildEmojiOnAvatar(String userId, double size) {
+    if (!_shouldShowEmoji(userId)) return const SizedBox.shrink();
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle),
+      child: Image.network(_currentEmojiEvent!.emojiUrl, fit: BoxFit.contain),
+    );
   }
 
   Future<void> _showSetPasswordDialog() async {
@@ -611,6 +715,52 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    if (_roomDoesNotExist) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b)],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.1)),
+                  child: const Icon(Icons.link_off_rounded, size: 60, color: Colors.white70),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  "Room Ended",
+                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "The live session you are looking for\nhas ended or does not exist.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+                const SizedBox(height: 40),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.pink,
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  ),
+                  onPressed: () => context.go(Routes.home.path),
+                  child: const Text("Go to Homepage", style: TextStyle(color: Colors.white, fontSize: 16)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return WillPopScope(
       onWillPop: () async {
         final shouldExit = await _showExitConfirmationDialog();
@@ -706,28 +856,22 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // <--- UPDATED: Host name with AutoScrollText
                     SizedBox(
                       width: 120,
                       child: AutoScrollText(
-                        text: roomData["hostName"],
+                        text: roomData["hostName"] ?? '',
                         style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
-                    // Follower Count
                     StreamBuilder<DocumentSnapshot>(
                       stream: ProfileService.getUserProfileStream(hostId),
                       builder: (context, snapshot) {
-                        int followCount = 0;
+                        String id = '';
                         if (snapshot.hasData && snapshot.data!.exists) {
                           final data = snapshot.data!.data() as Map<String, dynamic>;
-                          followCount = data['followerCount'] ?? 0;
+                          id = data['displayId'] ?? "";
                         }
-
-                        return Text(
-                          '$followCount Followers',
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-                        );
+                        return Text('ID: ${id}', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12));
                       },
                     ),
                   ],
@@ -735,7 +879,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               ],
             ),
           ),
-
           if (isGuest)
             StreamBuilder<bool>(
               stream: ProfileService.isFollowing(hostId),
@@ -776,11 +919,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 );
               },
             ),
-
           const Spacer(),
-
           _buildParticipantAvatars(guestParticipants),
-
           GestureDetector(
             onTap: () {
               showParticipantsBottomSheet(
@@ -807,7 +947,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               ),
             ),
           ),
-
           IconButton(
             icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
             onPressed: _showExitConfirmationDialog,
@@ -851,24 +990,18 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                   children: [
                     _buildStatChip(Icons.star_rounded, "...", Colors.grey.shade700),
                     const SizedBox(width: 8),
-                    _buildStatChip(Icons.diamond_rounded, "...", Colors.grey.shade700),
+                    _buildStatChip(Icons.diamond_outlined, "...", Colors.grey.shade700),
                   ],
                 );
               }
               final data = snapshot.data!.data() as Map<String, dynamic>;
-              final int starCount = data['starCount'] ?? 0;
-              final int diamondCount = data['diamondCount'] ?? 0;
+              final int diamondCount = data['diamonds'] ?? 0;
 
               return Row(
-                children: [
-                  _buildStatChip(Icons.star_rounded, starCount.toString(), Colors.yellow.shade700),
-                  const SizedBox(width: 8),
-                  _buildStatChip(Icons.diamond_rounded, diamondCount.toString(), Colors.cyan.shade300),
-                ],
+                children: [_buildStatChip(Icons.diamond_outlined, formatViewCount(diamondCount), Colors.cyan.shade300)],
               );
             },
           ),
-
           if (widget.isHost)
             IconButton(
               icon: Icon(
@@ -916,10 +1049,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                   height: avatarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1), // White border
+                    border: Border.all(color: Colors.white, width: 1),
                   ),
                   child: CircleAvatar(
-                    radius: (avatarSize / 2) - 1, // Adjust for border
+                    radius: (avatarSize / 2) - 1,
                     backgroundImage: participant.userPicture != null && participant.userPicture!.isNotEmpty
                         ? NetworkImage(participant.userPicture!)
                         : null,
@@ -931,7 +1064,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               );
             })
             .toList()
-            .reversed // Show from front to back
+            .reversed
             .toList(),
       ),
     );
@@ -956,6 +1089,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       required String? imageUrl,
       required String name,
       required bool isMuted,
+      required String userId,
       bool isHost = true,
     }) {
       final double size = 65.0;
@@ -998,10 +1132,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                     child: const Icon(CupertinoIcons.mic_off, color: Colors.white, size: 16),
                   ),
                 ),
+              _buildEmojiOnAvatar(userId, size),
             ],
           ),
           const SizedBox(height: 8),
-          // <--- UPDATED: Streamer/Co-host name with AutoScrollText
           SizedBox(
             width: 80,
             child: AutoScrollText(
@@ -1026,7 +1160,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         children: [
           GestureDetector(
             onTap: roomData['hostId'] == _auth.currentUser!.uid
-                ? null // It's me, do nothing
+                ? null
                 : () {
                     showProfileInfoBottomSheet(
                       context,
@@ -1039,6 +1173,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               imageUrl: roomData['hostPicture'],
               name: roomData['hostName'],
               isMuted: host?.isMuted ?? true,
+              userId: roomData['hostId'],
               isHost: true,
             ),
           ),
@@ -1047,7 +1182,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             GestureDetector(
               onTap: coHost.userId != _auth.currentUser!.uid
                   ? () {
-                      // It's NOT me, show profile
                       showProfileInfoBottomSheet(
                         context,
                         userId: coHost!.userId,
@@ -1056,7 +1190,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                       );
                     }
                   : () async {
-                      // It IS me, step down
                       try {
                         await RoomService.stepDownFromCoHost(widget.roomID);
                         ZegoUIKit().turnMicrophoneOn(false);
@@ -1068,6 +1201,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 imageUrl: coHost.userPicture,
                 name: coHost.userName,
                 isMuted: coHost.isMuted,
+                userId: coHost.userId,
                 isHost: false,
               ),
             )
@@ -1193,7 +1327,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         try {
           if (isListener) {
             if (_isSeatApprovalRequired) {
-              // Old behavior: show snackbar
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Tap the \'Join Call\' button to request a seat.'),
@@ -1201,12 +1334,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 ),
               );
             } else {
-              // New behavior: take the seat directly
               await RoomService.takeSeat(widget.roomID, seatNo);
-              ZegoUIKit().turnMicrophoneOn(true); // Turn on mic
+              ZegoUIKit().turnMicrophoneOn(true);
             }
           } else if (isSpeakerOrCoHost) {
-            // Old behavior: move seat
             if (_isMoveAllowed) {
               await RoomService.moveSeat(widget.roomID, seatNo);
             } else {
@@ -1272,7 +1403,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     return GestureDetector(
       onTap: !canLeaveSeat
           ? () {
-              // It's NOT me, show profile
               showProfileInfoBottomSheet(
                 context,
                 userId: participant.userId,
@@ -1281,7 +1411,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               );
             }
           : () async {
-              // It IS me, leave seat
               try {
                 await RoomService.leaveSeat(widget.roomID);
                 ZegoUIKit().turnMicrophoneOn(false);
@@ -1329,10 +1458,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                     child: const Icon(CupertinoIcons.mic_off, color: Colors.white, size: 14),
                   ),
                 ),
+              _buildEmojiOnAvatar(participant.userId, 55),
             ],
           ),
           const SizedBox(height: 4),
-          // <--- UPDATED: Occupied Seat Name with AutoScrollText
           SizedBox(
             width: 70,
             child: AutoScrollText(
@@ -1447,18 +1576,41 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         itemCount: _messages.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
-            return const Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 150,
                     child: Text(
                       "Any sexual or violation content is strictly prohibited. All violator will be banned. Do not expose your personal info such phone or location.",
                       style: TextStyle(color: Colors.white, fontSize: 10),
                     ),
                   ),
+                  if (_roomNotice.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.pink.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.pink.withOpacity(0.5), width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.campaign, color: Colors.pink, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _roomNotice,
+                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -1506,7 +1658,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                           ),
                         ),
                       ),
-                      // Chat Sender Name - Kept as regular Text as requested
                       Text(
                         "${m.username}: ",
                         style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
@@ -1547,6 +1698,25 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () {
+                showAudioToolsBottomSheet(
+                  context,
+                  isHost: widget.isHost,
+                  musicManager: _musicPlayerManager,
+                  currentRoomId: widget.roomID,
+                );
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
+                child: const Icon(Icons.more_horiz, color: Colors.white, size: 24),
+              ),
+            ),
+          ),
           if (widget.isHost)
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
@@ -1606,25 +1776,31 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 ),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: GestureDetector(
-              onTap: () {
-                // No implementation needed
-              },
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
-                child: const Icon(CupertinoIcons.smiley, color: Colors.white, size: 22),
+          if (isSpeakerOrCoHost)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: GestureDetector(
+                onTap: () {
+                  showEmojiBottomSheet(context, widget.roomID);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.2)),
+                  child: const Icon(CupertinoIcons.smiley, color: Colors.white, size: 22),
+                ),
               ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: GestureDetector(
               onTap: () {
-                // No implementation needed
+                showGiftBottomSheet(
+                  context,
+                  roomId: widget.roomID,
+                  participants: _participants,
+                  hostId: roomData['hostId'] ?? '',
+                );
               },
               child: Container(
                 width: 40,
@@ -1708,7 +1884,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             ),
           );
         });
-        _scrollToBottom(); // Make sure to scroll to the bottom
+        _scrollToBottom();
       }
     } catch (e) {
       debugPrint('Error sending join message: $e');

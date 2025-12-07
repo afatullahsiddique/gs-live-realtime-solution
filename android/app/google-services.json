@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "645699802815",
+    "firebase_url": "https://cute-live-app-default-rtdb.firebaseio.com",
     "project_id": "cute-live-app",
     "storage_bucket": "cute-live-app.firebasestorage.app"
   },

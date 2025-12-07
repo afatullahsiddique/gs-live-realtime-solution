@@ -29,6 +29,8 @@ enum Routes {
   editProfile,
   applyHosting,
   applyAgency,
+  inbox,
+  chat,
 }
 
 extension RoutesExtension on Routes {
@@ -96,6 +98,10 @@ extension RoutesExtension on Routes {
         return '/applyHosting';
       case Routes.applyAgency:
         return '/applyAgency';
+      case Routes.inbox:
+        return '/inbox';
+      case Routes.chat:
+        return '/chat';
     }
   }
 }

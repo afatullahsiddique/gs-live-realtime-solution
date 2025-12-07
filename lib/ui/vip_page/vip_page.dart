@@ -26,19 +26,14 @@ class _VIPPageState extends State<VIPPage> {
       color: Colors.grey.shade300,
       icon: Icons.diamond_outlined,
     ),
-    Category.gold: VIPTier(
-      name: 'Gold VIP',
-      beans: 35000,
-      color: Colors.amber.shade400,
-      icon: Icons.diamond,
-    ),
+    Category.gold: VIPTier(name: 'Gold VIP', beans: 35000, color: Colors.amber.shade400, icon: Icons.diamond_outlined),
   };
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration:  BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -84,7 +79,7 @@ class _VIPPageState extends State<VIPPage> {
           ),
           Row(
             children: [
-              Icon(Icons.diamond, color: Colors.amber.shade400, size: 28),
+              Icon(Icons.diamond_outlined, color: Colors.amber.shade400, size: 28),
               const SizedBox(width: 8),
               Text(
                 'VIP Membership',
@@ -142,9 +137,7 @@ class _VIPPageState extends State<VIPPage> {
         borderRadius: BorderRadius.circular(20),
         color: Colors.black.withOpacity(0.4),
         border: Border.all(color: tier.color.withOpacity(0.4), width: 1),
-        boxShadow: [
-          BoxShadow(color: tier.color.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6)),
-        ],
+        boxShadow: [BoxShadow(color: tier.color.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6))],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -153,11 +146,7 @@ class _VIPPageState extends State<VIPPage> {
           const SizedBox(height: 8),
           Text(
             tier.name,
-            style: TextStyle(
-              color: tier.color,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: tier.color, fontSize: 14, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -168,11 +157,7 @@ class _VIPPageState extends State<VIPPage> {
               const SizedBox(width: 4),
               Text(
                 _formatNumber(tier.beans),
-                style: const TextStyle(
-                  color: Colors.amber,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: const TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -199,10 +184,7 @@ class _VIPPageState extends State<VIPPage> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
                   color: Colors.black.withOpacity(0.2),
                 ),
                 child: Row(
@@ -211,22 +193,12 @@ class _VIPPageState extends State<VIPPage> {
                       flex: 3,
                       child: Text(
                         'VIP Privileges',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    Expanded(
-                      child: _buildHeaderCell('Bronze', vipTiers[Category.bronze]!.color),
-                    ),
-                    Expanded(
-                      child: _buildHeaderCell('Silver', vipTiers[Category.silver]!.color),
-                    ),
-                    Expanded(
-                      child: _buildHeaderCell('Gold', vipTiers[Category.gold]!.color),
-                    ),
+                    Expanded(child: _buildHeaderCell('Bronze', vipTiers[Category.bronze]!.color)),
+                    Expanded(child: _buildHeaderCell('Silver', vipTiers[Category.silver]!.color)),
+                    Expanded(child: _buildHeaderCell('Gold', vipTiers[Category.gold]!.color)),
                   ],
                 ),
               ),
@@ -244,19 +216,18 @@ class _VIPPageState extends State<VIPPage> {
     return Column(
       children: [
         Icon(
-          title == 'Bronze' ? Icons.workspace_premium :
-          title == 'Silver' ? Icons.diamond_outlined : Icons.diamond,
+          title == 'Bronze'
+              ? Icons.workspace_premium
+              : title == 'Silver'
+              ? Icons.diamond_outlined
+              : Icons.diamond,
           color: color,
           size: 20,
         ),
         const SizedBox(height: 4),
         Text(
           title,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
       ],
@@ -267,9 +238,7 @@ class _VIPPageState extends State<VIPPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.1), width: 0.5),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1), width: 0.5)),
       ),
       child: Row(
         children: [
@@ -277,30 +246,17 @@ class _VIPPageState extends State<VIPPage> {
             flex: 3,
             child: Text(
               permission.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
-            child: _buildAccessIndicator(
-              permission.access[Category.bronze] ?? false,
-              vipTiers[Category.bronze]!.color,
-            ),
+            child: _buildAccessIndicator(permission.access[Category.bronze] ?? false, vipTiers[Category.bronze]!.color),
           ),
           Expanded(
-            child: _buildAccessIndicator(
-              permission.access[Category.silver] ?? false,
-              vipTiers[Category.silver]!.color,
-            ),
+            child: _buildAccessIndicator(permission.access[Category.silver] ?? false, vipTiers[Category.silver]!.color),
           ),
           Expanded(
-            child: _buildAccessIndicator(
-              permission.access[Category.gold] ?? false,
-              vipTiers[Category.gold]!.color,
-            ),
+            child: _buildAccessIndicator(permission.access[Category.gold] ?? false, vipTiers[Category.gold]!.color),
           ),
         ],
       ),
@@ -316,13 +272,10 @@ class _VIPPageState extends State<VIPPage> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: hasAccess ? tierColor.withOpacity(0.3) : Colors.grey.withOpacity(0.2),
-          border: Border.all(
-            color: hasAccess ? tierColor : Colors.grey.withOpacity(0.4),
-            width: 2,
-          ),
-          boxShadow: hasAccess ? [
-            BoxShadow(color: tierColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2)),
-          ] : null,
+          border: Border.all(color: hasAccess ? tierColor : Colors.grey.withOpacity(0.4), width: 2),
+          boxShadow: hasAccess
+              ? [BoxShadow(color: tierColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
+              : null,
         ),
         child: hasAccess
             ? Icon(Icons.check, color: tierColor, size: 16)
@@ -344,10 +297,9 @@ class _VIPPageState extends State<VIPPage> {
           ),
         ),
         const SizedBox(height: 20),
-        ...vipTiers.values.map((tier) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildUpgradeButton(tier),
-        )).toList(),
+        ...vipTiers.values
+            .map((tier) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildUpgradeButton(tier)))
+            .toList(),
       ],
     );
   }
@@ -362,12 +314,8 @@ class _VIPPageState extends State<VIPPage> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(25),
-          gradient: LinearGradient(
-            colors: [tier.color.withOpacity(0.8), tier.color],
-          ),
-          boxShadow: [
-            BoxShadow(color: tier.color.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 6)),
-          ],
+          gradient: LinearGradient(colors: [tier.color.withOpacity(0.8), tier.color]),
+          boxShadow: [BoxShadow(color: tier.color.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 6))],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -376,19 +324,12 @@ class _VIPPageState extends State<VIPPage> {
             const SizedBox(width: 12),
             Text(
               'Upgrade to ${tier.name}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.black.withOpacity(0.3),
-              ),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.black.withOpacity(0.3)),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -396,11 +337,7 @@ class _VIPPageState extends State<VIPPage> {
                   const SizedBox(width: 4),
                   Text(
                     _formatNumber(tier.beans),
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -427,9 +364,7 @@ class _VIPPageState extends State<VIPPage> {
                 borderRadius: BorderRadius.circular(25),
                 color: Colors.black.withOpacity(0.8),
                 border: Border.all(color: tier.color.withOpacity(0.4), width: 1),
-                boxShadow: [
-                  BoxShadow(color: tier.color.withOpacity(0.3), blurRadius: 30, offset: const Offset(0, 10)),
-                ],
+                boxShadow: [BoxShadow(color: tier.color.withOpacity(0.3), blurRadius: 30, offset: const Offset(0, 10))],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -438,11 +373,7 @@ class _VIPPageState extends State<VIPPage> {
                   const SizedBox(height: 20),
                   Text(
                     'Upgrade to ${tier.name}?',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 15),
                   Row(
@@ -452,11 +383,7 @@ class _VIPPageState extends State<VIPPage> {
                       const SizedBox(width: 8),
                       Text(
                         '${_formatNumber(tier.beans)} Beans Required',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(color: Colors.amber, fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -476,11 +403,7 @@ class _VIPPageState extends State<VIPPage> {
                             child: const Text(
                               'Cancel',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                           ),
                         ),
@@ -496,18 +419,12 @@ class _VIPPageState extends State<VIPPage> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
-                              gradient: LinearGradient(
-                                colors: [tier.color.withOpacity(0.8), tier.color],
-                              ),
+                              gradient: LinearGradient(colors: [tier.color.withOpacity(0.8), tier.color]),
                             ),
                             child: const Text(
                               'Upgrade',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
@@ -582,12 +499,7 @@ class VIPTier {
   final Color color;
   final IconData icon;
 
-  VIPTier({
-    required this.name,
-    required this.beans,
-    required this.color,
-    required this.icon,
-  });
+  VIPTier({required this.name, required this.beans, required this.color, required this.icon});
 }
 
 final permissions = [
@@ -595,42 +507,15 @@ final permissions = [
     name: "Special message bubble",
     access: {Category.bronze: true, Category.silver: true, Category.gold: true},
   ),
-  Permission(
-    name: "Profile views",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Hide VIP Status",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Hide sent coins",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Hide online status",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Hide support service",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "VIP Badge",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Special Enter Effect",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Profile Card",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "VIP store",
-    access: {Category.bronze: true, Category.silver: true, Category.gold: true},
-  ),
+  Permission(name: "Profile views", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "Hide VIP Status", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "Hide sent coins", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "Hide online status", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "Hide support service", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "VIP Badge", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "Special Enter Effect", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "Profile Card", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
+  Permission(name: "VIP store", access: {Category.bronze: true, Category.silver: true, Category.gold: true}),
   Permission(
     name: "Special Profile Design",
     access: {Category.bronze: true, Category.silver: true, Category.gold: true},
@@ -639,18 +524,9 @@ final permissions = [
     name: "Hide received diamonds",
     access: {Category.bronze: false, Category.silver: true, Category.gold: true},
   ),
-  Permission(
-    name: "Bronze VIP gifts",
-    access: {Category.bronze: false, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Silver VIP gifts",
-    access: {Category.bronze: false, Category.silver: true, Category.gold: true},
-  ),
-  Permission(
-    name: "Gold VIP gifts",
-    access: {Category.bronze: false, Category.silver: false, Category.gold: true},
-  ),
+  Permission(name: "Bronze VIP gifts", access: {Category.bronze: false, Category.silver: true, Category.gold: true}),
+  Permission(name: "Silver VIP gifts", access: {Category.bronze: false, Category.silver: true, Category.gold: true}),
+  Permission(name: "Gold VIP gifts", access: {Category.bronze: false, Category.silver: false, Category.gold: true}),
   Permission(
     name: "Hide from profile viewer list",
     access: {Category.bronze: false, Category.silver: false, Category.gold: true},

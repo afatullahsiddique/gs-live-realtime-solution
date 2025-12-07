@@ -1,15 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'bottomsheets/participants_bottomsheet.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../data/remote/firebase/greedy_game_service.dart';
-import '../../data/remote/firebase/profile_services.dart';
-import '../../theme/app_theme.dart';
+import '../../../data/remote/firebase/greedy_game_service.dart';
+import '../../../data/remote/firebase/profile_services.dart';
+import '../../../theme/app_theme.dart';
+import 'bottomsheets/participants_bottomsheet.dart';
 import 'bottomsheets/result_bottomsheet.dart';
 
 class _LeafItemConfig {
@@ -42,16 +42,14 @@ class _CenterItemConfig {
   });
 }
 
-// REMOVED: _BetQueueItem model
-
-class GreedyGamePage extends StatefulWidget {
-  const GreedyGamePage({super.key});
+class GreedyGameBottomSheet extends StatefulWidget {
+  const GreedyGameBottomSheet({super.key});
 
   @override
-  State<GreedyGamePage> createState() => _GreedyGamePageState();
+  State<GreedyGameBottomSheet> createState() => _GreedyGameBottomSheetState();
 }
 
-class _GreedyGamePageState extends State<GreedyGamePage> {
+class _GreedyGameBottomSheetState extends State<GreedyGameBottomSheet> {
   final GreedyGameService _gameService = GreedyGameService();
   final String _userId = FirebaseAuth.instance.currentUser!.uid;
 
@@ -82,10 +80,9 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
   List<GameParticipant> _gameParticipants = [];
   Map<String, dynamic>? _myParticipantMap;
 
-  // NEW: Simplified betting sync state
-  Timer? _syncBetsTimer; // Replaces all the old debounce/queue logic
+  Timer? _syncBetsTimer;
   bool _isSyncing = false;
-  bool _isAutoStarting = false; // [NEW] Flag to prevent multiple auto-starts
+  bool _isAutoStarting = false;
 
   final String boardBackgroundImage = 'assets/greedy/board.png';
   final Map<String, int> _coinValues = {
@@ -192,11 +189,9 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       final String serverRoundId = (controls['currentRoundId'] ?? 0).toString();
       final String gameStatus = controls['status'] ?? 'stopped';
 
-      // [MODIFIED] Check for auto-pause status and trigger auto-start
       final bool isAutoPaused = controls['isAutoPaused'] ?? false;
       if (gameStatus == 'stopped' && isAutoPaused) {
         if (mounted) setState(() => _gameStatus = "auto-paused");
-        // [NEW] Automatically call the function to wake up the game
         _triggerAutoStart();
       } else {
         if (mounted) setState(() => _gameStatus = gameStatus);
@@ -222,11 +217,9 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
             _localCountdownSeconds = 0;
             _lastKnownPhase = '';
             _serverWinningIndex = -1;
-            _isAutoStarting = false; // [NEW] Reset auto-start flag
+            _isAutoStarting = false;
 
-            // NEW: Clear sync timer
             _syncBetsTimer?.cancel();
-
             _countdownTimer?.cancel();
             _spinTimer?.cancel();
             _spinTimer = null;
@@ -258,7 +251,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
 
         if (mounted) {
           setState(() {
-            // NEW: Check sync flag
             if (!_isSyncing && _syncBetsTimer?.isActive != true) {
               _myBalance = data['balance'] ?? 0;
             }
@@ -475,29 +467,17 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     );
   }
 
-  //
-  // --- [NEW] SIMPLIFIED BETTING & AUTO-START LOGIC ---
-  //
-
-  /// [NEW] Calls the backend with an empty bet to trigger the auto-start.
   Future<void> _triggerAutoStart() async {
-    // Prevent multiple auto-start calls
     if (_isAutoStarting) return;
 
     print("[GREEDY_LOG] Game is auto-paused. Attempting to wake up...");
     setState(() => _isAutoStarting = true);
 
     try {
-      // Call setBets with an empty map.
-      // This will fail with the "Game is starting up" error, which is expected.
       await _gameService.setBets(_currentRoundId, {});
     } catch (e) {
-      // We expect an error here, either "Game is starting up" or "Bet must be positive"
-      // if the game *just* started. Either way, the "wake up" call is done.
       print("[GREEDY_LOG] Auto-start trigger sent. Error (expected): $e");
     } finally {
-      // The listeners will take over from here.
-      // We'll reset the flag after a short delay in case the listener doesn't catch a new round.
       Future.delayed(Duration(seconds: 3), () {
         if (mounted) {
           setState(() => _isAutoStarting = false);
@@ -506,7 +486,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     }
   }
 
-  /// [MODIFIED] Debounced bet submission
   void _onBet(String currentRoundId, String phase, int leafIndex) {
     if (phase != 'betting') {
       if (_gameStatus == 'auto-paused') {
@@ -521,17 +500,14 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       return;
     }
 
-    // 1. Optimistic UI update
     setState(() {
       _myBalance -= _selectedCoinValue;
       _myBets[leafIndex] = (_myBets[leafIndex] ?? 0) + _selectedCoinValue;
     });
 
-    // 2. Trigger debounced sync to server
     _triggerDebouncedSync();
   }
 
-  /// [NEW] Handle bet removal
   void _onRemoveBet(String currentRoundId, String phase, int leafIndex) {
     if (phase != 'betting') {
       return;
@@ -540,17 +516,14 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     final int currentBetOnLeaf = _myBets[leafIndex] ?? 0;
     if (currentBetOnLeaf == 0) return;
 
-    // 1. Optimistic UI update (refund)
     setState(() {
       _myBalance += currentBetOnLeaf;
       _myBets.remove(leafIndex);
     });
 
-    // 2. Trigger debounced sync to server
     _triggerDebouncedSync();
   }
 
-  /// [NEW] Triggers a sync, debounced by 1 second
   void _triggerDebouncedSync() {
     if (_isSyncing) return;
 
@@ -560,7 +533,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
     });
   }
 
-  /// [NEW] The actual function that calls the service
   Future<void> _syncBetsToServer() async {
     if (_isSyncing) return;
 
@@ -571,7 +543,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
 
     setState(() => _isSyncing = true);
 
-    // Make a copy of the current bets to send
     final betsToSend = Map<int, int>.from(_myBets);
 
     try {
@@ -580,7 +551,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       print("[GREEDY_LOG] Sync successful.");
     } catch (e) {
       print("[GREEDY_LOG] Sync failed: $e");
-      // This will show the "Game is starting up" error
       _showToast(e.toString().replaceFirst("Exception: ", ""), isError: true);
     } finally {
       if (mounted) {
@@ -588,8 +558,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       }
     }
   }
-
-  // --- END OF NEW BETTING LOGIC ---
 
   void _startConstantSpin() {
     _spinTimer?.cancel();
@@ -665,30 +633,17 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text(
-          'Greedy Game',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            shadows: [Shadow(color: Colors.black, blurRadius: 2, offset: Offset(1, 1))],
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Container(
+    return SafeArea(
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage("assets/greedy/greedy_bg.webp"),
-            fit: BoxFit.cover,
-            // colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.2), BlendMode.darken),
-          ),
+          image: DecorationImage(image: const AssetImage("assets/greedy/greedy_bg.webp"), fit: BoxFit.cover),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: _buildGameContent(),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Column(children: [Expanded(child: _buildGameContent())]),
+        ),
       ),
     );
   }
@@ -698,7 +653,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // [MODIFIED] Show loading indicator when auto-paused
     if (_gameStatus == 'auto-paused') {
       return const Center(child: CircularProgressIndicator(color: Colors.white));
     }
@@ -709,48 +663,61 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       );
     }
 
-    return SafeArea(
-      child: Column(
-        children: [
-          _buildTopBar(),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final double boardSize = constraints.maxWidth < constraints.maxHeight
-                    ? constraints.maxWidth
-                    : constraints.maxHeight;
-                return _buildGameWheel(
-                  boardSize: boardSize,
-                  phase: _currentPhase,
-                  currentRoundId: _currentRoundId,
-                  winningIndex: _serverWinningIndex,
-                );
-              },
-            ),
-          ),
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                children: [
-                  _buildSaladPizzaRow(),
-                  const SizedBox(height: 16),
-                  _buildRankingHistoryRow(),
-                  const SizedBox(height: 16),
-                  _buildResultRow(),
-                  const SizedBox(height: 16),
-                  _buildCoinListRow(_currentPhase),
-                  const SizedBox(height: 16),
-                  _buildBalanceRow(),
-                  const SizedBox(height: 16),
-                ],
+    return Column(
+      children: [
+        _buildTopBar(),
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: _buildSaladPizzaRow(),
+                ),
               ),
+              // Game wheel centered
+              Center(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double boardSize = constraints.maxWidth < constraints.maxHeight
+                        ? constraints.maxWidth * 0.95
+                        : constraints.maxHeight * 0.95;
+                    return _buildGameWheel(
+                      boardSize: boardSize,
+                      phase: _currentPhase,
+                      currentRoundId: _currentRoundId,
+                      winningIndex: _serverWinningIndex,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              children: [
+                _buildRankingHistoryRow(),
+                const SizedBox(height: 16),
+                _buildResultRow(),
+                const SizedBox(height: 16),
+                _buildCoinListRow(_currentPhase),
+                const SizedBox(height: 16),
+                _buildBalanceRow(),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+
 
   Widget _buildTopBar() {
     return Padding(
@@ -1141,7 +1108,6 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
             style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
             overflow: TextOverflow.ellipsis,
           ),
-
         const SizedBox(width: 8),
         Flexible(
           child: Text(
@@ -1154,4 +1120,17 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
       ],
     );
   }
+}
+
+void showGreedyGameBottomSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    isDismissible: true,
+    enableDrag: false,
+    builder: (context) {
+      return const GreedyGameBottomSheet();
+    },
+  );
 }

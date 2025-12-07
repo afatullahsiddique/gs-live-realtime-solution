@@ -54,6 +54,7 @@ class DefaultFirebaseOptions {
     appId: '1:645699802815:android:527136b860cfab1ab7580a',
     messagingSenderId: '645699802815',
     projectId: 'cute-live-app',
+    databaseURL: 'https://cute-live-app-default-rtdb.firebaseio.com',
     storageBucket: 'cute-live-app.firebasestorage.app',
   );
 
@@ -62,7 +63,10 @@ class DefaultFirebaseOptions {
     appId: '1:645699802815:ios:6626c06fee76fe86b7580a',
     messagingSenderId: '645699802815',
     projectId: 'cute-live-app',
+    databaseURL: 'https://cute-live-app-default-rtdb.firebaseio.com',
     storageBucket: 'cute-live-app.firebasestorage.app',
+    androidClientId: '645699802815-h0nltv1fakn5vjmppv6ts2r1q1n22l5p.apps.googleusercontent.com',
+    iosClientId: '645699802815-1jggcnid488b836op4g2g4alicoa5te5.apps.googleusercontent.com',
     iosBundleId: 'com.cutelive.app.cuteLive',
   );
 

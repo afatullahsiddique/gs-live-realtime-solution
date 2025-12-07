@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart';
 import '../../../core/widgets/auto_scroll_text.dart';
