@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../../data/remote/firebase/video_room_services.dart';
 import 'invite_pk_bottomsheet.dart';
 import 'share_bottomsheet.dart';
 
@@ -14,14 +15,12 @@ class _ToolItem {
 final List<_ToolItem> _hostTools = [
   _ToolItem(label: 'Share', icon: Icons.share, iconBgColor: Colors.blue.shade700),
   _ToolItem(label: 'Inbox', icon: CupertinoIcons.mail_solid, iconBgColor: Colors.red.shade700),
-  _ToolItem(label: 'Invite PK', icon: Icons.people_outline, iconBgColor: Colors.orange.shade700),
   _ToolItem(label: 'Speaker', icon: CupertinoIcons.speaker_2_fill, iconBgColor: Colors.blue.shade600),
   _ToolItem(label: 'Funny voice', icon: Icons.tag_faces_outlined, iconBgColor: Colors.purple.shade600),
   _ToolItem(label: 'Room skin', icon: Icons.color_lens_outlined, iconBgColor: Colors.teal.shade600),
   _ToolItem(label: 'Notice', icon: Icons.campaign_outlined, iconBgColor: Colors.indigo.shade600),
   _ToolItem(label: 'Play music', icon: Icons.music_note_outlined, iconBgColor: Colors.pink.shade600),
   _ToolItem(label: 'Games', icon: Icons.games_outlined, iconBgColor: Colors.green.shade700),
-  _ToolItem(label: 'Random PK', icon: Icons.shuffle, iconBgColor: Colors.deepOrange.shade600),
   _ToolItem(label: 'Block', icon: Icons.block, iconBgColor: Colors.grey.shade700),
   _ToolItem(label: 'Voice Control', icon: Icons.record_voice_over_outlined, iconBgColor: Colors.lightBlue.shade700),
 ];
@@ -34,18 +33,11 @@ final List<_ToolItem> _guestTools = [
 ];
 
 class ToolsBottomSheet extends StatelessWidget {
-  final List<PKInvite> pendingInvites;
   final String currentRoomId;
   final bool isHost;
   final String hostName;
 
-  const ToolsBottomSheet({
-    super.key,
-    required this.pendingInvites,
-    required this.currentRoomId,
-    required this.isHost,
-    this.hostName = "Host",
-  });
+  const ToolsBottomSheet({super.key, required this.currentRoomId, required this.isHost, this.hostName = "Host"});
 
   @override
   Widget build(BuildContext context) {
@@ -79,15 +71,10 @@ class ToolsBottomSheet extends StatelessWidget {
                   final tool = isHost ? _hostTools[index] : _guestTools[index];
 
                   VoidCallback onTapLogic;
-                  if (tool.label == 'Invite PK') {
+                  if (tool.label == 'Share') {
                     onTapLogic = () {
                       Navigator.pop(context);
-                      showInvitePKBottomSheet(context, pendingInvites: pendingInvites, currentRoomId: currentRoomId);
-                    };
-                  } else if (tool.label == 'Share') {
-                    onTapLogic = () {
-                      Navigator.pop(context);
-                      showShareBottomSheet(context, currentRoomId, hostName);
+                      showShareBottomSheet(context, currentRoomId, hostName, RoomType.video);
                     };
                   } else {
                     onTapLogic = () {
@@ -149,7 +136,6 @@ class ToolsBottomSheet extends StatelessWidget {
 
 void showToolsBottomSheet(
   BuildContext context, {
-  required List<PKInvite> pendingInvites,
   required String currentRoomId,
   required bool isHost,
   String hostName = "Host",
@@ -159,12 +145,7 @@ void showToolsBottomSheet(
     backgroundColor: const Color(0xFF2d1b2b),
     isScrollControlled: true,
     builder: (context) {
-      return ToolsBottomSheet(
-        pendingInvites: pendingInvites,
-        currentRoomId: currentRoomId,
-        isHost: isHost,
-        hostName: hostName,
-      );
+      return ToolsBottomSheet(currentRoomId: currentRoomId, isHost: isHost, hostName: hostName);
     },
   );
 }

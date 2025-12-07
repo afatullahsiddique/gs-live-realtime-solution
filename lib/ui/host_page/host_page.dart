@@ -80,15 +80,15 @@ class _HostPageState extends State<HostPage> {
               onTap: () => setState(() => _selectedPartyType = PartyType.voice),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildPartyOption(
-              icon: Icons.videocam_rounded,
-              label: 'Video Party',
-              isSelected: _selectedPartyType == PartyType.video,
-              onTap: () => setState(() => _selectedPartyType = PartyType.video),
-            ),
-          ),
+          // const SizedBox(width: 12),
+          // Expanded(
+          //   child: _buildPartyOption(
+          //     icon: Icons.videocam_rounded,
+          //     label: 'Video Party',
+          //     isSelected: _selectedPartyType == PartyType.video,
+          //     onTap: () => setState(() => _selectedPartyType = PartyType.video),
+          //   ),
+          // ),
           const SizedBox(width: 12),
           Expanded(
             child: _buildPartyOption(

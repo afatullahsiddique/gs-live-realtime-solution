@@ -1,6 +1,4 @@
 import 'dart:ui';
-
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
@@ -13,9 +11,9 @@ import 'live_animation.dart';
 
 class AnimatedStreamerCard extends StatefulWidget {
   final StreamerModel streamer;
-  final int? index;
+  final String? animationFilePath;
 
-  const AnimatedStreamerCard({Key? key, required this.streamer, this.index}) : super(key: key);
+  const AnimatedStreamerCard({Key? key, required this.streamer, this.animationFilePath}) : super(key: key);
 
   @override
   _AnimatedStreamerCardState createState() => _AnimatedStreamerCardState();
@@ -25,27 +23,13 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // --- MODIFIED: Navigation Logic ---
       onTap: () {
-        // 1. Check for Live Stream first
         if (widget.streamer.isLiveStream) {
-          context.push(
-            Routes.liveStream.path, // Navigate to the new Live Stream page
-            extra: {"roomId": widget.streamer.id, "isHost": false},
-          );
-        }
-        // 2. Fallback to checking for Video vs Audio room
-        else if (widget.streamer.isVideo) {
-          context.push(Routes.videoRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
+          context.push(Routes.liveStream.path, extra: {"roomId": widget.streamer.id, "isHost": false});
+        } else if (!widget.streamer.isVideo) {
+          context.push(Routes.audioRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
         } else {
-          context.push(
-            Routes.audioRoom.path,
-            extra: {
-              "roomId": widget.streamer.id,
-              "name": FirebaseAuth.instance.currentUser?.displayName ?? "Unknown",
-              "isHost": false,
-            },
-          );
+          context.push(Routes.videoRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
         }
       },
       child: Stack(
@@ -79,12 +63,19 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                         },
                       ),
 
-                      if (widget.index == 0)
-                        Positioned.fill(
-                          child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_1.svga", fit: BoxFit.cover),
-                        ),
-                      if (widget.index == 1)
-                        Positioned.fill(child: SVGAEasyPlayer(assetsName: "assets/svga/room_cover_2.svga")),
+                      // --- 2. UPDATE ANIMATION LOGIC ---
+                      // If a file path is provided, play the animation based on its type
+                      if (widget.animationFilePath != null)
+                        if (widget.animationFilePath!.endsWith('.svga'))
+                          Positioned.fill(
+                            child: SVGAEasyPlayer(
+                              assetsName: widget.animationFilePath!,
+                              fit: BoxFit.cover, // Apply fit: BoxFit.cover consistently
+                            ),
+                          )
+                        else if (widget.animationFilePath!.endsWith('.webp')) // Assuming .webp
+                          Positioned.fill(child: Image.asset(widget.animationFilePath!, fit: BoxFit.cover)),
+                      // --- END OF CHANGE ---
 
                       // Content
                       Padding(
@@ -92,7 +83,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Top Row: View Count, Lock Icon, and Live Badge
+                            // View Count
                             Row(
                               children: [
                                 ClipRRect(
@@ -113,6 +104,8 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                             color: Colors.pink.shade300,
                                             size: widget.streamer.isVideo ? 14 : 16,
                                           ),
+                                          // const SizedBox(width: 4),
+                                          // Icon(Icons.visibility_rounded, color: Colors.grey, size: 14),
                                           const SizedBox(width: 4),
                                           Text(
                                             formatViewCount(widget.streamer.viewCount),
@@ -127,7 +120,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 if (widget.streamer.isLocked)
                                   Container(
                                     decoration: BoxDecoration(
@@ -137,6 +130,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     padding: const EdgeInsets.all(4),
                                     child: const Icon(Icons.lock, color: Colors.white, size: 18),
                                   ),
+
                                 const Spacer(),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
@@ -144,7 +138,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     borderRadius: BorderRadius.circular(8),
                                     gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.purple.shade400]),
                                   ),
-                                  child: const LiveWaveWidget(),
+                                  child: const LiveWaveWidget(), // Replace Text with your custom widget
                                 ),
                               ],
                             ),

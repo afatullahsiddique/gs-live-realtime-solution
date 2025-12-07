@@ -4,6 +4,7 @@ import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -43,42 +44,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       isPremium: true,
       isVideo: true,
     ),
-    StreamerModel(
-      id: '3',
-      name: 'Sophie Kim',
-      bio: 'Live music sessions and acoustic covers. Request your favorite songs!',
-      viewCount: 2156,
-      imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
-      isPremium: false,
-      isVideo: false,
-    ),
-    StreamerModel(
-      id: '4',
-      name: 'Ryan Miller',
-      bio: 'Competitive gaming and esports analysis. Let\'s talk strategy!',
-      viewCount: 754,
-      imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
-      isPremium: false,
-      isVideo: true,
-    ),
-    StreamerModel(
-      id: '5',
-      name: 'Sophie Kim',
-      bio: 'Live music sessions and acoustic covers. Request your favorite songs!',
-      viewCount: 2156,
-      imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
-      isPremium: false,
-      isVideo: false,
-    ),
-    StreamerModel(
-      id: '6',
-      name: 'Ryan Miller',
-      bio: 'Competitive gaming and esports analysis. Let\'s talk strategy!',
-      viewCount: 754,
-      imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
-      isPremium: false,
-      isVideo: true,
-    ),
   ];
 
   @override
@@ -93,6 +58,39 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
+  Future<bool> _showExitConfirmationDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2d1b2b),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Exit App',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Do you really want to close the application?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.pink,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Exit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -100,27 +98,37 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       child: Builder(
         builder: (context) {
           final cubit = context.read<HomeCubit>();
-          return Scaffold(
-            appBar: _buildNewAppBar(),
-            body: Container(
-              decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          SingleChildScrollView(child: _buildPopularGrid(cubit)),
-                          SingleChildScrollView(child: _buildFresherGrid(cubit)),
-                          PartyTab(streamers: _streamers),
-                          PKTab(streamers: _streamers),
-                          _buildGamesTab(),
-                        ],
+          return WillPopScope(
+            onWillPop: () async {
+              final shouldExit = await _showExitConfirmationDialog();
+              if (shouldExit) {
+                SystemNavigator.pop(); // Completely closes the app
+                return true;
+              }
+              return false;
+            },
+            child: Scaffold(
+              appBar: _buildNewAppBar(),
+              body: Container(
+                decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildPopularTab(cubit),
+                            SingleChildScrollView(child: _buildFresherGrid(cubit)),
+                            PartyTab(streamers: _streamers),
+                            PKTab(streamers: _streamers),
+                            _buildGamesTab(),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -186,12 +194,135 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
+  Widget _buildPopularTab(HomeCubit cubit) {
+    return StreamBuilder<List<StreamerModel>>(
+      stream: cubit.allRoomsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
+          );
+        }
+
+        final allRooms = snapshot.data ?? [];
+
+        // 1. Check for Empty State (UPDATED LOGIC)
+        if (allRooms.isEmpty) {
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // Show Banner First
+                CarouselBanner(
+                  imageUrls: BannerUrls.liveStreamingBanners,
+                  autoPlayDuration: const Duration(seconds: 4),
+                  onBannerTap: (index) {
+                    print('Banner $index tapped');
+                  },
+                ),
+
+                // Add some spacing
+                SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+
+                // Then show the empty state message
+                Icon(Icons.videocam_off, size: 60, color: Colors.white.withOpacity(0.5)),
+                const SizedBox(height: 16),
+                Text(
+                  "No room is currently active",
+                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // 2. Split logic: Top 2 vs The Rest
+        // Since the list is already sorted by viewCount in the Cubit, we just take by index.
+        final topTwoRooms = allRooms.take(2).toList();
+        final restOfRooms = allRooms.skip(2).toList();
+
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              // --- SECTION A: Top 2 Rooms ---
+              if (topTwoRooms.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(top: 10, bottom: 0),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: .9,
+                    ),
+                    itemCount: topTwoRooms.length,
+                    itemBuilder: (context, index) {
+                      // Apply special SVGA animations for the top 2
+                      final List<String> popularAnimationPaths = [
+                        "assets/svga/room_cover_1.svga",
+                        "assets/svga/room_cover_2.svga",
+                      ];
+
+                      String? animPath;
+                      if (index < popularAnimationPaths.length) {
+                        animPath = popularAnimationPaths[index];
+                      }
+
+                      return AnimatedStreamerCard(streamer: topTwoRooms[index], animationFilePath: animPath);
+                    },
+                  ),
+                ),
+
+              // --- SECTION B: Banner ---
+              CarouselBanner(
+                imageUrls: BannerUrls.liveStreamingBanners,
+                autoPlayDuration: const Duration(seconds: 4),
+                onBannerTap: (index) {
+                  print('Banner $index tapped');
+                },
+              ),
+
+              // --- SECTION C: Remaining Rooms ---
+              if (restOfRooms.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(top: 0, bottom: 10),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: .9,
+                    ),
+                    itemCount: restOfRooms.length,
+                    itemBuilder: (context, index) {
+                      return AnimatedStreamerCard(streamer: restOfRooms[index]);
+                    },
+                  ),
+                ),
+
+              const SizedBox(height: 80), // Bottom padding for navigation bar
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildFresherGrid(HomeCubit cubit) {
+    // Note: If you want Freshers to also use live data, repeat the StreamBuilder logic here
+    // For now, keeping your original static implementation mixed with logic
     return Column(
       children: [
         CarouselBanner(
           imageUrls: BannerUrls.liveStreamingBanners,
-          height: 120,
           autoPlayDuration: const Duration(seconds: 4),
           onBannerTap: (index) {
             print('Banner $index tapped');
@@ -201,9 +332,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           margin: const EdgeInsets.symmetric(horizontal: 16),
           child: GridView.builder(
             shrinkWrap: true,
-            // Add this line
             physics: const NeverScrollableScrollPhysics(),
-            // Add this line
             padding: const EdgeInsets.only(top: 16, bottom: 16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
@@ -213,7 +342,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
             itemCount: _streamers.length,
             itemBuilder: (context, index) {
-              return AnimatedStreamerCard(streamer: _streamers[index]);
+              const List<String> fresherAnimationPaths = [
+                "assets/animations/f_1.webp",
+                "assets/animations/f_2.webp",
+                "assets/animations/f_3.webp",
+              ];
+
+              String? animationPath;
+              if (index < fresherAnimationPaths.length) {
+                animationPath = fresherAnimationPaths[index];
+              }
+
+              return AnimatedStreamerCard(streamer: _streamers[index], animationFilePath: animationPath);
             },
           ),
         ),
@@ -221,80 +361,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildPopularGrid(HomeCubit cubit) {
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 10),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 10, bottom: 0),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: .9,
-            ),
-            itemCount: 2,
-            // Showing first 2 static items
-            itemBuilder: (context, index) {
-              return AnimatedStreamerCard(streamer: _streamers[index], index: index);
-            },
-          ),
-        ),
-        // Your static banner
-        CarouselBanner(
-          imageUrls: BannerUrls.liveStreamingBanners,
-          height: 120,
-          autoPlayDuration: const Duration(seconds: 4),
-          onBannerTap: (index) {
-            print('Banner $index tapped');
-          },
-        ),
-        StreamBuilder<List<StreamerModel>>(
-          stream: cubit.allRoomsStream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            if (snapshot.hasError) {
-              log("Error in StreamBuilder: ${snapshot.error}");
-              return Center(
-                child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
-              );
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const SizedBox.shrink();
-            }
-
-            final liveRooms = snapshot.data!;
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 0, bottom: 10),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: .9,
-                ),
-                itemCount: liveRooms.length,
-                itemBuilder: (context, index) {
-                  return AnimatedStreamerCard(streamer: liveRooms[index]);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
 
   Widget _buildGamesTab() {
     final List<Map<String, String>> games = [

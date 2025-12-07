@@ -102,6 +102,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           final userProfile = UserProfile(
                             name: data['displayName'] ?? 'No Name',
                             id: uid,
+                            displayId: data['displayId'] ?? 'N/A',
                             country: data['country'] ?? 'N/A',
                             countryFlagEmoji: data['countryFlagEmoji'],
                             bio: data['bio'] ?? 'No bio yet.',
@@ -149,10 +150,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfileSection(UserProfile userProfile) {
     final profileImageUrl = userProfile.profileImage;
-
-    final String displayId = userProfile.id.length > 8
-        ? userProfile.id.substring(userProfile.id.length - 8)
-        : userProfile.id;
 
     Widget countryIndicator;
     if (userProfile.countryFlagEmoji != null && userProfile.countryFlagEmoji!.isNotEmpty) {
@@ -228,7 +225,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
               ),
               child: Text(
-                'ID: $displayId', // <-- MODIFIED
+                'ID: ${userProfile.displayId}',
                 style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w500),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -346,13 +343,6 @@ class _ProfilePageState extends State<ProfilePage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildAchievementChip(
-          icon: Icons.diamond_rounded,
-          count: userProfile.diamonds, // Updated
-          color: Colors.cyan,
-          label: 'Diamonds',
-        ),
-        const SizedBox(width: 16),
-        _buildAchievementChip(
           assetIcon: 'assets/icons/beans.svg',
           count: userProfile.beans,
           // Updated
@@ -361,6 +351,13 @@ class _ProfilePageState extends State<ProfilePage> {
           onTap: () {
             context.push(Routes.topUp.path);
           },
+        ),
+        const SizedBox(width: 16),
+        _buildAchievementChip(
+          icon: Icons.diamond_outlined,
+          count: userProfile.diamonds, // Updated
+          color: Colors.cyan,
+          label: 'Diamonds',
         ),
       ],
     );
@@ -432,7 +429,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       ProfileButton(
         title: 'VIP',
-        icon: Icons.diamond_rounded,
+        icon: Icons.diamond_outlined,
         onTap: () {
           context.push(Routes.vip.path);
         },
@@ -571,6 +568,7 @@ class ProfileButton extends StatelessWidget {
 class UserProfile {
   final String name;
   final String id;
+  final String displayId;
   final String country;
   final String? countryFlagEmoji;
   final String bio;
@@ -583,6 +581,7 @@ class UserProfile {
   UserProfile({
     required this.name,
     required this.id,
+    required this.displayId,
     required this.country,
     this.countryFlagEmoji,
     required this.bio,

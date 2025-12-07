@@ -8,11 +8,11 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../theme/app_theme.dart';
-import '../../data/remote/firebase/profile_services.dart';
+import '../../../theme/app_theme.dart';
+import '../../../data/remote/firebase/profile_services.dart';
+import '../../../data/remote/firebase/fruits_king_service.dart';
 import 'bottomsheets/participants_bottomsheet.dart';
 import 'bottomsheets/result_bottomsheet.dart';
-import '../../data/remote/firebase/fruits_king_service.dart';
 
 class _FruitConfig {
   final String type;
@@ -21,14 +21,14 @@ class _FruitConfig {
   _FruitConfig({required this.type, required this.assetPath});
 }
 
-class FruitsKingPage extends StatefulWidget {
-  const FruitsKingPage({super.key});
+class FruitsKingBottomSheet extends StatefulWidget {
+  const FruitsKingBottomSheet({super.key});
 
   @override
-  State<FruitsKingPage> createState() => _FruitsKingPageState();
+  State<FruitsKingBottomSheet> createState() => _FruitsKingBottomSheetState();
 }
 
-class _FruitsKingPageState extends State<FruitsKingPage> {
+class _FruitsKingBottomSheetState extends State<FruitsKingBottomSheet> {
   final FruitsKingService _gameService = FruitsKingService();
   final String _userId = FirebaseAuth.instance.currentUser!.uid;
   int _myBalance = 0;
@@ -42,11 +42,9 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
 
   int _selectedCoinValue = 100;
 
-  // Betting State
-  final Map<String, int> _myBets = {}; // Local Source of Truth
-  bool _hasUnsavedChanges = false; // Prevents server stream from overwriting local UI while typing
+  final Map<String, int> _myBets = {};
+  bool _hasUnsavedChanges = false;
 
-  // Spoiler Prevention State
   bool _isAnimatingResult = false;
   List<int>? _pendingHistory;
 
@@ -67,7 +65,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
 
   double _currentAngle = 0.0;
 
-  // Simplified betting sync state
   Timer? _syncBetsTimer;
   bool _isSyncing = false;
   bool _isAutoStarting = false;
@@ -168,9 +165,8 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
           setState(() {
             _currentRoundId = serverRoundId;
             _myBets.clear();
-            _hasUnsavedChanges = false; // New round, reset dirtiness
+            _hasUnsavedChanges = false;
 
-            // Reset spoiler prevention
             _isAnimatingResult = false;
             _pendingHistory = null;
 
@@ -205,7 +201,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
 
         if (mounted) {
           setState(() {
-            // Only update balance if we aren't actively betting/syncing
             if (!_hasUnsavedChanges && !_isSyncing) {
               _myBalance = data['balance'] ?? 0;
             }
@@ -216,11 +211,8 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
     });
 
     _historySubscription = _gameService.getGameHistoryStream().listen((historySnap) {
-      // We get the list from Firestore (Usually newest first)
       final history = historySnap.docs.map((doc) => doc['winningIndex'] as int).toList();
 
-      // [SPOILER PREVENTION]
-      // If we are spinning or animating the result, hold the data in buffer.
       if (_currentPhase == 'spinning' || _isAnimatingResult) {
         _pendingHistory = history;
       } else {
@@ -289,7 +281,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
             if (winningIndex != -1 && _serverWinningIndex != winningIndex) {
               _serverWinningIndex = winningIndex;
 
-              // [LOCK] Lock the history updates so user doesn't see result before wheel stops
               _isAnimatingResult = true;
 
               _startLandingSpinAnimation(winningIndex);
@@ -303,7 +294,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
   void _listenToMyBets(String roundId) {
     _betsSubscription?.cancel();
     _betsSubscription = _gameService.getMyBetsStream(roundId).listen((betSnap) {
-      // If we have local unsaved changes, ignore the server to prevent "unmarking" glitches.
       if (_hasUnsavedChanges || _isSyncing) {
         return;
       }
@@ -461,7 +451,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
           setState(() {
             _currentAngle = finalTargetAngle;
 
-            // [UNLOCK] Animation Finished. Apply buffered history now.
             _isAnimatingResult = false;
             if (_pendingHistory != null) {
               _gameHistory = _pendingHistory!;
@@ -536,10 +525,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
       ),
     );
   }
-
-  //
-  // --- ROBUST BETTING LOGIC ---
-  //
 
   Future<void> _triggerAutoStart() async {
     if (_isAutoStarting) return;
@@ -623,7 +608,6 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
       print("[FRUITS_LOG] Sync successful.");
 
       if (mounted) {
-        // Recursion check: Did the user tap while we were uploading?
         bool isEqual = true;
         if (_myBets.length != betsSnapshot.length) {
           isEqual = false;
@@ -658,26 +642,21 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text(
-          'Fruits King',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            shadows: [Shadow(color: Colors.black, blurRadius: 2, offset: Offset(1, 1))],
+    return SafeArea(
+      child: Container(
+        height: MediaQuery.of(context).size.height * .7,
+        decoration: BoxDecoration(
+          image: DecorationImage(image: const AssetImage("assets/spinner/fruits_bg.webp"), fit: BoxFit.cover),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Column(
+            children: [
+              Expanded(child: _buildGameContent()),
+            ],
           ),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(image: AssetImage("assets/spinner/fruits_bg.webp"), fit: BoxFit.cover),
-        ),
-        child: _buildGameContent(),
       ),
     );
   }
@@ -697,38 +676,36 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
       );
     }
 
-    return SafeArea(
-      child: Column(
-        children: [
-          _buildTopBar(),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final double boardSize = math.min(constraints.maxWidth, constraints.maxHeight) * 0.9;
-                return _buildGameWheel(boardSize);
-              },
+    return Column(
+      children: [
+        _buildTopBar(),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double boardSize = math.min(constraints.maxWidth, constraints.maxHeight) * 0.9;
+              return _buildGameWheel(boardSize);
+            },
+          ),
+        ),
+        SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                _buildBettingOptions(),
+                const SizedBox(height: 16),
+                _buildResultRow(),
+                const SizedBox(height: 16),
+                _buildCoinListRow(),
+                const SizedBox(height: 16),
+                _buildBalanceRow(),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  _buildBettingOptions(),
-                  const SizedBox(height: 16),
-                  _buildResultRow(),
-                  const SizedBox(height: 16),
-                  _buildCoinListRow(),
-                  const SizedBox(height: 16),
-                  _buildBalanceRow(),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -881,11 +858,11 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
       onTap: () => _onBet(config.type),
       onLongPress: () => _onRemoveBet(config.type),
       child: Container(
-        width: 110,
-        padding: const EdgeInsets.all(8),
+        width: 90, // Reduced from 110
+        padding: const EdgeInsets.all(6), // Reduced from 8
         decoration: BoxDecoration(
           color: isBetting ? Colors.pink.withOpacity(0.4) : Colors.black.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10), // Reduced from 12
           border: Border.all(
             strokeAlign: BorderSide.strokeAlignOutside,
             color: isBetting ? Colors.amber : AppColors.pink.withOpacity(0.3),
@@ -893,30 +870,36 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
           ),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min, // Added to prevent extra spacing
           children: [
             Image.asset(
               config.assetPath,
-              height: 60,
-              errorBuilder: (ctx, err, stack) => const Icon(Icons.fastfood, color: Colors.white, size: 60),
+              height: 45, // Reduced from 60
+              errorBuilder: (ctx, err, stack) => const Icon(Icons.fastfood, color: Colors.white, size: 45),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4), // Reduced from 8
             Text(
               "you: ${_formatBetAmount(betAmount)}",
               style: TextStyle(
                 color: isBetting ? Colors.amber : Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 12, // Reduced from 14
               ),
             ),
+            const SizedBox(height: 2), // Added small spacing
             Text(
               "total: ${_formatBetAmount(totalBetAmount)}",
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 10, // Reduced from 12
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
 
   Widget _buildResultRow() {
     return Container(
@@ -1139,4 +1122,17 @@ class _PointerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+void showFruitsKingBottomSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    isDismissible: true,
+    enableDrag: false,
+    builder: (context) {
+      return const FruitsKingBottomSheet();
+    },
+  );
 }

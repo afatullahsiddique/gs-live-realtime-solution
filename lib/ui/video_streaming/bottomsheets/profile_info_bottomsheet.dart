@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/profile_services.dart';
+import '../../../navigation/routes.dart';
 import 'follow_list_bottomsheet.dart';
 import 'host_actions_bottomsheet.dart'; // Import new sheet
 import 'report_user_bottomsheet.dart'; // Import new sheet
@@ -98,7 +100,7 @@ class ProfileInfoBottomSheet extends StatelessWidget {
                                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                               ),
                             ),
-                        ]
+                        ],
                         // --- END MODIFIED LOGIC ---
                       ],
                     ),
@@ -114,8 +116,7 @@ class ProfileInfoBottomSheet extends StatelessWidget {
                     const SizedBox(height: 12),
                     // --- User Info ---
                     AutoScrollText(
-                      text:
-                      userName,
+                      text: userName,
                       style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
@@ -228,10 +229,11 @@ class ProfileInfoBottomSheet extends StatelessWidget {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
                                 onPressed: () {
-                                  // TODO: Implement navigation to chat page
                                   Navigator.of(context).pop();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Message functionality not implemented yet.')),
+
+                                  context.push(
+                                    Routes.chat.path,
+                                    extra: {'peerId': userId, 'peerName': userName, 'peerAvatar': userPicture ?? ""},
                                   );
                                 },
                                 child: const Text('Message'),
@@ -255,11 +257,11 @@ class ProfileInfoBottomSheet extends StatelessWidget {
 
 /// Top-level function to show the profile info bottom sheet.
 void showProfileInfoBottomSheet(
-    BuildContext context, {
-      required String userId,
-      required String hostId,
-      required String roomId, // --- ADDED ---
-    }) {
+  BuildContext context, {
+  required String userId,
+  required String hostId,
+  required String roomId, // --- ADDED ---
+}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF2d1b2b),

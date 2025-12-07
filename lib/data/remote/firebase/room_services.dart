@@ -1,37 +1,45 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RoomService {
+  static final FirebaseDatabase _database = FirebaseDatabase.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static final _usersCollection = _firestore.collection('users');
+  static final DatabaseReference _roomsRef = _database.ref('rooms');
+  static final DatabaseReference _connectedRef = _database.ref('.info/connected');
+
+  // Keep track of presence references for cleanup
+  static DatabaseReference? _currentParticipantRef;
 
   static Future<String> createRoom({String? password}) async {
     final user = _auth.currentUser!;
-    final roomRef = _firestore.collection('rooms').doc();
-    final participantRef = roomRef.collection('room_participants').doc(user.uid);
+    final roomRef = _roomsRef.push();
+    final roomId = roomRef.key!;
 
     final userRef = _usersCollection.doc(user.uid);
-
     final userDoc = await userRef.get();
+
     if (!userDoc.exists) {
       throw Exception("User profile not found. Cannot create room.");
     }
 
     final userData = userDoc.data() as Map<String, dynamic>;
     final String hostName = userData['displayName'] ?? 'Anonymous';
+    final String displayId = userData['displayId'] ?? '';
     final String? hostPicture = userData['photoUrl'];
-
-    final batch = _firestore.batch();
 
     final bool isLocked = password != null && password.isNotEmpty;
 
-    batch.set(roomRef, {
+    // Create room data
+    await roomRef.set({
       'hostId': user.uid,
+      'hostDisplayId': displayId,
       'hostName': hostName,
       'hostPicture': hostPicture,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': ServerValue.timestamp,
       'isActive': true,
       'participantCount': 1,
       'isMoveAllowed': true,
@@ -40,191 +48,215 @@ class RoomService {
       'password': isLocked ? password : null,
     });
 
-    batch.set(participantRef, {
+    // Add host as participant with presence detection
+    final participantRef = roomRef.child('room_participants/${user.uid}');
+    await participantRef.set({
       'userId': user.uid,
+      'displayId': displayId,
       'userName': hostName,
       'userPicture': hostPicture,
       'isCoHost': true,
       'seatNo': 0,
-      'joinedAt': FieldValue.serverTimestamp(),
+      'joinedAt': ServerValue.timestamp,
       'isOnline': true,
       'isMuted': false,
     });
 
-    await batch.commit();
-    return roomRef.id;
+    // --- CHANGED: Pass isHost: true ---
+    await _setupPresence(roomId, user.uid, isHost: true);
+
+    return roomId;
   }
 
-  static Stream<QuerySnapshot> getAllRooms() {
-    return _firestore.collection('rooms').where('isActive', isEqualTo: true).snapshots();
+  static Stream<DatabaseEvent> getAllRooms() {
+    return _roomsRef.orderByChild('isActive').equalTo(true).onValue;
   }
 
   static Future<void> joinRoom(String roomId) async {
     final user = _auth.currentUser!;
-    final roomRef = _firestore.collection('rooms').doc(roomId);
-    final participantRef = roomRef.collection('room_participants').doc(user.uid);
+    final roomRef = _roomsRef.child(roomId);
+    final participantRef = roomRef.child('room_participants/${user.uid}');
 
-    // 1. Fetch the latest user profile from Firestore 'users' collection
+    // Fetch the latest user profile from Firestore
     final userProfileDoc = await _firestore.collection('users').doc(user.uid).get();
 
     String userName = user.displayName ?? 'Anonymous';
     String? userPicture = user.photoURL;
+    String displayId = '';
 
-    // 2. If the document exists, override the Auth data with Firestore data
     if (userProfileDoc.exists) {
       final data = userProfileDoc.data() as Map<String, dynamic>;
       userName = data['displayName'] ?? userName;
+      displayId = data['displayId'] ?? '';
       userPicture = data['photoUrl'] ?? data['profilePicture'] ?? userPicture;
     }
 
-    final batch = _firestore.batch();
-
-    // 3. Write this Firestore data into the room participant entry
-    batch.set(participantRef, {
+    // Add participant
+    await participantRef.set({
       'userId': user.uid,
-      'userName': userName, // Now comes from Firestore
-      'userPicture': userPicture, // Now comes from Firestore
+      'displayId': displayId,
+      'userName': userName,
+      'userPicture': userPicture,
       'isCoHost': false,
       'seatNo': -1,
-      'joinedAt': FieldValue.serverTimestamp(),
+      'joinedAt': ServerValue.timestamp,
       'isOnline': true,
       'isMuted': true,
     });
 
-    batch.update(roomRef, {'participantCount': FieldValue.increment(1)});
-    await batch.commit();
+    // Increment participant count
+    await roomRef.child('participantCount').set(ServerValue.increment(1));
+
+    // --- CHANGED: Pass isHost: false ---
+    await _setupPresence(roomId, user.uid, isHost: false);
   }
 
-  static Future<void> leaveRoom(String roomId) async {
-    final user = _auth.currentUser!;
-    final roomRef = _firestore.collection('rooms').doc(roomId);
-    final participantRef = roomRef.collection('room_participants').doc(user.uid);
+  // --- UPDATED METHOD ---
+  static Future<void> _setupPresence(String roomId, String userId, {required bool isHost}) async {
+    final participantRef = _roomsRef.child('$roomId/room_participants/$userId');
+    final roomRef = _roomsRef.child(roomId);
 
-    await _firestore.runTransaction((transaction) async {
-      final participantDoc = await transaction.get(participantRef);
-      if (participantDoc.exists) {
-        transaction.delete(participantRef);
-        transaction.update(roomRef, {'participantCount': FieldValue.increment(-1)});
+    _currentParticipantRef = participantRef;
+
+    _connectedRef.onValue.listen((event) async {
+      if (event.snapshot.value == true) {
+        // 1. Remove the participant entry on disconnect (Common for all)
+        await participantRef.onDisconnect().remove();
+
+        if (isHost) {
+          // 2. IF HOST: Delete the entire room node on disconnect
+          await roomRef.child('participantCount').onDisconnect().cancel();
+          await roomRef.onDisconnect().remove();
+        } else {
+          // 3. IF GUEST: Only decrement the count on disconnect
+          await roomRef.child('participantCount').onDisconnect().set(ServerValue.increment(-1));
+        }
+
+        // Set status to online while connected
+        await participantRef.child('isOnline').set(true);
       }
     });
   }
 
+  static Future<void> leaveRoom(String roomId) async {
+    final user = _auth.currentUser!;
+    final roomRef = _roomsRef.child(roomId);
+    final participantRef = roomRef.child('room_participants/${user.uid}');
+
+    // Cancel onDisconnect for this specific leaving action to prevent double counts/deletes
+    // Note: In RTDB, you usually just perform the action immediately.
+    // However, it is good practice to cancel the onDisconnect if you are handling it manually.
+    await participantRef.onDisconnect().cancel();
+    await roomRef.child('participantCount').onDisconnect().cancel();
+
+    await participantRef.remove();
+    await roomRef.child('participantCount').set(ServerValue.increment(-1));
+
+    _currentParticipantRef = null;
+  }
+
   static Future<void> deleteRoom(String roomId) async {
-    final roomDocRef = _firestore.collection('rooms').doc(roomId);
-    final participants = await roomDocRef.collection('room_participants').get();
-    final speakerRequests = await roomDocRef.collection('speaker_requests').get();
-    final coHostRequests = await roomDocRef.collection('cohost_requests').get();
-    final batch = _firestore.batch();
-
-    for (var doc in participants.docs) {
-      batch.delete(doc.reference);
-    }
-    for (var doc in speakerRequests.docs) {
-      batch.delete(doc.reference);
-    }
-    for (var doc in coHostRequests.docs) {
-      batch.delete(doc.reference);
-    }
-
-    batch.delete(roomDocRef);
-    await batch.commit();
+    final roomRef = _roomsRef.child(roomId);
+    // Cancel onDisconnect to avoid conflicts (though deleting the node usually overrides it)
+    await roomRef.onDisconnect().cancel();
+    await roomRef.remove();
   }
 
-  static Future<DocumentSnapshot> getRoomInfo(String roomId) {
-    return _firestore.collection('rooms').doc(roomId).get();
+  // ... (The rest of your existing methods: getRoomInfo, leaveSeat, etc. remain unchanged) ...
+
+  static Future<DataSnapshot> getRoomInfo(String roomId) {
+    return _roomsRef.child(roomId).get();
   }
 
-  static Stream<QuerySnapshot> getRoomParticipants(String roomId) {
-    return _firestore.collection('rooms').doc(roomId).collection('room_participants').orderBy('joinedAt').snapshots();
+  static Stream<DatabaseEvent> getRoomParticipants(String roomId) {
+    return _roomsRef.child('$roomId/room_participants').orderByChild('joinedAt').onValue;
   }
 
-  static Stream<DocumentSnapshot> getRoomStream(String roomId) {
-    return _firestore.collection('rooms').doc(roomId).snapshots();
+  static Stream<DatabaseEvent> getRoomStream(String roomId) {
+    return _roomsRef.child(roomId).onValue;
   }
 
   static Future<void> leaveSeat(String roomId) async {
     final user = _auth.currentUser!;
-    await _firestore.collection('rooms').doc(roomId).collection('room_participants').doc(user.uid).update({
-      'seatNo': -1,
-      'isMuted': true,
-    });
+    await _roomsRef.child('$roomId/room_participants/${user.uid}').update({'seatNo': -1, 'isMuted': true});
   }
 
   static Future<void> stepDownFromCoHost(String roomId) async {
     final user = _auth.currentUser!;
-    await _firestore.collection('rooms').doc(roomId).collection('room_participants').doc(user.uid).update({
-      'isCoHost': false,
-      'isMuted': true,
-    });
+    await _roomsRef.child('$roomId/room_participants/${user.uid}').update({'isCoHost': false, 'isMuted': true});
   }
 
   static Future<void> toggleMuteState(String roomId, bool newMuteState) async {
     final user = _auth.currentUser!;
-    await _firestore.collection('rooms').doc(roomId).collection('room_participants').doc(user.uid).update({
-      'isMuted': newMuteState,
-    });
+    await _roomsRef.child('$roomId/room_participants/${user.uid}').update({'isMuted': newMuteState});
+  }
+
+  static Future<void> setRoomNotice(String roomId, String notice) async {
+    await _roomsRef.child(roomId).update({'notice': notice});
   }
 
   static Future<void> moveSeat(String roomId, int newSeatNo) async {
     final user = _auth.currentUser!;
-    final roomRef = _firestore.collection('rooms').doc(roomId);
-    final participantRef = roomRef.collection('room_participants').doc(user.uid);
+    final roomRef = _roomsRef.child(roomId);
+    final participantRef = roomRef.child('room_participants/${user.uid}');
 
-    final roomDoc = await roomRef.get();
-    if (roomDoc.exists && !(roomDoc.data()?['isMoveAllowed'] ?? true)) {
-      throw Exception('Host has disabled moving seats.');
+    final roomSnapshot = await roomRef.get();
+    if (roomSnapshot.exists) {
+      final roomData = roomSnapshot.value as Map<dynamic, dynamic>;
+      if (!(roomData['isMoveAllowed'] ?? true)) {
+        throw Exception('Host has disabled moving seats.');
+      }
     }
 
-    final query = roomRef.collection('room_participants').where('seatNo', isEqualTo: newSeatNo);
-    final snapshot = await query.get();
-
-    if (snapshot.docs.isNotEmpty) {
-      throw Exception('Seat is already occupied.');
-    } else {
-      await participantRef.update({'seatNo': newSeatNo, 'isCoHost': false});
+    final participantsSnapshot = await roomRef.child('room_participants').get();
+    if (participantsSnapshot.exists) {
+      final participants = participantsSnapshot.value as Map<dynamic, dynamic>;
+      for (var participant in participants.values) {
+        if (participant is Map && participant['seatNo'] == newSeatNo) {
+          throw Exception('Seat is already occupied.');
+        }
+      }
     }
+
+    await participantRef.update({'seatNo': newSeatNo, 'isCoHost': false});
   }
 
-  /// NEW: A guest (listener) takes an empty seat.
   static Future<void> takeSeat(String roomId, int newSeatNo) async {
     final user = _auth.currentUser!;
-    final roomRef = _firestore.collection('rooms').doc(roomId);
-    final participantRef = roomRef.collection('room_participants').doc(user.uid);
+    final roomRef = _roomsRef.child(roomId);
+    final participantRef = roomRef.child('room_participants/${user.uid}');
 
-    final roomDoc = await roomRef.get();
-    if (!roomDoc.exists) throw Exception('Room not found.');
+    final roomSnapshot = await roomRef.get();
+    if (!roomSnapshot.exists) throw Exception('Room not found.');
 
-    // Check the new room setting
-    if (roomDoc.data()?['isSeatApprovalRequired'] ?? true) {
+    final roomData = roomSnapshot.value as Map<dynamic, dynamic>;
+    if (roomData['isSeatApprovalRequired'] ?? true) {
       throw Exception('Seat approval is required. Please send a request.');
     }
 
-    // Check if seat is occupied
-    final query = roomRef.collection('room_participants').where('seatNo', isEqualTo: newSeatNo);
-    final snapshot = await query.get();
-
-    if (snapshot.docs.isNotEmpty) {
-      throw Exception('Seat is already occupied.');
-    } else {
-      // Assign seat and unmute
-      await participantRef.update({'seatNo': newSeatNo, 'isMuted': false});
+    final participantsSnapshot = await roomRef.child('room_participants').get();
+    if (participantsSnapshot.exists) {
+      final participants = participantsSnapshot.value as Map<dynamic, dynamic>;
+      for (var participant in participants.values) {
+        if (participant is Map && participant['seatNo'] == newSeatNo) {
+          throw Exception('Seat is already occupied.');
+        }
+      }
     }
+
+    await participantRef.update({'seatNo': newSeatNo, 'isMuted': false});
   }
 
   static Future<void> toggleMoveAllowed(String roomId, bool isAllowed) async {
-    await _firestore.collection('rooms').doc(roomId).update({'isMoveAllowed': isAllowed});
+    await _roomsRef.child(roomId).update({'isMoveAllowed': isAllowed});
   }
 
-  /// NEW: Toggle the setting for requiring seat approval
   static Future<void> toggleSeatApprovalRequired(String roomId, bool isRequired) async {
-    await _firestore.collection('rooms').doc(roomId).update({'isSeatApprovalRequired': isRequired});
+    await _roomsRef.child(roomId).update({'isSeatApprovalRequired': isRequired});
   }
 
-  // ## MODIFIED: Fetches latest user profile data before request ##
   static Future<void> requestToBeSpeaker(String roomId) async {
     final user = _auth.currentUser!;
-
-    // Fetch latest data from Firestore
     final userProfileDoc = await _firestore.collection('users').doc(user.uid).get();
 
     String userName = user.displayName ?? 'Anonymous';
@@ -236,28 +268,37 @@ class RoomService {
       userPicture = data['photoUrl'] ?? data['profilePicture'] ?? userPicture;
     }
 
-    await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(user.uid).set({
+    await _roomsRef.child('$roomId/speaker_requests/${user.uid}').set({
       'userId': user.uid,
       'userName': userName,
       'userPicture': userPicture,
-      'requestedAt': FieldValue.serverTimestamp(),
+      'requestedAt': ServerValue.timestamp,
     });
   }
 
-  static Stream<QuerySnapshot> getSpeakerRequestsStream(String roomId) {
-    return _firestore.collection('rooms').doc(roomId).collection('speaker_requests').orderBy('requestedAt').snapshots();
+  static Stream<DatabaseEvent> getSpeakerRequestsStream(String roomId) {
+    return _roomsRef.child('$roomId/speaker_requests').orderByChild('requestedAt').onValue;
   }
 
   static Future<void> approveSpeakerRequest(String roomId, String requestId, String userId) async {
-    final roomRef = _firestore.collection('rooms').doc(roomId);
-    final requestRef = roomRef.collection('speaker_requests').doc(requestId);
-    final participantRef = roomRef.collection('room_participants').doc(userId);
+    final roomRef = _roomsRef.child(roomId);
+    final requestRef = roomRef.child('speaker_requests/$requestId');
+    final participantRef = roomRef.child('room_participants/$userId');
 
-    final participantsSnapshot = await roomRef.collection('room_participants').get();
-    final occupiedSeats = participantsSnapshot.docs
-        .map((doc) => (doc.data())['seatNo'] as int)
-        .where((seatNo) => seatNo > 0)
-        .toSet();
+    final participantsSnapshot = await roomRef.child('room_participants').get();
+    final occupiedSeats = <int>{};
+
+    if (participantsSnapshot.exists) {
+      final participants = participantsSnapshot.value as Map<dynamic, dynamic>;
+      for (var participant in participants.values) {
+        if (participant is Map) {
+          final seatNo = participant['seatNo'] as int?;
+          if (seatNo != null && seatNo > 0) {
+            occupiedSeats.add(seatNo);
+          }
+        }
+      }
+    }
 
     int? nextAvailableSeat;
     for (int i = 1; i <= 12; i++) {
@@ -268,25 +309,20 @@ class RoomService {
     }
 
     if (nextAvailableSeat == null) {
-      await requestRef.delete();
+      await requestRef.remove();
       throw Exception('All seats are full.');
     }
 
-    final batch = _firestore.batch();
-    batch.update(participantRef, {'seatNo': nextAvailableSeat, 'isMuted': false});
-    batch.delete(requestRef);
-    await batch.commit();
+    await participantRef.update({'seatNo': nextAvailableSeat, 'isMuted': false});
+    await requestRef.remove();
   }
 
   static Future<void> rejectSpeakerRequest(String roomId, String requestId) async {
-    await _firestore.collection('rooms').doc(roomId).collection('speaker_requests').doc(requestId).delete();
+    await _roomsRef.child('$roomId/speaker_requests/$requestId').remove();
   }
 
-  // ## MODIFIED: Fetches latest user profile data before request (Consistency) ##
   static Future<void> requestToBeCoHost(String roomId) async {
     final user = _auth.currentUser!;
-
-    // Fetch latest data from Firestore
     final userProfileDoc = await _firestore.collection('users').doc(user.uid).get();
 
     String userName = user.displayName ?? 'Anonymous';
@@ -298,47 +334,102 @@ class RoomService {
       userPicture = data['photoUrl'] ?? data['profilePicture'] ?? userPicture;
     }
 
-    await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(user.uid).set({
+    await _roomsRef.child('$roomId/cohost_requests/${user.uid}').set({
       'userId': user.uid,
       'userName': userName,
       'userPicture': userPicture,
-      'requestedAt': FieldValue.serverTimestamp(),
+      'requestedAt': ServerValue.timestamp,
     });
   }
 
-  static Stream<QuerySnapshot> getCoHostRequestsStream(String roomId) {
-    return _firestore.collection('rooms').doc(roomId).collection('cohost_requests').orderBy('requestedAt').snapshots();
+  static Stream<DatabaseEvent> getCoHostRequestsStream(String roomId) {
+    return _roomsRef.child('$roomId/cohost_requests').orderByChild('requestedAt').onValue;
   }
 
   static Future<void> approveCoHostRequest(String roomId, String requestId, String userId) async {
-    final roomRef = _firestore.collection('rooms').doc(roomId);
-    final requestRef = roomRef.collection('cohost_requests').doc(requestId);
-    final participantRef = roomRef.collection('room_participants').doc(userId);
-    final roomDoc = await roomRef.get();
-    final hostId = roomDoc.data()?['hostId'];
-    final coHostsSnapshot = await roomRef.collection('room_participants').where('isCoHost', isEqualTo: true).get();
-    final otherCoHosts = coHostsSnapshot.docs.where((doc) => doc.id != hostId);
+    final roomRef = _roomsRef.child(roomId);
+    final requestRef = roomRef.child('cohost_requests/$requestId');
+    final participantRef = roomRef.child('room_participants/$userId');
 
-    if (otherCoHosts.isNotEmpty) {
-      await requestRef.delete();
-      throw Exception('Co-host seat is already occupied.');
+    final roomSnapshot = await roomRef.get();
+    if (!roomSnapshot.exists) throw Exception('Room not found.');
+
+    final roomData = roomSnapshot.value as Map<dynamic, dynamic>;
+    final hostId = roomData['hostId'];
+
+    final participantsSnapshot = await roomRef.child('room_participants').get();
+    if (participantsSnapshot.exists) {
+      final participants = participantsSnapshot.value as Map<dynamic, dynamic>;
+      for (var entry in participants.entries) {
+        if (entry.key != hostId && entry.value is Map) {
+          final participant = entry.value as Map<dynamic, dynamic>;
+          if (participant['isCoHost'] == true) {
+            await requestRef.remove();
+            throw Exception('Co-host seat is already occupied.');
+          }
+        }
+      }
     }
 
-    final batch = _firestore.batch();
-    batch.update(participantRef, {'isCoHost': true, 'seatNo': -1, 'isMuted': false});
-    batch.delete(requestRef);
-    await batch.commit();
+    await participantRef.update({'isCoHost': true, 'seatNo': -1, 'isMuted': false});
+    await requestRef.remove();
   }
 
   static Future<void> rejectCoHostRequest(String roomId, String requestId) async {
-    await _firestore.collection('rooms').doc(roomId).collection('cohost_requests').doc(requestId).delete();
+    await _roomsRef.child('$roomId/cohost_requests/$requestId').remove();
   }
 
   static Future<void> setOrChangeRoomPassword(String roomId, String password) async {
-    await _firestore.collection('rooms').doc(roomId).update({'isLocked': true, 'password': password});
+    await _roomsRef.child(roomId).update({'isLocked': true, 'password': password});
   }
 
   static Future<void> removeRoomPassword(String roomId) async {
-    await _firestore.collection('rooms').doc(roomId).update({'isLocked': false, 'password': null});
+    await _roomsRef.child(roomId).update({'isLocked': false, 'password': null});
+  }
+
+  static Future<void> sendEmoji(String roomId, String emojiUrl, String emojiName) async {
+    final user = _auth.currentUser!;
+    final roomRef = _roomsRef.child(roomId);
+
+    // --- NEW: Check if user is eligible to send emoji ---
+    final participantSnapshot = await roomRef.child('room_participants/${user.uid}').get();
+
+    if (!participantSnapshot.exists) {
+      throw Exception('You must join the room first.');
+    }
+
+    final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
+    final int seatNo = participantData['seatNo'] ?? -1;
+    final bool isCoHost = participantData['isCoHost'] ?? false;
+
+    // Check if user is host
+    final roomSnapshot = await roomRef.get();
+    if (!roomSnapshot.exists) {
+      throw Exception('Room not found.');
+    }
+
+    final roomData = roomSnapshot.value as Map<dynamic, dynamic>;
+    final String hostId = roomData['hostId'] ?? '';
+    final bool isHost = user.uid == hostId;
+
+    // Only allow if user is host, co-host, or has a seat
+    if (!isHost && !isCoHost && seatNo <= 0) {
+      throw Exception('Only host, co-host, and seated participants can send emojis.');
+    }
+
+    String userName = participantData['userName'] ?? 'User';
+
+    // --- CHANGED: Now includes senderId ---
+    await roomRef.child('emoji_events').push().set({
+      'senderId': user.uid,
+      'senderName': userName,
+      'emojiUrl': emojiUrl,
+      'emojiName': emojiName,
+      'timestamp': ServerValue.timestamp,
+    });
+  }
+
+  static Stream<DatabaseEvent> getEmojiStream(String roomId) {
+    return _roomsRef.child('$roomId/emoji_events').onChildAdded;
   }
 }

@@ -1,8 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+// import 'package:flutter/services.dart'; // No longer needed for Clipboard if we strictly use Share.share
+import 'package:share_plus/share_plus.dart'; // REQUIRED: Add 'share_plus' to pubspec.yaml
 import '../../../data/remote/firebase/inbox_service.dart';
+
+// Helper Enum to ensure consistency
+enum RoomType { audio, video, live }
 
 class ShareUser {
   final String id;
@@ -16,8 +21,9 @@ class ShareUser {
 class ShareBottomSheet extends StatefulWidget {
   final String roomId;
   final String hostName;
+  final RoomType roomType;
 
-  const ShareBottomSheet({super.key, required this.roomId, required this.hostName});
+  const ShareBottomSheet({super.key, required this.roomId, required this.hostName, required this.roomType});
 
   @override
   State<ShareBottomSheet> createState() => _ShareBottomSheetState();
@@ -33,7 +39,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   final Set<String> _selectedUserIds = {};
 
   bool _isLoading = true;
-  String _filterMode = 'All'; // All | Marked | Unmarked
+  String _filterMode = 'All';
 
   @override
   void initState() {
@@ -120,7 +126,6 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   void _filterList() {
     final query = _searchController.text.toLowerCase();
-
     setState(() {
       _filteredUsers = _allUsers.where((user) {
         final matchesSearch = user.name.toLowerCase().contains(query);
@@ -148,7 +153,6 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   void _handleShare() async {
     if (_selectedUserIds.isEmpty) return;
-
     try {
       await InboxService.sendRoomInvite(
         receiverIds: _selectedUserIds.toList(),
@@ -166,14 +170,19 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     }
   }
 
-  void _handleCopyLink() {
-    final String link = "https://ms-live-links.web.app/room/${widget.roomId}";
+  // --- CHANGED LOGIC HERE: Opens Native Share Sheet ---
+  void _handleExternalShare() {
+    final String typeStr = widget.roomType.name;
 
-    Clipboard.setData(ClipboardData(text: link));
+    // 1. Generate Link
+    final String link = "https://ms-live-links.web.app/room/${widget.roomId}?type=$typeStr";
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied! Share it to invite others.'), backgroundColor: Colors.blue),
-    );
+    // 2. Create Message
+    final String message = "Join my $typeStr room on MS Live! \n$link";
+
+    // 3. Trigger Native Share Sheet (WhatsApp, Telegram, etc.)
+    // Note: Most native share sheets include a "Copy" option inside them as well.
+    Share.share(message, subject: "Join MS Live Room");
   }
 
   @override
@@ -188,6 +197,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           ),
         ),
         const Divider(color: Colors.white24, height: 1),
+
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(
@@ -207,7 +217,6 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
                       prefixIcon: Icon(Icons.search, color: Colors.white54, size: 20),
                       border: InputBorder.none,
-                      // Adjusted vertical padding here
                       contentPadding: EdgeInsets.symmetric(vertical: 3),
                     ),
                   ),
@@ -243,7 +252,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
           child: Row(
             children: [
               Text(
@@ -251,46 +260,31 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold, fontSize: 15),
               ),
               const Spacer(),
-              OutlinedButton(
-                onPressed: _handleCopyLink,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white24),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                  minimumSize: const Size(0, 32),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.copy_rounded, color: Colors.white70, size: 16),
-                    SizedBox(width: 6),
-                    Text("Copy", style: TextStyle(color: Colors.white, fontSize: 12)),
-                  ],
-                ),
+
+              // --- UPDATED BUTTON: System Share ---
+              // Renamed from Copy to Share, changed icon to share_rounded, kept Yellow color
+              IconButton(
+                onPressed: _handleExternalShare,
+                icon: const Icon(Icons.share_rounded, color: Colors.yellow, size: 28),
+                tooltip: 'Share via...',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
+
+              const SizedBox(width: 16),
+
+              // --- Internal Share Button ---
+              IconButton(
                 onPressed: _selectedUserIds.isEmpty ? null : _handleShare,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.pink,
-                  disabledBackgroundColor: Colors.grey.shade800,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                  minimumSize: const Size(0, 32),
+                icon: Icon(
+                  Icons.send_rounded,
+                  color: _selectedUserIds.isEmpty ? Colors.grey : Colors.blueAccent,
+                  size: 28,
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.send_rounded, color: Colors.white, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      "Share",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(_selectedUserIds.isEmpty ? 0.5 : 1.0),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
+                tooltip: 'Send Invite to Selected',
+                padding: EdgeInsets.zero,
+                disabledColor: Colors.grey,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
@@ -342,7 +336,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 }
 
-void showShareBottomSheet(BuildContext context, String roomId, String hostName) {
+// Updated Helper Function
+void showShareBottomSheet(BuildContext context, String roomId, String hostName, RoomType roomType) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -350,7 +345,7 @@ void showShareBottomSheet(BuildContext context, String roomId, String hostName) 
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
     builder: (context) => FractionallySizedBox(
       heightFactor: 0.85,
-      child: ShareBottomSheet(roomId: roomId, hostName: hostName),
+      child: ShareBottomSheet(roomId: roomId, hostName: hostName, roomType: roomType),
     ),
   );
 }

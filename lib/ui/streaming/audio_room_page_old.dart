@@ -222,7 +222,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with TickerProviderStateM
       child: Row(
         children: [
           _buildAchievementChip(
-            icon: Icons.diamond_rounded,
+            icon: Icons.diamond_outlined,
             count: _streamer.diamonds,
             color: Colors.cyan,
             label: 'Diamonds',

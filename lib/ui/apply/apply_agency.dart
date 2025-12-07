@@ -1,10 +1,11 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:country_picker/country_picker.dart';
+import 'package:intl/intl.dart';
 
 import '../../data/remote/firebase/profile_services.dart';
 import '../../theme/app_theme.dart';
@@ -21,14 +22,14 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
   bool _isLoading = false;
   bool _isCheckingStatus = true;
   String? _applicationStatus;
+  Map<String, dynamic>? _applicationData;
 
-  // ## NEW: State for conflicting application ##
+  // State for conflicting application
   String? _conflictingApplicationError;
 
   // Controllers
   final _agencyNameController = TextEditingController();
   final _holderNameController = TextEditingController();
-  final _agencyIdController = TextEditingController();
   final _emailController = TextEditingController();
   final _whatsappController = TextEditingController();
   final _referenceController = TextEditingController();
@@ -49,28 +50,25 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
   void dispose() {
     _agencyNameController.dispose();
     _holderNameController.dispose();
-    _agencyIdController.dispose();
     _emailController.dispose();
     _whatsappController.dispose();
     _referenceController.dispose();
     super.dispose();
   }
 
-  // ## MODIFIED: Check for both agency and hosting applications ##
   Future<void> _checkApplicationStatus() async {
     setState(() {
       _isCheckingStatus = true;
     });
     try {
-      // 1. Check for its OWN application status first
       final statusDoc = await ProfileService.getAgencyApplicationStatus();
       if (statusDoc.exists) {
         final data = statusDoc.data() as Map<String, dynamic>;
         setState(() {
-          _applicationStatus = data['status']; // e.g., 'pending', 'approved'
+          _applicationStatus = data['status'];
+          _applicationData = data;
         });
       } else {
-        // 2. If NO own application, check for a CONFLICTING (hosting) application
         final hostingStatusDoc = await ProfileService.getHostingApplicationStatus();
         if (hostingStatusDoc.exists) {
           setState(() {
@@ -80,7 +78,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
       }
     } catch (e) {
       debugPrint("Error checking status: $e");
-      // Optionally show a generic error
     } finally {
       setState(() {
         _isCheckingStatus = false;
@@ -98,6 +95,22 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
     }
   }
 
+  // Clear form and reset state
+  void _clearForm() {
+    _formKey.currentState?.reset();
+    _agencyNameController.clear();
+    _holderNameController.clear();
+    _emailController.clear();
+    _whatsappController.clear();
+    _referenceController.clear();
+    setState(() {
+      _selectedCountryName = null;
+      _selectedCountryFlagEmoji = null;
+      _nidFrontImage = null;
+      _nidBackImage = null;
+    });
+  }
+
   Future<void> _submitApplication() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
     if (_nidFrontImage == null || _nidBackImage == null) {
@@ -113,7 +126,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
       await ProfileService.applyForAgency(
         agencyName: _agencyNameController.text,
         holderName: _holderNameController.text,
-        agencyId: _agencyIdController.text,
         email: _emailController.text,
         whatsappNumber: _whatsappController.text,
         location: _selectedCountryName ?? 'N/A',
@@ -125,7 +137,8 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application submitted successfully!')));
       if (mounted) {
-        context.pop();
+        _clearForm();
+        _checkApplicationStatus();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error submitting application: $e')));
@@ -133,6 +146,97 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _cancelApplication() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Cancel Application', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Are you sure you want to cancel your agency application?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Yes, Cancel', style: TextStyle(color: Colors.red.shade400)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        await ProfileService.cancelAgencyApplication();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application cancelled successfully')));
+        if (mounted) {
+          setState(() {
+            _applicationStatus = null;
+            _applicationData = null;
+          });
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cancelling application: $e')));
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // NEW: Handle re-apply action for rejected applications
+  Future<void> _reApplyApplication() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Re-apply for Agency', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Your previous application will be deleted and you can submit a new one. Continue?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Continue', style: TextStyle(color: AppColors.pink)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        await ProfileService.cancelAgencyApplication();
+        if (mounted) {
+          setState(() {
+            _applicationStatus = null;
+            _applicationData = null;
+          });
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('You can now submit a new application')));
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -145,14 +249,17 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
           child: Column(
             children: [
               _buildHeader(),
-              // ## MODIFIED: Handle all 3 states (loading, conflict, status, form) ##
               Expanded(
                 child: _isCheckingStatus
                     ? Center(child: CircularProgressIndicator(color: AppColors.pink))
                     : _conflictingApplicationError != null
                     ? _buildErrorDisplay(_conflictingApplicationError!)
                     : _applicationStatus != null
-                    ? _buildStatusDisplay()
+                    ? (_applicationStatus == 'accept'
+                          ? _buildApprovedDisplay()
+                          : _applicationStatus == 'reject'
+                          ? _buildRejectedDisplay()
+                          : _buildPendingDisplay())
                     : _buildForm(),
               ),
             ],
@@ -164,7 +271,7 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: EdgeInsets.only(left: 0, right: 20, top: 0, bottom: 10),
+      padding: const EdgeInsets.only(left: 0, right: 20, top: 0, bottom: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -178,14 +285,13 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Colors.white,
-              shadows: [Shadow(color: Colors.pink.withOpacity(0.3), blurRadius: 10, offset: Offset(0, 2))],
+              shadows: [Shadow(color: Colors.pink.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 2))],
             ),
           ),
-          Spacer(),
-          // Only show submit button if form is visible
+          const Spacer(),
           if (_isLoading)
             Padding(
-              padding: const EdgeInsets.only(right: 12.0),
+              padding: EdgeInsets.only(right: 12.0),
               child: SizedBox(
                 width: 24,
                 height: 24,
@@ -205,7 +311,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
     );
   }
 
-  // ## NEW: Widget to display the conflicting error ##
   Widget _buildErrorDisplay(String message) {
     return Center(
       child: Padding(
@@ -215,14 +320,14 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
           children: [
             Icon(CupertinoIcons.xmark_octagon_fill, color: Colors.red.shade400, size: 80),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'Application Blocked',
               style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
               message,
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
@@ -231,27 +336,307 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
     );
   }
 
-  Widget _buildStatusDisplay() {
-    return Center(
+  Widget _buildPendingDisplay() {
+    if (_applicationData == null) return const SizedBox();
+
+    final String agencyName = _applicationData!['agencyName'] ?? 'N/A';
+    final String holderName = _applicationData!['holderName'] ?? 'N/A';
+    final String email = _applicationData!['email'] ?? 'N/A';
+    final String whatsappNumber = _applicationData!['whatsappNumber'] ?? 'N/A';
+    final String location = _applicationData!['location'] ?? 'N/A';
+    final String? locationFlag = _applicationData!['locationFlag'];
+    final String reference = _applicationData!['reference'] ?? 'N/A';
+    final submittedAt = _applicationData!['submittedAt'];
+
+    String submittedDate = 'N/A';
+    if (submittedAt != null) {
+      try {
+        final timestamp = submittedAt as dynamic;
+        final dateTime = timestamp.toDate();
+        submittedDate = DateFormat('MMM dd, yyyy').format(dateTime);
+      } catch (e) {
+        submittedDate = 'N/A';
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            _applicationStatus == 'pending' ? CupertinoIcons.clock_fill : CupertinoIcons.check_mark_circled_solid,
-            color: _applicationStatus == 'pending' ? Colors.amber : Colors.green,
-            size: 80,
-          ),
           const SizedBox(height: 20),
-          Text('Your application is ${_applicationStatus!}.', style: TextStyle(color: Colors.white, fontSize: 18)),
+          Icon(CupertinoIcons.clock_fill, color: Colors.amber, size: 80),
+          const SizedBox(height: 20),
+          const Text(
+            'Application Pending',
+            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
-          Text('Admin will review your submission shortly.', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const Text(
+            'Your agency application is under review',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 30),
+          _buildInfoCard('Agency Name', agencyName, CupertinoIcons.building_2_fill),
+          const SizedBox(height: 15),
+          _buildInfoCard('Holder Name', holderName, CupertinoIcons.person_fill),
+          const SizedBox(height: 15),
+          _buildInfoCard('Email', email, CupertinoIcons.mail_solid),
+          const SizedBox(height: 15),
+          _buildInfoCard('WhatsApp Number', whatsappNumber, Icons.message),
+          const SizedBox(height: 15),
+          _buildInfoCard(
+            'Location',
+            locationFlag != null ? '$locationFlag $location' : location,
+            CupertinoIcons.location_solid,
+          ),
+          const SizedBox(height: 15),
+          _buildInfoCard('Reference', reference, CupertinoIcons.group_solid),
+          const SizedBox(height: 15),
+          _buildInfoCard('Submitted On', submittedDate, CupertinoIcons.calendar),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            onPressed: _isLoading ? null : _cancelApplication,
+            icon: const Icon(CupertinoIcons.xmark_circle_fill),
+            label: const Text('Cancel Application'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          ),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
+  // NEW: Build rejected display with reason and re-apply option
+  Widget _buildRejectedDisplay() {
+    if (_applicationData == null) return const SizedBox();
+
+    final String agencyName = _applicationData!['agencyName'] ?? 'N/A';
+    final String holderName = _applicationData!['holderName'] ?? 'N/A';
+    final String email = _applicationData!['email'] ?? 'N/A';
+    final String whatsappNumber = _applicationData!['whatsappNumber'] ?? 'N/A';
+    final String location = _applicationData!['location'] ?? 'N/A';
+    final String? locationFlag = _applicationData!['locationFlag'];
+    final String reference = _applicationData!['reference'] ?? 'N/A';
+    final String? reason = _applicationData!['reason'];
+    final submittedAt = _applicationData!['submittedAt'];
+
+    String submittedDate = 'N/A';
+    if (submittedAt != null) {
+      try {
+        final timestamp = submittedAt as dynamic;
+        final dateTime = timestamp.toDate();
+        submittedDate = DateFormat('MMM dd, yyyy').format(dateTime);
+      } catch (e) {
+        submittedDate = 'N/A';
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          Icon(CupertinoIcons.xmark_circle_fill, color: Colors.red.shade400, size: 80),
+          const SizedBox(height: 20),
+          const Text(
+            'Application Rejected',
+            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Your agency application was not approved',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+
+          // Show rejection reason if available
+          if (reason != null && reason.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade900.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.red.withOpacity(0.4), width: 1),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(CupertinoIcons.info_circle_fill, color: Colors.red.shade300, size: 20),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Rejection Reason',
+                            style: TextStyle(color: Colors.red.shade300, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(reason, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 30),
+          const Text(
+            'Your Previous Application Details',
+            style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 15),
+          _buildInfoCard('Agency Name', agencyName, CupertinoIcons.building_2_fill),
+          const SizedBox(height: 15),
+          _buildInfoCard('Holder Name', holderName, CupertinoIcons.person_fill),
+          const SizedBox(height: 15),
+          _buildInfoCard('Email', email, CupertinoIcons.mail_solid),
+          const SizedBox(height: 15),
+          _buildInfoCard('WhatsApp Number', whatsappNumber, Icons.message),
+          const SizedBox(height: 15),
+          _buildInfoCard(
+            'Location',
+            locationFlag != null ? '$locationFlag $location' : location,
+            CupertinoIcons.location_solid,
+          ),
+          const SizedBox(height: 15),
+          _buildInfoCard('Reference', reference, CupertinoIcons.group_solid),
+          const SizedBox(height: 15),
+          _buildInfoCard('Submitted On', submittedDate, CupertinoIcons.calendar),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            onPressed: _isLoading ? null : _reApplyApplication,
+            icon: const Icon(CupertinoIcons.arrow_clockwise),
+            label: const Text('Re-apply'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.pink,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApprovedDisplay() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(CupertinoIcons.check_mark_circled_solid, color: Colors.green, size: 80),
+            const SizedBox(height: 20),
+            const Text(
+              'Congratulations!',
+              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'You are now an agency',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Please visit the agency portal to manage your agency',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 30),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final Uri url = Uri.parse('https://ms-live-mother-portal.web.app');
+
+                try {
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(
+                      url,
+                      mode: LaunchMode.externalApplication, // Opens in default browser
+                    );
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('Could not open the agency portal')));
+                    }
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error opening portal: $e')));
+                  }
+                }
+              },
+              icon: const Icon(CupertinoIcons.arrow_right_circle_fill),
+              label: const Text('Go to Agency Portal'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pink,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String label, String value, IconData icon) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.pinkLight, size: 24),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      value,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildForm() {
-    // ... (This function remains unchanged)
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Form(
@@ -274,13 +659,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
             ),
             const SizedBox(height: 20),
             _buildGlassyTextField(
-              controller: _agencyIdController,
-              label: 'Agency ID',
-              icon: CupertinoIcons.number,
-              validator: (v) => v!.isEmpty ? 'Agency ID is required' : null,
-            ),
-            const SizedBox(height: 20),
-            _buildGlassyTextField(
               controller: _emailController,
               label: 'Email',
               icon: CupertinoIcons.mail_solid,
@@ -292,7 +670,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
               controller: _whatsappController,
               label: 'WhatsApp Number',
               icon: Icons.message,
-              // Using a Material icon
               keyboardType: TextInputType.phone,
               validator: (v) => v!.isEmpty ? 'WhatsApp number is required' : null,
             ),
@@ -327,8 +704,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
     );
   }
 
-  // --- Reusable Widgets (Unchanged) ---
-
   Widget _buildGlassyTextField({
     required TextEditingController controller,
     required String label,
@@ -339,7 +714,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
   }) {
-    // ... (This function remains unchanged)
     return ClipRRect(
       borderRadius: BorderRadius.circular(15),
       child: BackdropFilter(
@@ -361,7 +735,7 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
                 child: TextFormField(
                   controller: controller,
                   validator: validator,
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                   minLines: minLines,
                   maxLines: maxLines,
                   maxLength: maxLength,
@@ -383,7 +757,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
   }
 
   Widget _buildCountryPicker() {
-    // ... (This function remains unchanged)
     String countryText = _selectedCountryName ?? 'Select Location (Country)';
     Widget prefixWidget = _selectedCountryFlagEmoji != null
         ? Text(_selectedCountryFlagEmoji!, style: const TextStyle(fontSize: 26))
@@ -454,7 +827,6 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
   }
 
   Widget _buildImagePicker({required String label, File? imageFile, required VoidCallback onTap}) {
-    // ... (This function remains unchanged)
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -477,14 +849,14 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
                     children: [
                       Icon(CupertinoIcons.camera_fill, color: AppColors.pinkLight, size: 40),
                       const SizedBox(height: 8),
-                      Text('Tap to upload', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const Text('Tap to upload', style: TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
                   ),
           ),
           const SizedBox(height: 8),
           Text(
             label,
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ],
       ),

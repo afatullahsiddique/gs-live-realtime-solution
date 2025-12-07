@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -54,12 +55,19 @@ class LoginCubit extends Cubit<LoginState> {
         print("Error syncing user profile: $profileError");
       }
 
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).get();
+
+      final userData = userDoc.data();
+
       final User? user = User(
         id: userCredential.user!.uid,
-        name: userCredential.user!.displayName ?? "Unknown",
+        // Try to get the displayId from Firestore, fallback to empty if something failed
+        displayId: userData?['displayId'] ?? "",
+        name: userData?['displayName'] ?? userCredential.user!.displayName ?? "Unknown",
         email: userCredential.user!.email!,
-        avatar: userCredential.user!.photoURL,
+        avatar: userData?['photoUrl'] ?? userCredential.user!.photoURL,
       );
+
       secureStorage.setUser(user!);
       emit(state.copyWith(status: LoginStatus.success, user: user));
     } catch (e) {
