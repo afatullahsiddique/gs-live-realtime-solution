@@ -65,6 +65,7 @@ flutter:
     - assets/animations/
     - assets/svga/
     - assets/banner/
+    - assets/room_bg/
 
 
 flutter_icons:

@@ -767,33 +767,40 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         return shouldExit ?? false;
       },
       child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-              stops: [0.0, 0.3, 0.6, 0.8, 1.0],
+        body: Stack(
+          children: [
+            // Background Image
+            Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(image: AssetImage("assets/room_bg/audio.jpeg"), fit: BoxFit.cover),
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: _isInitialized
-                ? Stack(
-                    children: [
-                      Column(
-                        children: [
-                          _buildAppBar(),
-                          _buildHostStatsRow(),
-                          Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
-                          Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
-                          _buildChatInput(),
-                        ],
-                      ),
-                      Center(child: _buildJoinAnimationOverlay()),
-                    ],
-                  )
-                : const Center(child: CircularProgressIndicator(color: Colors.pink)),
-          ),
+
+            // 🔥 Dark Overlay (adjust opacity)
+            Container(
+              color: Colors.black.withOpacity(0.5), // 0.3–0.6 recommended
+            ),
+
+            // Page Content
+            SafeArea(
+              child: _isInitialized
+                  ? Stack(
+                      children: [
+                        Column(
+                          children: [
+                            _buildAppBar(),
+                            _buildHostStatsRow(),
+                            Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
+                            Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
+                            _buildChatInput(),
+                          ],
+                        ),
+                        Center(child: _buildJoinAnimationOverlay()),
+                      ],
+                    )
+                  : const Center(child: CircularProgressIndicator(color: Colors.pink)),
+            ),
+          ],
         ),
       ),
     );
