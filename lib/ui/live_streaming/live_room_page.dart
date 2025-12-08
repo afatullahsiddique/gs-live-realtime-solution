@@ -130,6 +130,9 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
   bool _roomDoesNotExist = false;
   String _currentUserName = "Me";
   final Set<String> _dialogsShownForInviteIds = {};
+  String _roomNotice = "";
+  ZegoVoiceChangerPreset _currentVoicePreset = ZegoVoiceChangerPreset.None;
+  bool _isSpeakerOn = true;
 
   // PK State Variables
   bool _isPKMode = false;
@@ -339,6 +342,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
         setState(() {
           roomData = data;
           _participantCount = roomData['participantCount'] ?? 0;
+          _roomNotice = roomData['notice'] ?? "";
         });
 
         final newPKState = data['pkState'] != null
@@ -1376,72 +1380,101 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
   }
 
   Widget _buildChatSection() {
-    return SizedBox(
+    return Container(
       width: MediaQuery.of(context).size.width,
       height: MediaQuery.of(context).size.height * 0.25,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: Colors.black.withOpacity(0.2)),
       child: ListView.builder(
         reverse: true,
         controller: _chatScrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        padding: const EdgeInsets.all(12),
         itemCount: _messages.length + 1,
         itemBuilder: (context, index) {
           if (index == _messages.length) {
-            return const Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 150,
                     child: Text(
                       "Any sexual or violation content is strictly prohibited. All violator will be banned. Do not expose your personal info such phone or location.",
                       style: TextStyle(color: Colors.white, fontSize: 10),
                     ),
                   ),
+                  if (_roomNotice.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.pink.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.pink.withOpacity(0.5), width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.campaign, color: Colors.pink, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _roomNotice,
+                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
           }
+
+          // Chat messages
           final m = _messages[index];
+
           return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade700,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
-                          ],
-                        ),
-                        child: const Text(
-                          "Lv 1",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade700,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: const Text(
+                        "Lv 1",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      Flexible(
-                        child: Text(
-                          "${m.username}: ",
-                          style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(m.message, style: const TextStyle(color: Colors.white, fontSize: 14), softWrap: true),
-                ],
-              ),
+                    ),
+                    Text(
+                      "${m.username}: ",
+                      style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 0, top: 2),
+                  child: Text(m.message, style: const TextStyle(color: Colors.white)),
+                ),
+              ],
             ),
           );
         },

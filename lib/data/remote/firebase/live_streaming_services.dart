@@ -46,6 +46,7 @@ class LiveStreamService {
       'participantCount': 1,
       'isLocked': false,
       'password': null,
+      'notice': '', // ADD THIS LINE
     });
 
     final participantRef = roomRef.child('participants/${user.uid}');
@@ -85,6 +86,20 @@ class LiveStreamService {
     final roomRef = _roomsRef.child(roomId);
     await roomRef.onDisconnect().cancel();
     await roomRef.remove();
+  }
+
+  // ============================================================================
+  // ROOM SETTINGS
+  // ============================================================================
+
+  /// Sets or updates the room notice
+  static Future<void> setRoomNotice(String roomId, String notice) async {
+    try {
+      await _roomsRef.child(roomId).update({'notice': notice});
+    } catch (e) {
+      print('Error setting room notice: $e');
+      throw Exception('Failed to set room notice');
+    }
   }
 
   // ============================================================================
@@ -514,7 +529,7 @@ class LiveStreamService {
   // ============================================================================
 
   /// Sends a random PK invite globally
-  static Future<void> sendRandomPKInvite({required String senderRoomId, required int durationInMinutes}) async {
+  static Future<void> sendGlobalRandomPKInvite(String senderRoomId, int durationInMinutes) async {
     final user = _auth.currentUser!;
 
     final senderRoomSnapshot = await _roomsRef.child(senderRoomId).get();
