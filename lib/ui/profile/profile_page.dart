@@ -64,6 +64,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         context.push(Routes.editProfile.path);
                       },
                     ),
+                    IconButton(
+                      icon: Icon(CupertinoIcons.settings, size: 28, color: AppColors.pink),
+                      onPressed: () {
+                        context.push(Routes.settingsPage.path);
+                      },
+                    ),
                   ],
                 ),
               ),

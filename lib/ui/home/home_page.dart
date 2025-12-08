@@ -180,11 +180,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           onTap: () {
             context.push(Routes.myLevel.path);
           },
-          onLongPress: () {
-            final appCubit = GetIt.I<AppCubit>();
-            appCubit.logout();
-            context.go(Routes.login.path);
-          },
           child: Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Icon(Icons.emoji_events_outlined, color: Colors.amber[700], size: 24),

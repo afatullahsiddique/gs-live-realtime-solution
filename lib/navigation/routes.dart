@@ -31,6 +31,7 @@ enum Routes {
   applyAgency,
   inbox,
   chat,
+  settingsPage,
 }
 
 extension RoutesExtension on Routes {
@@ -102,6 +103,8 @@ extension RoutesExtension on Routes {
         return '/inbox';
       case Routes.chat:
         return '/chat';
+      case Routes.settingsPage:
+        return '/settingsPage';
     }
   }
 }
