@@ -880,89 +880,80 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
   }
 
   Widget _buildAppBar() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.5), Colors.transparent],
-        ),
-      ),
+    return Padding(
+      padding: EdgeInsets.only(top: MediaQuery.of(context).viewPadding.top),
       child: Padding(
-        padding: EdgeInsets.only(top: MediaQuery.of(context).viewPadding.top),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 6.0),
-          child: Row(
-            children: [
-              CircleAvatar(radius: 20, backgroundImage: NetworkImage(roomData['hostPicture'] ?? '')),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (_isPKMode)
-                          Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-                            child: const Text(
-                              'PK',
-                              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        SizedBox(
-                          width: 120,
-                          child: AutoScrollText(
-                            text: roomData["hostName"],
-                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 6.0),
+        child: Row(
+          children: [
+            CircleAvatar(radius: 20, backgroundImage: NetworkImage(roomData['hostPicture'] ?? '')),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (_isPKMode)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
+                          child: const Text(
+                            'PK',
+                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ),
-                      ],
-                    ),
+                      SizedBox(
+                        width: 120,
+                        child: AutoScrollText(
+                          text: roomData["hostName"],
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'ID: ${roomData['hostDisplayId']}',
+                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                showLiveStreamParticipantsBottomSheet(
+                  context,
+                  participants: _participants,
+                  currentUserId: _auth.currentUser!.uid,
+                  hostId: roomData['hostId'],
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(CupertinoIcons.person_2_fill, color: Colors.pink, size: 18),
+                    const SizedBox(width: 6),
                     Text(
-                      'ID: ${roomData['hostDisplayId']}',
-                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                      _participantCount.toString(),
+                      style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  showLiveStreamParticipantsBottomSheet(
-                    context,
-                    participants: _participants,
-                    currentUserId: _auth.currentUser!.uid,
-                    hostId: roomData['hostId'],
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.25),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(CupertinoIcons.person_2_fill, color: Colors.pink, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        _participantCount.toString(),
-                        style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
-                onPressed: _showExitConfirmationDialog,
-                tooltip: 'Exit Room',
-              ),
-            ],
-          ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.exit_to_app_rounded, size: 28, color: Colors.grey),
+              onPressed: _showExitConfirmationDialog,
+              tooltip: 'Exit Room',
+            ),
+          ],
         ),
       ),
     );
@@ -1385,16 +1376,9 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
   }
 
   Widget _buildChatSection() {
-    return Container(
+    return SizedBox(
       width: MediaQuery.of(context).size.width,
-      height: MediaQuery.of(context).size.height * 0.35,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.6)],
-        ),
-      ),
+      height: MediaQuery.of(context).size.height * 0.25,
       child: ListView.builder(
         reverse: true,
         controller: _chatScrollController,
