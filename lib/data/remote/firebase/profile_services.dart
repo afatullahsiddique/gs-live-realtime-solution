@@ -556,5 +556,4 @@ class ProfileService {
       rethrow;
     }
   }
-
 }

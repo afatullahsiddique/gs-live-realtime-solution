@@ -1,16 +1,14 @@
 import 'dart:developer';
-import 'package:cute_live/ui/home/tabs/party_tab.dart';
 import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:ui';
 
-import '../../core/cubits/app_cubit.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
 import 'home_cubit.dart';
@@ -60,34 +58,34 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Future<bool> _showExitConfirmationDialog() async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2d1b2b),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Exit App',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Do you really want to close the application?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.pink,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2d1b2b),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              'Exit App',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Exit', style: TextStyle(color: Colors.white)),
+            content: const Text(
+              'Do you really want to close the application?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.pink,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Exit', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-        ],
-      ),
-    ) ??
+        ) ??
         false;
   }
 
@@ -121,7 +119,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           children: [
                             _buildPopularTab(cubit),
                             SingleChildScrollView(child: _buildFresherGrid(cubit)),
-                            PartyTab(streamers: _streamers),
+                            _buildPartyTab(cubit),
                             PKTab(streamers: _streamers),
                             _buildGamesTab(),
                           ],
@@ -312,50 +310,333 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildFresherGrid(HomeCubit cubit) {
-    // Note: If you want Freshers to also use live data, repeat the StreamBuilder logic here
-    // For now, keeping your original static implementation mixed with logic
-    return Column(
-      children: [
-        CarouselBanner(
-          imageUrls: BannerUrls.liveStreamingBanners,
-          autoPlayDuration: const Duration(seconds: 4),
-          onBannerTap: (index) {
-            print('Banner $index tapped');
-          },
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 16, bottom: 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: .9,
+    return StreamBuilder<List<StreamerModel>>(
+      stream: cubit.freshersStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Column(
+            children: [
+              CarouselBanner(
+                imageUrls: BannerUrls.liveStreamingBanners,
+                autoPlayDuration: const Duration(seconds: 4),
+                onBannerTap: (index) {
+                  print('Banner $index tapped');
+                },
+              ),
+              const SizedBox(height: 100),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Column(
+            children: [
+              CarouselBanner(
+                imageUrls: BannerUrls.liveStreamingBanners,
+                autoPlayDuration: const Duration(seconds: 4),
+                onBannerTap: (index) {
+                  print('Banner $index tapped');
+                },
+              ),
+              const SizedBox(height: 100),
+              Center(
+                child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        }
+
+        final freshers = snapshot.data ?? [];
+
+        if (freshers.isEmpty) {
+          return Column(
+            children: [
+              CarouselBanner(
+                imageUrls: BannerUrls.liveStreamingBanners,
+                autoPlayDuration: const Duration(seconds: 4),
+                onBannerTap: (index) {
+                  print('Banner $index tapped');
+                },
+              ),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+              Icon(Icons.videocam_off, size: 60, color: Colors.white.withOpacity(0.5)),
+              const SizedBox(height: 16),
+              Text("No room is currently active", style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16)),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            CarouselBanner(
+              imageUrls: BannerUrls.liveStreamingBanners,
+              autoPlayDuration: const Duration(seconds: 4),
+              onBannerTap: (index) {
+                print('Banner $index tapped');
+              },
             ),
-            itemCount: _streamers.length,
-            itemBuilder: (context, index) {
-              const List<String> fresherAnimationPaths = [
-                "assets/animations/f_1.webp",
-                "assets/animations/f_2.webp",
-                "assets/animations/f_3.webp",
-              ];
-
-              String? animationPath;
-              if (index < fresherAnimationPaths.length) {
-                animationPath = fresherAnimationPaths[index];
-              }
-
-              return AnimatedStreamerCard(streamer: _streamers[index], animationFilePath: animationPath);
-            },
-          ),
-        ),
-      ],
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(top: 16, bottom: 16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: .9,
+                ),
+                itemCount: freshers.length,
+                itemBuilder: (context, index) {
+                  return AnimatedStreamerCard(streamer: freshers[index]);
+                },
+              ),
+            ),
+            const SizedBox(height: 80),
+          ],
+        );
+      },
     );
   }
 
+  Widget _buildPartyTab(HomeCubit cubit) {
+    return StreamBuilder<List<StreamerModel>>(
+      stream: cubit.audioRoomsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
+          );
+        }
+
+        final audioRooms = snapshot.data ?? [];
+
+        if (audioRooms.isEmpty) {
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                CarouselBanner(
+                  imageUrls: BannerUrls.liveStreamingBanners,
+                  height: 120,
+                  autoPlayDuration: const Duration(seconds: 4),
+                  onBannerTap: (bannerIndex) {
+                    print('Banner $bannerIndex tapped');
+                  },
+                ),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                Icon(Icons.mic_off, size: 60, color: Colors.white.withOpacity(0.5)),
+                const SizedBox(height: 16),
+                Text(
+                  "No audio room is currently active",
+                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 80),
+          itemCount: audioRooms.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              // First item = Banner
+              return CarouselBanner(
+                imageUrls: BannerUrls.liveStreamingBanners,
+                height: 120,
+                autoPlayDuration: const Duration(seconds: 4),
+                onBannerTap: (bannerIndex) {
+                  print('Banner $bannerIndex tapped');
+                },
+              );
+            }
+
+            // Other items = Streamer cards
+            final streamer = audioRooms[index - 1];
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: GestureDetector(
+                onTap: () {
+                  // Use the same navigation logic as AnimatedStreamerCard
+                  if (streamer.isLiveStream) {
+                    context.push(Routes.liveStream.path, extra: {"roomId": streamer.id, "isHost": false});
+                  } else if (!streamer.isVideo) {
+                    context.push(Routes.audioRoom.path, extra: {"roomId": streamer.id, "isHost": false});
+                  } else {
+                    context.push(Routes.videoRoom.path, extra: {"roomId": streamer.id, "isHost": false});
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Stack(
+                    children: [
+                      // Animated border overlay
+                      if (index <= 3)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            "assets/animations/border_effect_$index.gif",
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: 120,
+                          ),
+                        ),
+                      // Semi-transparent overlay for better readability
+                      Container(
+                        height: 120,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            colors: [Colors.black.withOpacity(0.7), Colors.black.withOpacity(0.3), Colors.transparent],
+                            stops: const [0.0, 0.6, 1.0],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                        ),
+                      ),
+                      // Content container
+                      Container(
+                        height: 120,
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            // Left side: Text content
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Streamer name with better contrast
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
+                                    ),
+                                    child: Text(
+                                      streamer.name,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        shadows: [Shadow(offset: Offset(1, 1), blurRadius: 3, color: Colors.black54)],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Bio text - keeping empty as real data has empty bio
+                                  if (streamer.bio.isNotEmpty)
+                                    Text(
+                                      streamer.bio,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.3,
+                                        shadows: const [
+                                          Shadow(offset: Offset(0.5, 0.5), blurRadius: 2, color: Colors.black54),
+                                        ],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  const Spacer(),
+                                  // Diamond count with icon (instead of view count)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.visibility, size: 14, color: Colors.white.withOpacity(0.8)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${streamer.viewCount}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white.withOpacity(0.8),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Right side: Profile image with enhanced styling
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: streamer.imageUrl != null
+                                    ? Image.network(
+                                        streamer.imageUrl!,
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 80,
+                                            height: 80,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[800],
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(Icons.person, color: Colors.white.withOpacity(0.7), size: 40),
+                                          );
+                                        },
+                                      )
+                                    : Container(
+                                        width: 80,
+                                        height: 80,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[800],
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(Icons.person, color: Colors.white.withOpacity(0.7), size: 40),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildGamesTab() {
     final List<Map<String, String>> games = [
@@ -363,7 +644,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       {'name': 'Fruits King', 'image': 'assets/spinner/fruits.jpeg', 'path': Routes.spinner.path},
       {'name': 'Tin Patti', 'image': 'assets/icons/tin_patti_icon.png'},
     ];
-
 
     return SingleChildScrollView(
       child: Column(
