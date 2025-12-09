@@ -105,7 +105,7 @@ class _GreedyGameBottomSheetState extends State<GreedyGameBottomSheet> {
   final String _saladImagePath = 'assets/greedy/salad.png';
   final String _pizzaImagePath = 'assets/greedy/pizza.png';
   final _CenterItemConfig _centerConfig = _CenterItemConfig(
-    assetPath: 'assets/greedy/greedy_icon.png',
+    assetPath: 'assets/greedy/greedy_icon.jpeg',
     sizeFactor: 0.310,
     offsetXFactor: -0.005,
     offsetYFactor: -0.000,
@@ -673,10 +673,7 @@ class _GreedyGameBottomSheetState extends State<GreedyGameBottomSheet> {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: _buildSaladPizzaRow(),
-                ),
+                child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0), child: _buildSaladPizzaRow()),
               ),
               // Game wheel centered
               Center(
@@ -717,7 +714,6 @@ class _GreedyGameBottomSheetState extends State<GreedyGameBottomSheet> {
       ],
     );
   }
-
 
   Widget _buildTopBar() {
     return Padding(

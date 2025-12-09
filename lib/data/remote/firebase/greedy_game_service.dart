@@ -14,7 +14,7 @@ class TopEarner {
 class GreedyGameService {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
-  final _functions = FirebaseFunctions.instance; // <-- REQUIRED
+  final _functions = FirebaseFunctions.instance;
 
   /// Listens to the main control document.
   Stream<DocumentSnapshot> getGameControlsStream() {

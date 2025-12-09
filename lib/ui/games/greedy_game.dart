@@ -108,7 +108,7 @@ class _GreedyGamePageState extends State<GreedyGamePage> {
   final String _saladImagePath = 'assets/greedy/salad.png';
   final String _pizzaImagePath = 'assets/greedy/pizza.png';
   final _CenterItemConfig _centerConfig = _CenterItemConfig(
-    assetPath: 'assets/greedy/greedy_icon.png',
+    assetPath: 'assets/greedy/greedy_icon.jpeg',
     sizeFactor: 0.310,
     offsetXFactor: -0.005,
     offsetYFactor: -0.000,
