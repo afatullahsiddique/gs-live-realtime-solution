@@ -32,6 +32,7 @@ enum Routes {
   inbox,
   chat,
   settingsPage,
+  passwordSettings,
 }
 
 extension RoutesExtension on Routes {
@@ -105,6 +106,8 @@ extension RoutesExtension on Routes {
         return '/chat';
       case Routes.settingsPage:
         return '/settingsPage';
+      case Routes.passwordSettings:
+        return '/passwordSettings';
     }
   }
 }

@@ -490,4 +490,71 @@ class ProfileService {
       return data['balance'] ?? 0;
     });
   }
+
+  /// Check if user has a password set in Firestore
+  static Future<bool> hasPassword() async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return false;
+
+    try {
+      final doc = await _usersCollection.doc(currentUserId).get();
+      if (!doc.exists) return false;
+      final data = doc.data() as Map<String, dynamic>;
+      return data.containsKey('password') && data['password'] != null && (data['password'] as String).isNotEmpty;
+    } catch (e) {
+      print("Error checking password: $e");
+      return false;
+    }
+  }
+
+  /// Create or update password in Firestore
+  static Future<void> setPassword(String password) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) throw Exception("No user logged in");
+
+    await _usersCollection.doc(currentUserId).update({'password': password});
+  }
+
+  /// Delete password from Firestore
+  static Future<void> deletePassword() async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) throw Exception("No user logged in");
+
+    await _usersCollection.doc(currentUserId).update({'password': FieldValue.delete()});
+  }
+
+  /// Login with displayId and password
+  static Future<String?> loginWithDisplayIdAndPassword(String displayId, String password) async {
+    try {
+      // Query users collection for matching displayId
+      final querySnapshot = await _usersCollection
+          .where('displayId', isEqualTo: displayId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('User not found');
+      }
+
+      final userDoc = querySnapshot.docs.first;
+      final userData = userDoc.data() as Map<String, dynamic>;
+
+      // Check if user has a password set
+      if (!userData.containsKey('password') || userData['password'] == null) {
+        throw Exception('Password not set for this account');
+      }
+
+      // Verify password
+      if (userData['password'] != password) {
+        throw Exception('Incorrect password');
+      }
+
+      // Return the user ID (uid) for successful login
+      return userDoc.id;
+    } catch (e) {
+      print("Error in loginWithDisplayIdAndPassword: $e");
+      rethrow;
+    }
+  }
+
 }
