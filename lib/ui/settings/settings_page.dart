@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/cubits/app_cubit.dart';
+import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
 
@@ -67,13 +68,20 @@ class SettingsPage extends StatelessWidget {
 
                       const SizedBox(height: 12),
 
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.lock_shield,
-                        title: 'Create Password',
-                        onTap: () {
-                          debugPrint('Create Password tapped');
-                          // Navigate to create password page
+                      FutureBuilder<bool>(
+                        future: ProfileService.hasPassword(),
+                        builder: (context, snapshot) {
+                          final hasPassword = snapshot.data ?? false;
+                          final title = hasPassword ? 'Change Password' : 'Create Password';
+
+                          return _buildSettingsItem(
+                            context,
+                            icon: CupertinoIcons.lock_shield,
+                            title: title,
+                            onTap: () {
+                              context.push(Routes.passwordSettings.path);
+                            },
+                          );
                         },
                       ),
 

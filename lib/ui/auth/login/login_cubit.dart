@@ -111,8 +111,8 @@ class LoginCubit extends Cubit<LoginState> {
     }
   }
 
-  Future<void> loginWithCredentials(String userId, String password) async {
-    if (userId.isEmpty || password.isEmpty) {
+  Future<void> loginWithCredentials(String displayId, String password) async {
+    if (displayId.isEmpty || password.isEmpty) {
       emit(state.copyWith(status: LoginStatus.failure, error: 'Please fill in all fields'));
       return;
     }
@@ -121,30 +121,75 @@ class LoginCubit extends Cubit<LoginState> {
       state.copyWith(
         status: LoginStatus.loading,
         method: LoginMethod.credentials,
-        userId: userId,
+        userId: displayId,
         password: password,
-        error: '',
       ),
     );
 
     try {
-      await _simulateApiCall();
+      // Query Firestore for user with matching displayId
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('displayId', isEqualTo: displayId)
+          .limit(1)
+          .get();
 
-      // Simulate successful login
-      if (userId.toLowerCase() == 'demo' && password == 'password') {
-        final user = User(
-          id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-          name: 'Demo User',
-          email: 'demo@cutelive.com',
-          avatar: 'https://via.placeholder.com/150',
-        );
-
-        emit(state.copyWith(status: LoginStatus.success, user: user));
-      } else {
-        emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid credentials. Please try again.'));
+      if (querySnapshot.docs.isEmpty) {
+        emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid User ID or password.'));
+        return;
       }
+
+      final userDoc = querySnapshot.docs.first;
+      final userData = userDoc.data();
+
+      // Verify password
+      if (!userData.containsKey('password') ||
+          userData['password'] == null ||
+          userData['password'].toString().isEmpty) {
+        emit(state.copyWith(status: LoginStatus.failure, error: 'No password set. Please use social login.'));
+        return;
+      }
+
+      if (userData['password'] != password) {
+        emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid Display ID or password.'));
+        return;
+      }
+
+      // Check if user is already signed in
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null && currentUser.uid == userDoc.id) {
+        // Already signed in as this user
+        print('User already signed in');
+      } else {
+        // Sign out current user if any
+        if (currentUser != null) {
+          await FirebaseAuth.instance.signOut();
+        }
+
+        // Sign in anonymously (requires Anonymous provider enabled)
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+
+      // Update last login
+      await FirebaseFirestore.instance.collection('users').doc(userDoc.id).update({
+        'lastLogin': FieldValue.serverTimestamp(),
+      });
+
+      // Create User object
+      final user = User(
+        id: userDoc.id,
+        displayId: userData['displayId'] ?? '',
+        name: userData['displayName'] ?? 'User',
+        email: userData['email'] ?? '',
+        avatar: userData['photoUrl'],
+        phoneNumber: userData['phoneNumber'],
+      );
+
+      await secureStorage.setUser(user);
+      emit(state.copyWith(status: LoginStatus.success, user: user));
     } catch (e) {
-      emit(state.copyWith(status: LoginStatus.failure, error: 'Network error. Please check your connection.'));
+      print('Login error: $e');
+      emit(state.copyWith(status: LoginStatus.failure, error: 'Login failed. Please try again.'));
     }
   }
 
