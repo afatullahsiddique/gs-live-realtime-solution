@@ -11,9 +11,9 @@ import 'package:zego_uikit/zego_uikit.dart';
 import 'package:zego_express_engine/zego_express_engine.dart';
 import 'package:collection/collection.dart';
 
-import '../../core/utils/const.dart';
 import '../../core/utils/view_count.dart';
 import '../../core/widgets/auto_scroll_text.dart';
+import '../../data/remote/firebase/app_services.dart';
 import '../../data/remote/firebase/live_streaming_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
@@ -237,7 +237,11 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
   }
 
   Future<void> _finishInitialization() async {
-    await ZegoUIKit().init(appID: appId, appSign: appSign, scenario: ZegoScenario.Default);
+    await ZegoUIKit().init(
+      appID: await AppServices.getZegoAppId(),
+      appSign: await AppServices.getZegoAppSign(),
+      scenario: ZegoScenario.Default,
+    );
 
     ZegoUIKit().updateVideoViewMode(true);
 

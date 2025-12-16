@@ -9,8 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
-import '../../core/utils/const.dart';
 import '../../core/widgets/auto_scroll_text.dart';
+import '../../data/remote/firebase/app_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
 import '../../data/remote/firebase/video_room_services.dart';
 import '../../navigation/routes.dart';
@@ -228,8 +228,11 @@ class _VideoRoomPageState extends State<VideoRoomPage> with SingleTickerProvider
   }
 
   Future<void> _finishInitialization() async {
-    await ZegoUIKit().init(appID: appId, appSign: appSign, scenario: ZegoScenario.Default);
-
+    await ZegoUIKit().init(
+      appID: await AppServices.getZegoAppId(),
+      appSign: await AppServices.getZegoAppSign(),
+      scenario: ZegoScenario.Default,
+    );
     ZegoUIKit().updateVideoViewMode(true);
 
     final currentUser = _auth.currentUser!;

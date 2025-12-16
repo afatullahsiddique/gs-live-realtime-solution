@@ -11,8 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
 import 'package:zego_express_engine/zego_express_engine.dart';
 
-import '../../core/utils/const.dart';
 import '../../core/widgets/auto_scroll_text.dart';
+import '../../data/remote/firebase/app_services.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
@@ -285,7 +285,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       });
     }
 
-    await ZegoUIKit().init(appID: appId, appSign: appSign, scenario: ZegoScenario.Default);
+    await ZegoUIKit().init(
+      appID: await AppServices.getZegoAppId(),
+      appSign: await AppServices.getZegoAppSign(),
+      scenario: ZegoScenario.Default,
+    );
 
     ZegoUIKit().login(currentUser.uid, _currentUserName);
     await ZegoUIKit().joinRoom(widget.roomID);
