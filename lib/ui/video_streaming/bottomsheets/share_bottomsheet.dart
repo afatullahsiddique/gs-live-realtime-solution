@@ -175,7 +175,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     final String typeStr = widget.roomType.name;
 
     // 1. Generate Link
-    final String link = "https://ms-live-links.web.app/room/${widget.roomId}?type=$typeStr";
+    final String link = "https://gf-live-links.web.app/room/${widget.roomId}?type=$typeStr";
 
     // 2. Create Message
     final String message = "Join my $typeStr room on MS Live! \n$link";

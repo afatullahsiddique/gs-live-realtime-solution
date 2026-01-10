@@ -561,7 +561,7 @@ class _ApplyAgencyPageState extends State<ApplyAgencyPage> {
             const SizedBox(height: 30),
             ElevatedButton.icon(
               onPressed: () async {
-                final Uri url = Uri.parse('https://ms-live-mother-portal.web.app');
+                final Uri url = Uri.parse('https://gf-live-mother-portal.web.app');
 
                 try {
                   if (await canLaunchUrl(url)) {
