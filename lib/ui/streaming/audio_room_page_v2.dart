@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
@@ -771,40 +773,61 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         return shouldExit ?? false;
       },
       child: Scaffold(
-        body: Stack(
-          children: [
-            // Background Image
-            Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(image: AssetImage("assets/room_bg/audio.jpeg"), fit: BoxFit.cover),
-              ),
-            ),
+        body: StreamBuilder<DatabaseEvent>(
+          stream: RoomService.getRoomStream(widget.roomID),
+          builder: (context, snapshot) {
+            String? backgroundUrl;
+            if (snapshot.hasData && snapshot.data!.snapshot.exists) {
+              final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+              backgroundUrl = data['backgroundUrl'] as String?;
+            }
 
-            // 🔥 Dark Overlay (adjust opacity)
-            Container(
-              color: Colors.black.withOpacity(0.5), // 0.3–0.6 recommended
-            ),
+            return Stack(
+              children: [
+                // Always show gradient background
+                if (backgroundUrl == null)
+                  Positioned.fill(
+                    child: Image.asset(
+                      'assets/room_bg/audio.jpeg',
+                      fit: BoxFit.cover,
+                      color: Colors.black.withOpacity(0.5),
+                      colorBlendMode: BlendMode.darken,
+                    ),
+                  )
+                else
+                  // Show custom skin background if set
+                  Positioned.fill(
+                    child: CachedNetworkImage(
+                      imageUrl: backgroundUrl,
+                      fit: BoxFit.cover,
+                      color: Colors.black.withOpacity(0.3),
+                      colorBlendMode: BlendMode.darken,
+                      placeholder: (context, url) => const SizedBox.shrink(),
+                      errorWidget: (context, url, error) => const SizedBox.shrink(),
+                    ),
+                  ),
 
-            // Page Content
-            SafeArea(
-              child: _isInitialized
-                  ? Stack(
-                      children: [
-                        Column(
+                SafeArea(
+                  child: _isInitialized
+                      ? Stack(
                           children: [
-                            _buildAppBar(),
-                            _buildHostStatsRow(),
-                            Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
-                            Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
-                            _buildChatInput(),
+                            Column(
+                              children: [
+                                _buildAppBar(),
+                                _buildHostStatsRow(),
+                                Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
+                                Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
+                                _buildChatInput(),
+                              ],
+                            ),
+                            Center(child: _buildJoinAnimationOverlay()),
                           ],
-                        ),
-                        Center(child: _buildJoinAnimationOverlay()),
-                      ],
-                    )
-                  : const Center(child: CircularProgressIndicator(color: Colors.pink)),
-            ),
-          ],
+                        )
+                      : const Center(child: CircularProgressIndicator(color: Colors.pink)),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

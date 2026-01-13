@@ -556,4 +556,13 @@ class ProfileService {
       rethrow;
     }
   }
+
+  static Future<void> savePreferredRoomSkin(String skinUrl) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) throw Exception('No user logged in');
+
+    await _usersCollection.doc(currentUserId).update({
+      'preferredRoomSkin': skinUrl,
+    });
+  }
 }

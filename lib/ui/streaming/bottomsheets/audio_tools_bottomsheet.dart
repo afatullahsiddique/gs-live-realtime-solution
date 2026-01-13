@@ -1,3 +1,4 @@
+import 'package:cute_live/ui/streaming/bottomsheets/room_skin.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cute_live/ui/streaming/bottomsheets/play_music_bottomsheet.dart';
@@ -135,6 +136,11 @@ class _AudioToolsBottomSheetState extends State<AudioToolsBottomSheet> {
                       Navigator.pop(context);
                       _showNoticeDialog(context);
                     };
+                  } else if (tool.label == 'Room skin') {
+                    onTapLogic = () {
+                      Navigator.pop(context); // Close tools sheet first
+                      showRoomSkinSideSheet(context, widget.currentRoomId);
+                    };
                   } else {
                     onTapLogic = () {
                       print("Tapped on ${tool.label}");
@@ -227,14 +233,39 @@ class _AudioToolsBottomSheetState extends State<AudioToolsBottomSheet> {
                         children: [
                           _buildVoiceOption(context, setModalState, 'None', ZegoVoiceChangerPreset.None),
                           _buildVoiceOption(context, setModalState, 'Male to Child', ZegoVoiceChangerPreset.MenToChild),
-                          _buildVoiceOption(context, setModalState, 'Male to Female', ZegoVoiceChangerPreset.MenToWomen),
-                          _buildVoiceOption(context, setModalState, 'Female to Child', ZegoVoiceChangerPreset.WomenToChild),
-                          _buildVoiceOption(context, setModalState, 'Female to Male', ZegoVoiceChangerPreset.WomenToMen),
+                          _buildVoiceOption(
+                            context,
+                            setModalState,
+                            'Male to Female',
+                            ZegoVoiceChangerPreset.MenToWomen,
+                          ),
+                          _buildVoiceOption(
+                            context,
+                            setModalState,
+                            'Female to Child',
+                            ZegoVoiceChangerPreset.WomenToChild,
+                          ),
+                          _buildVoiceOption(
+                            context,
+                            setModalState,
+                            'Female to Male',
+                            ZegoVoiceChangerPreset.WomenToMen,
+                          ),
                           _buildVoiceOption(context, setModalState, 'Foreigner', ZegoVoiceChangerPreset.Foreigner),
-                          _buildVoiceOption(context, setModalState, 'Optimus Prime', ZegoVoiceChangerPreset.OptimusPrime),
+                          _buildVoiceOption(
+                            context,
+                            setModalState,
+                            'Optimus Prime',
+                            ZegoVoiceChangerPreset.OptimusPrime,
+                          ),
                           _buildVoiceOption(context, setModalState, 'Robot (Android)', ZegoVoiceChangerPreset.Android),
                           _buildVoiceOption(context, setModalState, 'Ethereal', ZegoVoiceChangerPreset.Ethereal),
-                          _buildVoiceOption(context, setModalState, 'Male Magnetic', ZegoVoiceChangerPreset.MaleMagnetic),
+                          _buildVoiceOption(
+                            context,
+                            setModalState,
+                            'Male Magnetic',
+                            ZegoVoiceChangerPreset.MaleMagnetic,
+                          ),
                           _buildVoiceOption(context, setModalState, 'Female Fresh', ZegoVoiceChangerPreset.FemaleFresh),
                         ],
                       ),
@@ -249,7 +280,12 @@ class _AudioToolsBottomSheetState extends State<AudioToolsBottomSheet> {
     );
   }
 
-  Widget _buildVoiceOption(BuildContext context, StateSetter setModalState, String label, ZegoVoiceChangerPreset preset) {
+  Widget _buildVoiceOption(
+    BuildContext context,
+    StateSetter setModalState,
+    String label,
+    ZegoVoiceChangerPreset preset,
+  ) {
     final bool isSelected = _currentVoicePreset == preset;
 
     return ListTile(
@@ -261,9 +297,7 @@ class _AudioToolsBottomSheetState extends State<AudioToolsBottomSheet> {
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      trailing: isSelected
-          ? const Icon(Icons.check_circle, color: Colors.pink, size: 24)
-          : null,
+      trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.pink, size: 24) : null,
       onTap: () {
         ZegoExpressEngine.instance.setVoiceChangerPreset(preset);
         setState(() {
@@ -343,12 +377,12 @@ class _AudioToolsBottomSheetState extends State<AudioToolsBottomSheet> {
 }
 
 void showAudioToolsBottomSheet(
-    BuildContext context, {
-      required String currentRoomId,
-      required bool isHost,
-      required MusicPlayerManager musicManager,
-      String hostName = "Host",
-    }) {
+  BuildContext context, {
+  required String currentRoomId,
+  required bool isHost,
+  required MusicPlayerManager musicManager,
+  String hostName = "Host",
+}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF2d1b2b),

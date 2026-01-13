@@ -30,6 +30,7 @@ class RoomService {
     final String hostName = userData['displayName'] ?? 'Anonymous';
     final String displayId = userData['displayId'] ?? '';
     final String? hostPicture = userData['photoUrl'];
+    final String? preferredSkin = userData['preferredRoomSkin'];
 
     final bool isLocked = password != null && password.isNotEmpty;
 
@@ -46,6 +47,7 @@ class RoomService {
       'isSeatApprovalRequired': true,
       'isLocked': isLocked,
       'password': isLocked ? password : null,
+      if (preferredSkin != null) 'backgroundUrl': preferredSkin,
     });
 
     // Add host as participant with presence detection
@@ -431,5 +433,12 @@ class RoomService {
 
   static Stream<DatabaseEvent> getEmojiStream(String roomId) {
     return _roomsRef.child('$roomId/emoji_events').onChildAdded;
+  }
+
+  static Future<void> updateRoomBackground(String roomId, String backgroundUrl) async {
+    await _roomsRef.child(roomId).update({
+      'backgroundUrl': backgroundUrl,
+      'backgroundUpdatedAt': ServerValue.timestamp,
+    });
   }
 }
