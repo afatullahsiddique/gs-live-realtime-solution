@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "645699802815",
-    "firebase_url": "https://cute-live-app-default-rtdb.firebaseio.com",
-    "project_id": "cute-live-app",
-    "storage_bucket": "cute-live-app.firebasestorage.app"
+    "project_number": "44126273424",
+    "firebase_url": "https://ms-live-app-3fe90-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "ms-live-app-3fe90",
+    "storage_bucket": "ms-live-app-3fe90.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:645699802815:android:527136b860cfab1ab7580a",
+        "mobilesdk_app_id": "1:44126273424:android:cc2d00612460b43622bd15",
         "android_client_info": {
           "package_name": "com.cutelive.app.cute_live"
         }
       },
       "oauth_client": [
         {
-          "client_id": "645699802815-h0nltv1fakn5vjmppv6ts2r1q1n22l5p.apps.googleusercontent.com",
+          "client_id": "44126273424-s2c5g7uf9sfkvj8632kvp7svm3jcbqm7.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.cutelive.app.cute_live",
@@ -23,24 +23,24 @@
           }
         },
         {
-          "client_id": "645699802815-k86olmji8qdha8jrfnor3phdbp0sp72j.apps.googleusercontent.com",
+          "client_id": "44126273424-6veicbgnmabtdh414egeo26a6ivuer0i.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyBBuo5qrFOjutxhgSd4vl05iXkDpO58jlU"
+          "current_key": "AIzaSyCKuYnHU2uVZ6DRLDuQ3WE1L0uZF2h2nu8"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "645699802815-k86olmji8qdha8jrfnor3phdbp0sp72j.apps.googleusercontent.com",
+              "client_id": "44126273424-6veicbgnmabtdh414egeo26a6ivuer0i.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "645699802815-1jggcnid488b836op4g2g4alicoa5te5.apps.googleusercontent.com",
+              "client_id": "44126273424-n7ok6qj02le05kfk1hnlja17ps2lahn3.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.cutelive.app.cuteLive"

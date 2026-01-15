@@ -321,23 +321,18 @@ class ProfileService {
     await batch.commit();
   }
 
-  // ✅ UPDATED: Get mutuals list (people who follow you AND you follow back)
   static Future<List<SimpleUser>> getMutualsList(String userId) async {
     if (userId.isEmpty) return [];
 
     try {
-      print('🔍 Getting mutuals for user: $userId');
-
       // Step 1: Get all users that current user is following
       final followingSnapshot = await _usersCollection.doc(userId).collection('following').get();
 
       if (followingSnapshot.docs.isEmpty) {
-        print('❌ User is not following anyone');
         return [];
       }
 
       final followingIds = followingSnapshot.docs.map((doc) => doc.id).toList();
-      print('✅ Following ${followingIds.length} users: $followingIds');
 
       // Step 2: Check which of those users also follow current user back (mutuals)
       final List<Future<SimpleUser?>> mutualCheckFutures = [];
@@ -348,10 +343,7 @@ class ProfileService {
         ) async {
           // If they follow you back, fetch their profile
           if (followerDoc.exists) {
-            print('✅ $followingId is a mutual friend');
             return await _fetchUser(followingId);
-          } else {
-            print('❌ $followingId does not follow back');
           }
           return null;
         });
@@ -361,16 +353,13 @@ class ProfileService {
 
       final results = await Future.wait(mutualCheckFutures);
       final mutuals = results.whereType<SimpleUser>().toList();
-      print('✅ Total mutuals found: ${mutuals.length}');
 
       return mutuals;
     } catch (e) {
-      print("❌ Error in getMutualsList: $e");
       rethrow;
     }
   }
 
-  // ✅ Get all users you're following
   static Future<List<SimpleUser>> getFollowingList(String userId) async {
     if (userId.isEmpty) return [];
 
@@ -527,10 +516,7 @@ class ProfileService {
   static Future<String?> loginWithDisplayIdAndPassword(String displayId, String password) async {
     try {
       // Query users collection for matching displayId
-      final querySnapshot = await _usersCollection
-          .where('displayId', isEqualTo: displayId)
-          .limit(1)
-          .get();
+      final querySnapshot = await _usersCollection.where('displayId', isEqualTo: displayId).limit(1).get();
 
       if (querySnapshot.docs.isEmpty) {
         throw Exception('User not found');
@@ -561,8 +547,6 @@ class ProfileService {
     final currentUserId = _auth.currentUser?.uid;
     if (currentUserId == null) throw Exception('No user logged in');
 
-    await _usersCollection.doc(currentUserId).update({
-      'preferredRoomSkin': skinUrl,
-    });
+    await _usersCollection.doc(currentUserId).update({'preferredRoomSkin': skinUrl});
   }
 }

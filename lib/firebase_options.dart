@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -50,24 +47,33 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBBuo5qrFOjutxhgSd4vl05iXkDpO58jlU',
-    appId: '1:645699802815:android:527136b860cfab1ab7580a',
-    messagingSenderId: '645699802815',
-    projectId: 'cute-live-app',
-    databaseURL: 'https://cute-live-app-default-rtdb.firebaseio.com',
-    storageBucket: 'cute-live-app.firebasestorage.app',
+    apiKey: 'AIzaSyCKuYnHU2uVZ6DRLDuQ3WE1L0uZF2h2nu8',
+    appId: '1:44126273424:android:cc2d00612460b43622bd15',
+    messagingSenderId: '44126273424',
+    projectId: 'ms-live-app-3fe90',
+    databaseURL: 'https://ms-live-app-3fe90-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ms-live-app-3fe90.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBd_CgY12lToRCHNhob9MNLV1Vfv_uNT-w',
-    appId: '1:645699802815:ios:6626c06fee76fe86b7580a',
-    messagingSenderId: '645699802815',
-    projectId: 'cute-live-app',
-    databaseURL: 'https://cute-live-app-default-rtdb.firebaseio.com',
-    storageBucket: 'cute-live-app.firebasestorage.app',
-    androidClientId: '645699802815-h0nltv1fakn5vjmppv6ts2r1q1n22l5p.apps.googleusercontent.com',
-    iosClientId: '645699802815-1jggcnid488b836op4g2g4alicoa5te5.apps.googleusercontent.com',
+    apiKey: 'AIzaSyCHg6yNrmh8dAnDeyJX6LLGRVxJU8zSjxA',
+    appId: '1:44126273424:ios:1af8a1499391a42022bd15',
+    messagingSenderId: '44126273424',
+    projectId: 'ms-live-app-3fe90',
+    databaseURL: 'https://ms-live-app-3fe90-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ms-live-app-3fe90.firebasestorage.app',
+    iosClientId: '44126273424-n7ok6qj02le05kfk1hnlja17ps2lahn3.apps.googleusercontent.com',
     iosBundleId: 'com.cutelive.app.cuteLive',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBZjzYmtm7PBROoujphppwcr00wfXAdaxE',
+    appId: '1:44126273424:web:a0304404b842ef9822bd15',
+    messagingSenderId: '44126273424',
+    projectId: 'ms-live-app-3fe90',
+    authDomain: 'ms-live-app-3fe90.firebaseapp.com',
+    databaseURL: 'https://ms-live-app-3fe90-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ms-live-app-3fe90.firebasestorage.app',
   );
 
 }
