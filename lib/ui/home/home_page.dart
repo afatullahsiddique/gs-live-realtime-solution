@@ -2,7 +2,6 @@ import 'dart:developer';
 import 'package:cute_live/ui/home/tabs/pk_tab.dart';
 import 'package:cute_live/ui/home/widgets/card_widget.dart';
 import 'package:cute_live/ui/home/widgets/carousal_banner.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -140,7 +139,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return AppBar(
       backgroundColor: Colors.pink,
       elevation: 0,
-      toolbarHeight: 60,
+      toolbarHeight: 56,
       automaticallyImplyLeading: false,
       title: Align(
         alignment: Alignment.centerLeft,
