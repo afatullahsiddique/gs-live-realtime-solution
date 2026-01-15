@@ -646,7 +646,8 @@ class _FruitsKingBottomSheetState extends State<FruitsKingBottomSheet> {
       child: Container(
         height: MediaQuery.of(context).size.height * .7,
         decoration: BoxDecoration(
-          image: DecorationImage(image: const AssetImage("assets/spinner/fruits_bg.webp"), fit: BoxFit.cover),
+          // image: DecorationImage(image: const AssetImage("assets/spinner/fruits_bg.webp"), fit: BoxFit.cover),
+          gradient: AppColors.backgroundGradient,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ClipRRect(

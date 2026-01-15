@@ -637,7 +637,8 @@ class _GreedyGameBottomSheetState extends State<GreedyGameBottomSheet> {
       child: Container(
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
-          image: DecorationImage(image: const AssetImage("assets/greedy/greedy_bg.webp"), fit: BoxFit.cover),
+          // image: DecorationImage(image: const AssetImage("assets/greedy/greedy_bg.webp"), fit: BoxFit.cover),
+          gradient: AppColors.backgroundGradient,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ClipRRect(

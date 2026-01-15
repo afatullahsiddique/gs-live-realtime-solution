@@ -675,7 +675,8 @@ class _FruitsKingPageState extends State<FruitsKingPage> {
       ),
       body: Container(
         decoration: BoxDecoration(
-          image: DecorationImage(image: AssetImage("assets/spinner/fruits_bg.webp"), fit: BoxFit.cover),
+          // image: DecorationImage(image: AssetImage("assets/spinner/fruits_bg.webp"), fit: BoxFit.cover),
+          gradient: AppColors.backgroundGradient,
         ),
         child: _buildGameContent(),
       ),

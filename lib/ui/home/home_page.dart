@@ -255,17 +255,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     itemCount: topTwoRooms.length,
                     itemBuilder: (context, index) {
                       // Apply special SVGA animations for the top 2
-                      final List<String> popularAnimationPaths = [
-                        "assets/svga/room_cover_1.svga",
-                        "assets/svga/room_cover_2.svga",
-                      ];
+                      // final List<String> popularAnimationPaths = [
+                      //   "assets/svga/room_cover_1.svga",
+                      //   "assets/svga/room_cover_2.svga",
+                      // ];
+                      //
+                      // String? animPath;
+                      // if (index < popularAnimationPaths.length) {
+                      //   animPath = popularAnimationPaths[index];
+                      // }
 
-                      String? animPath;
-                      if (index < popularAnimationPaths.length) {
-                        animPath = popularAnimationPaths[index];
-                      }
-
-                      return AnimatedStreamerCard(streamer: topTwoRooms[index], animationFilePath: animPath);
+                      return AnimatedStreamerCard(streamer: topTwoRooms[index]);
                     },
                   ),
                 ),

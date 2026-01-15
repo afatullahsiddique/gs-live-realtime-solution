@@ -178,11 +178,11 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     final String link = "https://gf-live-links.web.app/room/${widget.roomId}?type=$typeStr";
 
     // 2. Create Message
-    final String message = "Join my $typeStr room on MS Live! \n$link";
+    final String message = "Join my $typeStr room on GF Live! \n$link";
 
     // 3. Trigger Native Share Sheet (WhatsApp, Telegram, etc.)
     // Note: Most native share sheets include a "Copy" option inside them as well.
-    Share.share(message, subject: "Join MS Live Room");
+    Share.share(message, subject: "Join GF Live Room");
   }
 
   @override
