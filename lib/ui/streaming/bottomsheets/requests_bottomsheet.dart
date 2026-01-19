@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../data/remote/firebase/room_services.dart';
-import '../audio_room_page_v2.dart';
+import '../audio_room_page.dart';
 
 class RequestsBottomSheet extends StatefulWidget {
   final List<dynamic> initialCoHostRequests;

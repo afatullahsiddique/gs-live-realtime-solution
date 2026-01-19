@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:cute_live/data/remote/firebase/profile_services.dart'; // <-- ADD THIS
-import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart'; // <-- ADD THIS
+import 'package:cute_live/data/remote/firebase/profile_services.dart';
+import 'package:cute_live/ui/video_streaming/bottomsheets/profile_info_bottomsheet.dart';
 import '../../../core/widgets/auto_scroll_text.dart';
 import '../audio_room_page.dart';
-import '../audio_room_page_v2.dart'; // Import to access the RoomParticipant class
 
 /// A bottom sheet that displays a list of all participants in the room.
 class ParticipantsBottomSheet extends StatelessWidget {
   final List<RoomParticipant> participants;
   final String currentUserId;
-  final String hostId; // <-- ADD THIS
+  final String hostId;
   final String roomId;
 
   const ParticipantsBottomSheet({
     super.key,
     required this.participants,
     required this.currentUserId,
-    required this.hostId, // <-- ADD THIS
+    required this.hostId,
     required this.roomId,
   });
 

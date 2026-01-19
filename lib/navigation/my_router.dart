@@ -6,7 +6,7 @@ import 'package:cute_live/ui/earnings/earnings_page.dart';
 import 'package:cute_live/ui/inbox/chat_page.dart';
 import 'package:cute_live/ui/inbox/inbox_page.dart';
 import 'package:cute_live/ui/status/status_page.dart';
-import 'package:cute_live/ui/streaming/audio_room_page_v2.dart';
+import 'package:cute_live/ui/streaming/audio_room_page.dart';
 import 'package:cute_live/ui/top_up/top_up_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
