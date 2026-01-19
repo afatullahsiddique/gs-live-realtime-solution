@@ -120,13 +120,57 @@ class ProfileInfoBottomSheet extends StatelessWidget {
                       style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.purple.shade700, borderRadius: BorderRadius.circular(8)),
-                      child: Text(
-                        "Lv $level",
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Level tag
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade700,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "Lv $level",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // User ID
+                        Row(
+                          children: [
+                            Text(
+                              'ID: ${data['displayId'] ?? 'N/A'}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 12),
+                        // Diamonds count
+                        Row(
+                          children: [
+                            const Icon(Icons.diamond_outlined, color: Colors.cyan, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${data['diamonds'] ?? 0}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     // --- Stats Row ---
