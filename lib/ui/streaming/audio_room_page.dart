@@ -13,7 +13,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_uikit/zego_uikit.dart';
 import 'package:zego_express_engine/zego_express_engine.dart';
 
+import '../../core/utils/links.dart';
 import '../../core/widgets/auto_scroll_text.dart';
+import '../../core/widgets/gift_image_widget.dart';
 import '../../data/remote/firebase/app_services.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
@@ -105,13 +107,24 @@ class RoomParticipant {
   }
 }
 
+enum MessageType { text, gift, emoji }
+
 class ChatMessage {
   final String userId;
   final String username;
   final String message;
   final DateTime timestamp;
+  final MessageType type;
+  final String? iconUrl;
 
-  ChatMessage({required this.userId, required this.username, required this.message, required this.timestamp});
+  ChatMessage({
+    required this.userId,
+    required this.username,
+    required this.message,
+    required this.timestamp,
+    this.type = MessageType.text,
+    this.iconUrl,
+  });
 }
 
 class EmojiEvent {
@@ -121,6 +134,15 @@ class EmojiEvent {
   final String emojiName;
 
   EmojiEvent({required this.senderId, required this.senderName, required this.emojiUrl, required this.emojiName});
+}
+
+class GiftOverlay {
+  final int? luckyHitCount;
+  final String senderName;
+  final String? senderPicture;
+  final String giftImageUrl;
+
+  GiftOverlay({required this.senderName, this.senderPicture, required this.giftImageUrl, this.luckyHitCount});
 }
 
 class AudioRoomPage extends StatefulWidget {
@@ -167,6 +189,12 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   EmojiEvent? _currentEmojiEvent;
   Timer? _emojiTimer;
 
+  GiftOverlay? _currentGiftOverlay;
+  Timer? _giftOverlayTimer;
+
+  String? _fullScreenGiftUrl;
+  Timer? _fullScreenGiftTimer;
+
   late AnimationController _joinAnimationController;
   late Animation<Offset> _joinAnimationOffset;
 
@@ -208,6 +236,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     _coHostRequestsSubscription?.cancel();
     _emojiSubscription?.cancel();
     _emojiTimer?.cancel();
+    _giftOverlayTimer?.cancel();
+    _fullScreenGiftTimer?.cancel();
 
     _chatController.dispose();
     _chatScrollController.dispose();
@@ -486,6 +516,35 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       }
     });
 
+    // Gift subscription
+    RoomService.getGiftStream(widget.roomID).listen((event) {
+      if (!mounted || !event.snapshot.exists) return;
+
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      final timestamp = (data['timestamp'] as int?) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      if (now - timestamp < 5000) {
+        final String? giftCategory = data['category'] as String?;
+        final bool isLuckyGift = giftCategory == 'Lucky';
+
+        final String senderId = data['senderId'] ?? '';
+        final String currentUserId = _auth.currentUser!.uid;
+        final int? hitCount = data['hitCount'] as int?;
+
+        if (!(isLuckyGift && senderId == currentUserId)) {
+          _showGiftOverlay(
+            senderName: data['senderName'] ?? 'Unknown',
+            senderPicture: data['senderPicture'],
+            giftAnimationUrl: data['giftAnimationUrl'] ?? '',
+            giftImageUrl: data['giftImageUrl'] ?? '',
+            isLuckyGift: isLuckyGift,
+            hitCount: hitCount,
+          );
+        }
+      }
+    });
+
     if (widget.isHost) {
       _speakerRequestsSubscription = RoomService.getSpeakerRequestsStream(widget.roomID).listen((event) {
         if (!event.snapshot.exists) {
@@ -668,6 +727,172 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     }
   }
 
+  void _showGiftOverlay({
+    required String senderName,
+    String? senderPicture,
+    required String giftAnimationUrl,
+    required String giftImageUrl,
+    bool isLuckyGift = false,
+    int? hitCount,
+  }) {
+    _giftOverlayTimer?.cancel();
+
+    setState(() {
+      _currentGiftOverlay = GiftOverlay(
+        senderName: senderName,
+        senderPicture: senderPicture,
+        giftImageUrl: giftImageUrl,
+        luckyHitCount: hitCount,
+      );
+
+      if (!isLuckyGift) {
+        _fullScreenGiftUrl = giftAnimationUrl;
+      }
+    });
+
+    _giftOverlayTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _currentGiftOverlay = null;
+        });
+      }
+    });
+  }
+
+  Widget _buildFullScreenGift() {
+    if (_fullScreenGiftUrl == null) return const SizedBox.shrink();
+
+    return Positioned.fill(
+      child: TweenAnimationBuilder<double>(
+        duration: const Duration(milliseconds: 500),
+        tween: Tween(begin: 0.0, end: 1.0),
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Center(
+              child: Transform.scale(scale: value, child: child),
+            ),
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [Colors.pink.withOpacity(0.3), Colors.transparent]),
+          ),
+          child: GiftImageWidget(
+            imageUrl: _fullScreenGiftUrl!,
+            fit: BoxFit.contain,
+            isFullScreenAnimation: true,
+            onAnimationComplete: () {
+              if (mounted) {
+                setState(() {
+                  _fullScreenGiftUrl = null;
+                });
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGiftOverlay() {
+    if (_currentGiftOverlay == null) return const SizedBox.shrink();
+
+    return Positioned(
+      left: 20,
+      top: MediaQuery.of(context).size.height * 0.5 - 40,
+      child: TweenAnimationBuilder<double>(
+        duration: const Duration(milliseconds: 300),
+        tween: Tween(begin: 0.0, end: 1.0),
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.scale(scale: value, child: child),
+          );
+        },
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple.shade900.withOpacity(0.95), Colors.pink.shade700.withOpacity(0.95)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.6), blurRadius: 15, spreadRadius: 1)],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Sender's picture
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.pink, width: 1.5),
+                      boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 4, spreadRadius: 0.5)],
+                    ),
+                    child: ClipOval(
+                      child:
+                          _currentGiftOverlay!.senderPicture != null && _currentGiftOverlay!.senderPicture!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: _currentGiftOverlay!.senderPicture!,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 18),
+                            )
+                          : const Icon(Icons.person, color: Colors.white, size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Name and gift text
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _currentGiftOverlay!.senderName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          shadows: [Shadow(color: Colors.black45, blurRadius: 3)],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _currentGiftOverlay!.luckyHitCount != null
+                            ? 'sent ${_currentGiftOverlay!.luckyHitCount} LUCKY gift!'
+                            : 'sent a gift',
+                        style: TextStyle(
+                          color: _currentGiftOverlay!.luckyHitCount != null ? Colors.yellow.shade200 : Colors.white70,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  // Gift icon
+                  CachedNetworkImage(
+                    imageUrl: getFullUrl(_currentGiftOverlay!.giftImageUrl),
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.contain,
+                    errorWidget: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 32),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<bool> _checkAudioPermissions() async {
     PermissionStatus status = await Permission.microphone.request();
     return status.isGranted;
@@ -830,6 +1055,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                               ],
                             ),
                             Center(child: _buildJoinAnimationOverlay()),
+                            _buildFullScreenGift(),
+                            _buildGiftOverlay(),
                           ],
                         )
                       : const Center(child: CircularProgressIndicator(color: Colors.pink)),

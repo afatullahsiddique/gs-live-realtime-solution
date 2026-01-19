@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/links.dart';
+
 class RoomService {
   static final FirebaseDatabase _database = FirebaseDatabase.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -440,5 +442,44 @@ class RoomService {
       'backgroundUrl': backgroundUrl,
       'backgroundUpdatedAt': ServerValue.timestamp,
     });
+  }
+
+  static Future<void> sendGift({
+    int? hitCount,
+    required String roomId,
+    required String giftAnimationUrl,
+    required String giftImageUrl,
+    required int giftValue,
+    String? category,
+  }) async {
+    final user = _auth.currentUser!;
+    final roomRef = _roomsRef.child(roomId);
+
+    // Fetch from room participants (like your working version)
+    final participantSnapshot = await roomRef.child('room_participants/${user.uid}').get();
+
+    if (!participantSnapshot.exists) {
+      throw Exception('You must join the room first.');
+    }
+
+    final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
+    String userName = participantData['userName'] ?? 'User';
+    String? userPicture = participantData['userPicture'];
+
+    await roomRef.child('gift_events').push().set({
+      'senderId': user.uid,
+      'senderName': userName,
+      'senderPicture': userPicture,
+      'giftAnimationUrl': getFullUrl(giftAnimationUrl),
+      'giftImageUrl': getFullUrl(giftImageUrl),
+      'giftValue': giftValue,
+      'category': category ?? 'Normal',
+      'hitCount': hitCount,
+      'timestamp': ServerValue.timestamp,
+    });
+  }
+
+  static Stream<DatabaseEvent> getGiftStream(String roomId) {
+    return _roomsRef.child('$roomId/gift_events').onChildAdded;
   }
 }

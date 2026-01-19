@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import '../../../../data/remote/firebase/assets_services.dart';
 import '../../../../data/remote/firebase/profile_services.dart';
+import '../../../core/widgets/gift_image_widget.dart';
+import '../../../data/remote/firebase/room_services.dart';
 
 class ParticipantSelector {
   final String userId;
@@ -91,31 +93,35 @@ class _GiftBottomSheetState extends State<GiftBottomSheet> {
   Future<void> _sendGift() async {
     if (!_canSend || _selectedGift == null) return;
 
-    final selectedRecipients = _participantSelectors.where((p) => p.isSelected).map((p) => p.userId).toList();
-
     setState(() {
-      _isSending = true; // Show loading
+      _isSending = true;
     });
 
     try {
-      await ProfileService.sendGift(giftValue: _selectedGift!.value, recipientIds: selectedRecipients);
 
-      if (mounted) {
+        final selectedRecipients = _participantSelectors.where((p) => p.isSelected).map((p) => p.userId).toList();
+
+        await ProfileService.sendGift(giftValue: _selectedGift!.value, recipientIds: selectedRecipients);
+
+        await RoomService.sendGift(
+          roomId: widget.roomId,
+          giftAnimationUrl: _selectedGift!.iconUrl,
+          giftImageUrl: _selectedGift!.imageUrl,
+          giftValue: _selectedGift!.value,
+          category: _selectedGift!.category,
+        );
+
+        if (!mounted) return;
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gift sent successfully! Total: $_totalCost diamonds'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isSending = false; // Hide loading on error
-        });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
-        );
-      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSending = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red));
     }
   }
 
@@ -432,17 +438,15 @@ class _GiftGridViewState extends State<_GiftGridView> with AutomaticKeepAliveCli
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Image.network(
-                      gift.imageUrl,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(color: Colors.pink.withOpacity(0.5), strokeWidth: 2),
-                        );
-                      },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10)),
+                    child: GiftImageWidget(
+                      imageUrl: gift.imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: Center(
+                        child: CircularProgressIndicator(color: Colors.pink.withOpacity(0.5), strokeWidth: 1.5),
+                      ),
+                      errorWidget: const Icon(Icons.card_giftcard, color: Colors.white54, size: 24),
                     ),
                   ),
                 ),
