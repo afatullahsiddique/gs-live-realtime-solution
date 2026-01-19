@@ -769,10 +769,19 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     }
     return WillPopScope(
       onWillPop: () async {
+        // Check if keyboard is open
+        if (MediaQuery.of(context).viewInsets.bottom > 0) {
+          // Keyboard is open, just close it
+          FocusManager.instance.primaryFocus?.unfocus();
+          return false; // Don't pop the route
+        }
+
+        // Keyboard is closed, show exit confirmation
         final shouldExit = await _showExitConfirmationDialog();
         return shouldExit ?? false;
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         body: StreamBuilder<DatabaseEvent>(
           stream: RoomService.getRoomStream(widget.roomID),
           builder: (context, snapshot) {
@@ -1728,7 +1737,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     final int totalRequests = _coHostRequests.length + _speakerRequests.length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).viewInsets.bottom),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [

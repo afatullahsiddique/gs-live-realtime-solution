@@ -815,10 +815,19 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
 
     return WillPopScope(
       onWillPop: () async {
+        // Check if keyboard is open
+        if (MediaQuery.of(context).viewInsets.bottom > 0) {
+          // Keyboard is open, just close it
+          FocusManager.instance.primaryFocus?.unfocus();
+          return false; // Don't pop the route
+        }
+
+        // Keyboard is closed, show exit confirmation
         final shouldExit = await _showExitConfirmationDialog();
         return shouldExit ?? false;
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: Colors.black,
         body: Stack(
           children: [
@@ -1499,7 +1508,7 @@ class _LiveStreamPageState extends State<LiveStreamPage> with SingleTickerProvid
     final int totalRequests = _joinRequests.length;
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).viewInsets.bottom),
       child: Row(
         children: [
           Padding(
