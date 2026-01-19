@@ -510,8 +510,16 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         _showEmoji(
           senderId: data['senderId'] ?? '',
           senderName: data['senderName'] ?? 'Unknown',
-          emojiUrl: data['emojiUrl'] ?? '',
+          emojiUrl: getFullUrl(data['emojiUrl'] ?? ''),
           emojiName: data['emojiName'] ?? '',
+        );
+
+        _addChatMessage(
+          userId: data['senderId'] ?? '',
+          username: data['senderName'] ?? 'Unknown',
+          message: '',
+          type: MessageType.emoji,
+          iconUrl: getFullUrl(data['emojiUrl']),
         );
       }
     });
@@ -622,7 +630,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       width: size,
       height: size,
       decoration: BoxDecoration(shape: BoxShape.circle),
-      child: Image.network(_currentEmojiEvent!.emojiUrl, fit: BoxFit.contain),
+      child: GiftImageWidget(imageUrl: _currentEmojiEvent!.emojiUrl, fit: BoxFit.contain),
     );
   }
 
@@ -1889,61 +1897,123 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
           final messageIndex = index - 1;
           final m = _messages[messageIndex];
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    showProfileInfoBottomSheet(
-                      context,
-                      userId: m.userId,
-                      hostId: roomData['hostId'] ?? '',
-                      roomId: widget.roomID,
-                    );
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade700,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
-                          ],
-                        ),
-                        child: const Text(
-                          "Lv 1",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        "${m.username}: ",
-                        style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 0, top: 2),
-                  child: Text(m.message, style: const TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          );
+          return Padding(padding: const EdgeInsets.only(bottom: 6), child: _buildChatMessage(m));
         },
       ),
+    );
+  }
+
+  Widget _buildChatMessage(ChatMessage m) {
+    // If it's an emoji message, show it large like WhatsApp
+    if (m.type == MessageType.emoji && m.iconUrl != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: GestureDetector(
+          onTap: () {
+            showProfileInfoBottomSheet(
+              context,
+              userId: m.userId,
+              hostId: roomData['hostId'] ?? '',
+              roomId: widget.roomID,
+            );
+          },
+          behavior: HitTestBehavior.opaque,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Username with level badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: const Text(
+                  "Lv 1",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5),
+                ),
+              ),
+              Text(
+                m.username,
+                style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+              const SizedBox(width: 8),
+              // Large emoji
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SizedBox(
+                  height: 60,
+                  width: 60,
+                  child: GiftImageWidget(imageUrl: m.iconUrl!, fit: BoxFit.contain),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Regular text and gift messages
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            showProfileInfoBottomSheet(
+              context,
+              userId: m.userId,
+              hostId: roomData['hostId'] ?? '',
+              roomId: widget.roomID,
+            );
+          },
+          behavior: HitTestBehavior.opaque,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: const Text(
+                  "Lv 1",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5),
+                ),
+              ),
+              Text(
+                "${m.username} ",
+                style: TextStyle(color: Colors.pink.shade300, fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+              // Show message based on type
+              if (m.type == MessageType.text)
+                Flexible(
+                  child: Text(m.message, style: const TextStyle(color: Colors.white, fontSize: 15)),
+                )
+              else if (m.type == MessageType.gift) ...[
+                Text(m.message, style: const TextStyle(color: Colors.white, fontSize: 15)),
+                if (m.iconUrl != null) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: GiftImageWidget(imageUrl: m.iconUrl!, fit: BoxFit.contain),
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -2114,6 +2184,30 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         ],
       ),
     );
+  }
+
+  void _addChatMessage({
+    required String userId,
+    required String username,
+    required String message,
+    required MessageType type,
+    String? iconUrl,
+  }) {
+    if (mounted) {
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            userId: userId,
+            username: username,
+            message: message,
+            timestamp: DateTime.now(),
+            type: type,
+            iconUrl: iconUrl,
+          ),
+        );
+        _scrollToBottom();
+      });
+    }
   }
 
   void _sendMessage() async {

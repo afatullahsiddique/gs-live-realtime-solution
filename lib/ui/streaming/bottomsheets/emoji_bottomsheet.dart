@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../data/remote/firebase/assets_services.dart';
 import '../../../../data/remote/firebase/room_services.dart';
+import '../../../core/utils/links.dart';
+import '../../../core/widgets/gift_image_widget.dart';
 
 class EmojiBottomSheet extends StatelessWidget {
   final String roomId;
@@ -72,6 +74,7 @@ class EmojiBottomSheet extends StatelessWidget {
                             final emoji = emojis[index];
                             return GestureDetector(
                               onTap: () async {
+                                print("This text is never executing in the console.");
                                 try {
                                   await RoomService.sendEmoji(roomId, emoji.imageUrl, emoji.name);
                                   Navigator.pop(context);
@@ -85,19 +88,8 @@ class EmojiBottomSheet extends StatelessWidget {
                                   );
                                 }
                               },
-                              child: Image.network(
-                                emoji.imageUrl,
-                                fit: BoxFit.contain,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Center(
-                                    child: CircularProgressIndicator(
-                                      color: Colors.pink.withOpacity(0.5),
-                                      strokeWidth: 2,
-                                    ),
-                                  );
-                                },
-                              ),
+                              behavior: HitTestBehavior.opaque,
+                              child: GiftImageWidget(imageUrl: getFullUrl(emoji.imageUrl), fit: BoxFit.cover),
                             );
                           },
                         );
