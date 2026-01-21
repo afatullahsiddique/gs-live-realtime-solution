@@ -175,7 +175,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
         GestureDetector(
           onTap: () {
-            context.push(Routes.myLevel.path);
+            context.push(Routes.ranks.path);
           },
           child: Padding(
             padding: const EdgeInsets.only(right: 16.0),

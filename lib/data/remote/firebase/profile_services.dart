@@ -73,7 +73,7 @@ class ProfileService {
             'createdAt': FieldValue.serverTimestamp(),
             'followerCount': 0,
             'followingCount': 0,
-            'balance': 0,
+            'balance': 200000,
             'bio': '',
             'country': 'N/A',
             'countryFlagEmoji': null,

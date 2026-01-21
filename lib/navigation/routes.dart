@@ -33,6 +33,7 @@ enum Routes {
   chat,
   settingsPage,
   passwordSettings,
+  ranks,
 }
 
 extension RoutesExtension on Routes {
@@ -108,6 +109,8 @@ extension RoutesExtension on Routes {
         return '/settingsPage';
       case Routes.passwordSettings:
         return '/passwordSettings';
+      case Routes.ranks:
+        return '/ranks';
     }
   }
 }

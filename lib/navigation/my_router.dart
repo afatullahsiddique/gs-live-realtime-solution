@@ -31,6 +31,7 @@ import '../ui/my_level/my_level_page.dart';
 import '../ui/profile/edit_profile_page.dart';
 import '../ui/profile/profile_page.dart';
 import '../ui/profile_visitors/profile_visitors_page.dart';
+import '../ui/ranks/ranks_page.dart';
 import '../ui/settings/password_settings_page.dart';
 import '../ui/settings/settings_page.dart';
 import '../ui/store-bag/mybag_page.dart';
@@ -383,6 +384,16 @@ class MyRouter {
           pageBuilder: (context, state) => CustomTransitionPage<void>(
             key: state.pageKey,
             child: MyLevelPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.ranks.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: RanksPage(),
             transitionsBuilder: customSlideTransition,
             transitionDuration: const Duration(milliseconds: 250),
             reverseTransitionDuration: const Duration(milliseconds: 200),
