@@ -1053,13 +1053,22 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                   child: _isInitialized
                       ? Stack(
                           children: [
-                            Column(
+                            Stack(
                               children: [
-                                _buildAppBar(),
-                                _buildHostStatsRow(),
-                                Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
-                                Expanded(child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()])),
-                                _buildChatInput(),
+                                Column(
+                                  children: [
+                                    _buildAppBar(),
+                                    _buildHostStatsRow(),
+                                    Column(children: [_buildStreamerProfile(), _buildSeatsGrid()]),
+                                    Expanded(
+                                      child: Container(
+                                        margin: EdgeInsets.only(bottom: 60),
+                                        child: Stack(children: [_buildChatSection(), _buildJoinCallOverlay()]),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Positioned(bottom: 0, left: 0, right: 0, child: _buildChatInput()),
                               ],
                             ),
                             Center(child: _buildJoinAnimationOverlay()),

@@ -94,15 +94,15 @@ class LoginCubit extends Cubit<LoginState> {
 
       // Simulate successful login
       if (phoneNumber.contains('123')) {
-        final user = User(
-          id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-          name: 'Phone User',
-          email: 'phone@example.com',
-          phoneNumber: phoneNumber,
-          avatar: 'https://via.placeholder.com/150',
-        );
-        await secureStorage.setUser(user);
-        emit(state.copyWith(status: LoginStatus.success, user: user));
+        // final user = User(
+        //   id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        //   name: 'Phone User',
+        //   email: 'phone@example.com',
+        //   phoneNumber: phoneNumber,
+        //   avatar: 'https://via.placeholder.com/150',
+        // );
+        // await secureStorage.setUser(user);
+        // emit(state.copyWith(status: LoginStatus.success, user: user));
       } else {
         emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid phone number. Please try again.'));
       }
