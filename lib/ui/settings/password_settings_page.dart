@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/remote/firebase/profile_services.dart';
 import '../../theme/app_theme.dart';
+import '../profile/repository/user_repository.dart';
 
 class PasswordSettingsPage extends StatefulWidget {
   const PasswordSettingsPage({super.key});
@@ -31,12 +32,12 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
   }
 
   Future<void> _checkPasswordStatus() async {
-    final hasPassword = await ProfileService.hasPassword();
     setState(() {
-      _hasPassword = hasPassword;
+      _hasPassword = true;
       _isLoading = false;
     });
   }
+
 
   @override
   void dispose() {
@@ -52,18 +53,15 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
     try {
       setState(() => _isLoading = true);
 
-      // If user has password, verify current password first
-      if (_hasPassword) {
-        // Here you would verify the current password
-        // For now, we'll just proceed with the update
-      }
-
-      await ProfileService.setPassword(_newPasswordController.text);
+      await UserRepository().changePassword(
+        oldPassword: _currentPasswordController.text.trim(),
+        newPassword: _newPasswordController.text.trim(),
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_hasPassword ? 'Password changed successfully!' : 'Password created successfully!'),
+          const SnackBar(
+            content: Text('Password changed successfully!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -71,12 +69,16 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+
 
   Future<void> _deletePassword() async {
     final confirmed = await showDialog<bool>(
@@ -176,24 +178,24 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
                             children: [
                               const SizedBox(height: 20),
 
-                              // Current Password (only if user has password)
-                              if (_hasPassword) ...[
-                                _buildPasswordField(
-                                  controller: _currentPasswordController,
-                                  label: 'Current Password',
-                                  obscureText: _obscureCurrentPassword,
-                                  onToggleVisibility: () {
-                                    setState(() => _obscureCurrentPassword = !_obscureCurrentPassword);
-                                  },
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your current password';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 20),
-                              ],
+                              // Current Password
+                              _buildPasswordField(
+                                controller: _currentPasswordController,
+                                label: 'Current Password',
+                                obscureText: _obscureCurrentPassword,
+                                onToggleVisibility: () {
+                                  setState(() => _obscureCurrentPassword = !_obscureCurrentPassword);
+                                },
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Please enter your current password';
+                                  }
+                                  return null;
+                                },
+                              ),
+
+                              const SizedBox(height: 20),
+
 
                               // New Password
                               _buildPasswordField(

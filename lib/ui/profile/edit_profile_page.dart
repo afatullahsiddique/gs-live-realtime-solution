@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:cute_live/ui/profile/repository/user_repository.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,8 +10,6 @@ import 'package:intl/intl.dart';
 
 // New Import
 import 'package:country_picker/country_picker.dart';
-
-import '../../data/remote/firebase/profile_services.dart';
 import '../../theme/app_theme.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -70,38 +68,25 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _loadCurrentProfile() async {
-    if (_userId == null) {
-      setState(() {
-        _isFetching = false;
-      });
-      return;
-    }
+    setState(() => _isFetching = true);
     try {
-      final doc = await ProfileService.getUserProfile(_userId!);
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        _nameController.text = data['displayName'] ?? '';
+      final user = await UserRepository().getUserProfile();
+      _nameController.text = user.name;
+      _bioController.text = user.host?.bio ?? '';
+      _selectedGender = user.gender;
+      _selectedCountryName = user.host?.country;
+      _selectedCountryFlagEmoji = user.host?.countryFlagEmoji;
+      _profileImageUrl = user.photoUrl;
 
-        // Updated logic for country
-        _selectedCountryName = data['country'];
-        _selectedCountryFlagEmoji = data['countryFlagEmoji']; // Assumes you store this
-
-        _bioController.text = data['bio'] ?? '';
-        _selectedGender = data['gender'];
-        _profileImageUrl = data['photoUrl'];
-        if (data['dob'] != null) {
-          _selectedDob = (data['dob'] as Timestamp).toDate();
-        }
-        setState(() {
-          _bioCharCount = _bioController.text.length;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
-    } finally {
       setState(() {
+        _bioCharCount = _bioController.text.length;
         _isFetching = false;
       });
+    } catch (e) {
+      setState(() => _isFetching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading profile: $e')),
+      );
     }
   }
 
@@ -120,34 +105,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      await ProfileService.updateUserProfile(
-        displayName: _nameController.text,
-        country: _selectedCountryName,
-        countryFlagEmoji: _selectedCountryFlagEmoji,
-        bio: _bioController.text,
+      await UserRepository().updateUserProfile(
+        name: _nameController.text,
         gender: _selectedGender,
-        dob: _selectedDob,
+        bio: _bioController.text,
+        country: _selectedCountryName,
+        location: _selectedCountryName, // or separate location field
         imageFile: _selectedImageFile,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully!')),
+      );
 
-      if (mounted) {
-        context.pop();
-      }
+      if (mounted) context.pop();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating profile: $e')),
+      );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

@@ -1,18 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:ui';
 
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 // Firebase Imports
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../../core/widgets/auto_scroll_text.dart';
-import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
 import '../../theme/app_theme.dart';
+import 'bloc/profile_bloc.dart';
+import 'bloc/profile_state.dart';
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -22,13 +22,6 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  String? _userId;
-
-  @override
-  void initState() {
-    super.initState();
-    _userId = FirebaseAuth.instance.currentUser?.uid;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,79 +67,67 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               Expanded(
-                child: _userId == null
-                    ? Center(
-                        child: Text('Please log in to see your profile.', style: TextStyle(color: Colors.white)),
-                      )
-                    : StreamBuilder<DocumentSnapshot>(
-                        stream: ProfileService.getUserProfileStream(_userId!),
-                        builder: (context, snapshot) {
-                          // Handle Loading State
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return Center(child: CircularProgressIndicator(color: AppColors.pink));
-                          }
+                child: BlocBuilder<ProfileBloc, ProfileState>(
+                  builder: (context, state) {
+                    if (state is ProfileLoading) {
+                      return Center(
+                        child: CircularProgressIndicator(color: AppColors.pink),
+                      );
+                    }
 
-                          // Handle Error State
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red.shade300)),
-                            );
-                          }
+                    if (state is ProfileError) {
+                      return Center(
+                        child: Text(
+                          state.message,
+                          style: TextStyle(color: Colors.red.shade300),
+                        ),
+                      );
+                    }
 
-                          // Handle No Data State
-                          if (!snapshot.hasData || !snapshot.data!.exists) {
-                            return Center(
-                              child: Text('Profile not found.', style: TextStyle(color: Colors.white70)),
-                            );
-                          }
+                    if (state is ProfileLoaded) {
+                      final user = state.user;
 
-                          // Handle Success State
-                          final data = snapshot.data!.data() as Map<String, dynamic>;
-                          final uid = snapshot.data!.id;
+                      final userProfile = UserProfile(
+                        name: user.name,
+                        id: user.id,
+                        displayId: user.host?.displayId ?? '',
+                        country: user.host?.country ?? '',
+                        countryFlagEmoji: user.host?.countryFlagEmoji ?? '',
+                        bio: user.host?.bio ?? '',
+                        profileImage: user.photoUrl ?? '',
+                        followers: user.host?.followerCount ?? 0,
+                        following: user.host?.followingCount ?? 0,
+                        diamonds: user.host?.diamonds ?? 0,
+                        beans: user.host?.balance ?? 0,
+                      );
 
-                          // Map Firestore data to our local UserProfile model
-                          final userProfile = UserProfile(
-                            name: data['displayName'] ?? 'No Name',
-                            id: uid,
-                            displayId: data['displayId'] ?? 'N/A',
-                            country: data['country'] ?? 'N/A',
-                            countryFlagEmoji: data['countryFlagEmoji'],
-                            bio: data['bio'] ?? 'No bio yet.',
-                            profileImage: data['photoUrl'] ?? '',
-                            followers: data['followerCount'] ?? 0,
-                            following: data['followingCount'] ?? 0,
-                            diamonds: data['diamonds'] ?? 0,
-                            beans: data['balance'] ?? 0,
-                          );
 
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 10),
-                                _buildProfileSection(userProfile),
-                                const SizedBox(height: 30),
-                                FutureBuilder<List<SimpleUser>>(
-                                  future: ProfileService.getMutualsList(userProfile.id),
-                                  builder: (context, mutualsSnapshot) {
-                                    if (mutualsSnapshot.connectionState == ConnectionState.waiting) {
-                                      return _buildStatistics(userProfile, null); // Pass null for loading
-                                    }
-                                    final friendsCount = mutualsSnapshot.data?.length ?? 0;
-                                    return _buildStatistics(userProfile, friendsCount);
-                                  },
-                                ),
-                                const SizedBox(height: 20),
-                                _buildAchievementChips(userProfile),
-                                const SizedBox(height: 30),
-                                _buildButtonsGrid(),
-                                const SizedBox(height: 30),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            _buildProfileSection(userProfile),
+                            const SizedBox(height: 30),
+
+                            // If you still want Firebase friends count
+                            _buildStatistics(userProfile, userProfile.followers),
+
+                            const SizedBox(height: 20),
+                            _buildAchievementChips(userProfile),
+                            const SizedBox(height: 30),
+                            _buildButtonsGrid(),
+                            const SizedBox(height: 30),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return const SizedBox();
+                  },
+                ),
               ),
+
             ],
           ),
         ),

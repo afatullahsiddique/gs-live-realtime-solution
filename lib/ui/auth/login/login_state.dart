@@ -60,9 +60,11 @@ class User extends Equatable {
     required this.id,
     required this.name,
     required this.email,
+    this.displayId,
     this.avatar,
     this.phoneNumber,
-    this.displayId,
+    this.token,
+    this.refreshToken,
   });
 
   final String id;
@@ -71,7 +73,10 @@ class User extends Equatable {
   final String? displayId;
   final String? avatar;
   final String? phoneNumber;
+  final String? token;
+  final String? refreshToken;
 
+  /// Create a User from JSON
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] as String,
@@ -80,9 +85,12 @@ class User extends Equatable {
       email: json['email'] as String,
       avatar: json['avatar'] as String?,
       phoneNumber: json['phoneNumber'] as String?,
+      token: json['token'] as String?,
+      refreshToken: json['refreshToken'] as String?,
     );
   }
 
+  /// Convert User to JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -91,10 +99,22 @@ class User extends Equatable {
       'email': email,
       'avatar': avatar,
       'phoneNumber': phoneNumber,
+      'token': token,
+      'refreshToken': refreshToken,
     };
   }
 
-  User copyWith({String? id, String? displayId, String? name, String? email, String? avatar, String? phoneNumber}) {
+  /// Copy the user with new values
+  User copyWith({
+    String? id,
+    String? displayId,
+    String? name,
+    String? email,
+    String? avatar,
+    String? phoneNumber,
+    String? token,
+    String? refreshToken,
+  }) {
     return User(
       id: id ?? this.id,
       displayId: displayId ?? this.displayId,
@@ -102,9 +122,20 @@ class User extends Equatable {
       email: email ?? this.email,
       avatar: avatar ?? this.avatar,
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      token: token ?? this.token,
+      refreshToken: refreshToken ?? this.refreshToken,
     );
   }
 
   @override
-  List<Object?> get props => [id, displayId, name, email, avatar, phoneNumber];
+  List<Object?> get props => [
+    id,
+    displayId,
+    name,
+    email,
+    avatar,
+    phoneNumber,
+    token,
+    refreshToken,
+  ];
 }

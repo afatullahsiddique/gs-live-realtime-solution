@@ -49,7 +49,7 @@ class _ApplyHostingPageState extends State<ApplyHostingPage> {
   void dispose() {
     _idNumberController.dispose();
     _emailController.dispose();
-    _agencyCodeController.dispose(); // Dispose new controller
+    _agencyCodeController.dispose(); // Dispose new bloc
     super.dispose();
   }
 

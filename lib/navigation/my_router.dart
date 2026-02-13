@@ -9,6 +9,7 @@ import 'package:cute_live/ui/status/status_page.dart';
 import 'package:cute_live/ui/streaming/audio_room_page.dart';
 import 'package:cute_live/ui/top_up/top_up_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cute_live/navigation/routes.dart';
@@ -28,8 +29,11 @@ import '../ui/live_streaming/live_room_page.dart';
 import '../ui/main_page.dart';
 import '../ui/my_invites/my_invites_page.dart';
 import '../ui/my_level/my_level_page.dart';
+import '../ui/profile/bloc/profile_bloc.dart';
+import '../ui/profile/bloc/profile_event.dart';
 import '../ui/profile/edit_profile_page.dart';
 import '../ui/profile/profile_page.dart';
+import '../ui/profile/repository/user_repository.dart';
 import '../ui/profile_visitors/profile_visitors_page.dart';
 import '../ui/ranks/ranks_page.dart';
 import '../ui/settings/password_settings_page.dart';
@@ -125,12 +129,31 @@ class MyRouter {
               path: Routes.profile.path,
               pageBuilder: (context, state) => CustomTransitionPage<void>(
                 key: state.pageKey,
-                child: ProfilePage(),
+                child: FutureBuilder(
+                  future: GetIt.I<SecureStorage>().getToken(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
+                    final token = snapshot.data!;
+
+                    return BlocProvider(
+                      create: (context) => ProfileBloc(
+                        repository: UserRepository(),
+                      )..add(LoadUserProfile(token)),
+                      child: const ProfilePage(),
+                    );
+                  },
+                ),
                 transitionsBuilder: customPopTransition,
                 transitionDuration: const Duration(milliseconds: 200),
                 reverseTransitionDuration: const Duration(milliseconds: 100),
               ),
             ),
+
             GoRoute(
               path: Routes.editProfile.path,
               pageBuilder: (context, state) => CustomTransitionPage<void>(

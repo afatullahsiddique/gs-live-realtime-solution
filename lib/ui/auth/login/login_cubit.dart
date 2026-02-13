@@ -1,11 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../data/local/secure_storage/secure_storage.dart';
 import '../../../data/remote/firebase/profile_services.dart';
 import 'login_state.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
 
 class LoginCubit extends Cubit<LoginState> {
   LoginCubit() : super(const LoginState());
@@ -123,73 +127,59 @@ class LoginCubit extends Cubit<LoginState> {
         method: LoginMethod.credentials,
         userId: displayId,
         password: password,
+        error: null,
       ),
     );
 
     try {
-      // Query Firestore for user with matching displayId
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('displayId', isEqualTo: displayId)
-          .limit(1)
-          .get();
-
-      if (querySnapshot.docs.isEmpty) {
-        emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid User ID or password.'));
-        return;
-      }
-
-      final userDoc = querySnapshot.docs.first;
-      final userData = userDoc.data();
-
-      // Verify password
-      if (!userData.containsKey('password') ||
-          userData['password'] == null ||
-          userData['password'].toString().isEmpty) {
-        emit(state.copyWith(status: LoginStatus.failure, error: 'No password set. Please use social login.'));
-        return;
-      }
-
-      if (userData['password'] != password) {
-        emit(state.copyWith(status: LoginStatus.failure, error: 'Invalid Display ID or password.'));
-        return;
-      }
-
-      // Check if user is already signed in
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null && currentUser.uid == userDoc.id) {
-        // Already signed in as this user
-        print('User already signed in');
-      } else {
-        // Sign out current user if any
-        if (currentUser != null) {
-          await FirebaseAuth.instance.signOut();
-        }
-
-        // Sign in anonymously (requires Anonymous provider enabled)
-        await FirebaseAuth.instance.signInAnonymously();
-      }
-
-      // Update last login
-      await FirebaseFirestore.instance.collection('users').doc(userDoc.id).update({
-        'lastLogin': FieldValue.serverTimestamp(),
-      });
-
-      // Create User object
-      final user = User(
-        id: userDoc.id,
-        displayId: userData['displayId'] ?? '',
-        name: userData['displayName'] ?? 'User',
-        email: userData['email'] ?? '',
-        avatar: userData['photoUrl'],
-        phoneNumber: userData['phoneNumber'],
+      final response = await http.post(
+        Uri.parse('https://gf-live-backend.onrender.com/api/v1/auth/login'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'displayId': displayId,
+          'password': password,
+        }),
       );
 
-      await secureStorage.setUser(user);
-      emit(state.copyWith(status: LoginStatus.success, user: user));
+      final data = jsonDecode(response.body);
+
+      debugPrint("Status code: ${response.statusCode}");
+      debugPrint("Url: ${response.request?.url}");
+      debugPrint("Response body: ${response.body}");
+
+      if (response.statusCode == 200 && data['status'] == true) {
+        final userData = data['data'];
+
+        final user = User(
+          id: userData['id'],
+          displayId: userData['displayId'],
+          name: userData['name'] ?? 'User',
+          email: userData['email'] ?? '',
+          token: userData['token'], // ✅ now exists
+        );
+
+        await secureStorage.setUser(user); // store login info
+
+        emit(state.copyWith(status: LoginStatus.success, user: user));
+      }
+      else {
+        emit(
+          state.copyWith(
+            status: LoginStatus.failure,
+            error: data['message'] ?? 'Invalid User ID or password.',
+          ),
+        );
+      }
     } catch (e) {
       print('Login error: $e');
-      emit(state.copyWith(status: LoginStatus.failure, error: 'Login failed. Please try again.'));
+      emit(
+        state.copyWith(
+          status: LoginStatus.failure,
+          error: 'Login failed. Please try again.',
+        ),
+      );
     }
   }
 
