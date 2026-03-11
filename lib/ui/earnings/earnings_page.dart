@@ -94,7 +94,7 @@ class EarningsPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       _buildBulletPoint(
-                        'Receive training, support and other perks from the team at GF LIVE and our crew of trusted agencies!',
+                        'Receive training, support and other perks from the team at GS LIVE and our crew of trusted agencies!',
                       ),
                       const SizedBox(height: 40),
                       // Notice
@@ -112,7 +112,7 @@ class EarningsPage extends StatelessWidget {
                             ),
                             const TextSpan(
                               text:
-                                  '\nGF LIVE does not allow streamer under 18 to stream. If you are under age, your application will not be accepted. Please apply after you turn 18 years old.',
+                                  '\nGS LIVE does not allow streamer under 18 to stream. If you are under age, your application will not be accepted. Please apply after you turn 18 years old.',
                               style: TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.w500),
                             ),
                           ],

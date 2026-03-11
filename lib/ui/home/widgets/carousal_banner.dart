@@ -78,11 +78,11 @@ class _CarouselBannerState extends State<CarouselBanner> {
           return GestureDetector(
             onTap: () => widget.onBannerTap?.call(index),
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 8),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8)),
+                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 1)),
                 ],
               ),
               child: ClipRRect(
@@ -92,7 +92,8 @@ class _CarouselBannerState extends State<CarouselBanner> {
                   children: [
                     Image.asset(
                       widget.imageUrls[index],
-                      fit: BoxFit.cover,
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.topCenter,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: Colors.grey.shade800,
@@ -122,7 +123,7 @@ class _CarouselBannerState extends State<CarouselBanner> {
 // Sample banner URLs for your live streaming app
 class BannerUrls {
   static const List<String> liveStreamingBanners = [
-    'assets/banner/welcome_banner.jpeg',
-    'assets/banner/ad_banner.jpeg',
+    'assets/banner/welcome_banner2z.jpeg',
+    // 'assets/banner/ad_banner.jpeg',
   ];
 }

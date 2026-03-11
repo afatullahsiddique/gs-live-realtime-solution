@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/auto_scroll_text.dart';
-import '../../../data/remote/firebase/room_services.dart';
+import 'package:get_it/get_it.dart';
+import '../../../data/remote/rest/room_api_service.dart';
+import '../../../di/get_it.dart';
 import '../audio_room_page.dart';
 
 class RequestsBottomSheet extends StatefulWidget {
@@ -29,6 +31,7 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
   late List<dynamic> _speakerRequests;
   late bool _isMoveAllowed;
   late bool _isSeatApprovalRequired;
+  final roomApiService = GetIt.instance<RoomApiService>();
 
   @override
   void initState() {
@@ -63,9 +66,10 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
             onPressed: () async {
               try {
                 if (request is CoHostRequest) {
-                  await RoomService.rejectCoHostRequest(widget.roomID, request.requestId);
+                  // TODO: Implement REST API for reject co-host if exists
+                  // await roomApiService.rejectCohost(widget.roomID, request.requestId);
                 } else if (request is SpeakerRequest) {
-                  await RoomService.rejectSpeakerRequest(widget.roomID, request.requestId);
+                  // await RoomService.rejectSpeakerRequest(widget.roomID, request.requestId);
                 }
               } catch (e) {
                 debugPrint("Error rejecting request: $e");
@@ -139,7 +143,7 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
                 _isMoveAllowed = newValue;
               });
               try {
-                await RoomService.toggleMoveAllowed(widget.roomID, newValue);
+                // await RoomService.toggleMoveAllowed(widget.roomID, newValue);
               } catch (e) {
                 if (mounted) {
                   setState(() {
@@ -167,7 +171,7 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
                 _isSeatApprovalRequired = newValue;
               });
               try {
-                await RoomService.toggleSeatApprovalRequired(widget.roomID, newValue);
+                // await RoomService.toggleSeatApprovalRequired(widget.roomID, newValue);
               } catch (e) {
                 if (mounted) {
                   setState(() {
@@ -188,7 +192,7 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
             (request) => _buildRequestTile(
               request: request,
               subtitle: 'Wants to be a co-host',
-              onApprove: () => RoomService.approveCoHostRequest(widget.roomID, request.requestId, request.userId),
+              onApprove: () => roomApiService.approveCohost(widget.roomID, request.requestId, request.userId),
               onStateChange: () => _coHostRequests.remove(request),
             ),
           ),
@@ -202,7 +206,9 @@ class _RequestsBottomSheetState extends State<RequestsBottomSheet> {
             (request) => _buildRequestTile(
               request: request,
               subtitle: 'Wants to join a chair',
-              onApprove: () => RoomService.approveSpeakerRequest(widget.roomID, request.requestId, request.userId),
+              onApprove: () async {
+                // TODO: Implement approve speaker REST if needed
+              },
               onStateChange: () => _speakerRequests.remove(request),
             ),
           ),

@@ -13,6 +13,8 @@
     <!-- Permissions for Bluetooth (for headsets, etc.) -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
+
 
     <!-- Feature declarations for Google Play Store filtering -->
     <!-- This tells the store that camera is an optional feature -->
@@ -31,7 +33,7 @@
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:label="GF LIVE">
+        android:label="GS LIVE">
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"

@@ -345,6 +345,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.3"
+  dio:
+    dependency: "direct main"
+    description:
+      name: dio
+      sha256: b9d46faecab38fc8cc286f80bc4d61a3bb5d4ac49e51ed877b4d6706efe57b25
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.9.1"
+  dio_web_adapter:
+    dependency: transitive
+    description:
+      name: dio_web_adapter
+      sha256: "7586e476d70caecaf1686d21eee7247ea43ef5c345eab9e0cc3583ff13378d78"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.1"
   encrypt:
     dependency: transitive
     description:
@@ -389,10 +405,10 @@ packages:
     dependency: "direct main"
     description:
       name: file_picker
-      sha256: f2d9f173c2c14635cc0e9b14c143c49ef30b4934e8d1d274d6206fcb0086a06f
+      sha256: d974b6ba2606371ac71dd94254beefb6fa81185bde0b59bdc1df09885da85fde
       url: "https://pub.dev"
     source: hosted
-    version: "10.3.3"
+    version: "10.3.8"
   file_selector_linux:
     dependency: transitive
     description:
@@ -497,6 +513,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.7+1"
+  firebase_messaging:
+    dependency: "direct main"
+    description:
+      name: firebase_messaging
+      sha256: "22086f857d2340f5d973776cfd542d3fb30cf98e1c643c3aa4a7520bb12745bb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "16.0.4"
+  firebase_messaging_platform_interface:
+    dependency: transitive
+    description:
+      name: firebase_messaging_platform_interface
+      sha256: a59920cbf2eb7c83d34a5f354331210ffec116b216dc72d864d8b8eb983ca398
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.7.4"
+  firebase_messaging_web:
+    dependency: transitive
+    description:
+      name: firebase_messaging_web
+      sha256: "1183e40e6fd2a279a628951cc3b639fcf5ffe7589902632db645011eb70ebefb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   firebase_storage:
     dependency: "direct main"
     description:
@@ -622,6 +662,38 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.0.0"
+  flutter_local_notifications:
+    dependency: "direct main"
+    description:
+      name: flutter_local_notifications
+      sha256: "19ffb0a8bb7407875555e5e98d7343a633bb73707bae6c6a5f37c90014077875"
+      url: "https://pub.dev"
+    source: hosted
+    version: "19.5.0"
+  flutter_local_notifications_linux:
+    dependency: transitive
+    description:
+      name: flutter_local_notifications_linux
+      sha256: e3c277b2daab8e36ac5a6820536668d07e83851aeeb79c446e525a70710770a5
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.0"
+  flutter_local_notifications_platform_interface:
+    dependency: transitive
+    description:
+      name: flutter_local_notifications_platform_interface
+      sha256: "277d25d960c15674ce78ca97f57d0bae2ee401c844b6ac80fcd972a9c99d09fe"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.1.0"
+  flutter_local_notifications_windows:
+    dependency: transitive
+    description:
+      name: flutter_local_notifications_windows
+      sha256: "8d658f0d367c48bd420e7cf2d26655e2d1130147bca1eea917e576ca76668aaf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.3"
   flutter_localizations:
     dependency: transitive
     description: flutter
@@ -1005,6 +1077,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+  mobile_scanner:
+    dependency: "direct main"
+    description:
+      name: mobile_scanner
+      sha256: c92c26bf2231695b6d3477c8dcf435f51e28f87b1745966b1fe4c47a286171ce
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.2.0"
   native_device_orientation:
     dependency: transitive
     description:
@@ -1394,6 +1474,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  socket_io_client:
+    dependency: "direct main"
+    description:
+      name: socket_io_client
+      sha256: ef6c989e5eee8d04baf18482ec3d7699b91bc41e279794a99d8e3bef897b074a
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.4"
+  socket_io_common:
+    dependency: transitive
+    description:
+      name: socket_io_common
+      sha256: "162fbaecbf4bf9a9372a62a341b3550b51dcef2f02f3e5830a297fd48203d45b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.1"
   source_span:
     dependency: transitive
     description:
@@ -1506,6 +1602,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.6"
+  timezone:
+    dependency: transitive
+    description:
+      name: timezone
+      sha256: dd14a3b83cfd7cb19e7888f1cbc20f258b8d71b54c06f79ac585f14093a287d1
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.10.1"
   typed_data:
     dependency: transitive
     description:
@@ -1766,42 +1870,42 @@ packages:
     dependency: transitive
     description:
       name: zego_express_engine
-      sha256: e20d079cca156e64598a83ee123f6387918d8fbb9faf934ce31b00b846c12926
+      sha256: eae6a7b9c7bf0d526faac61ea55188263e5501c7238293f0de5d811103bf9b5f
       url: "https://pub.dev"
     source: hosted
-    version: "3.22.1"
+    version: "3.23.0"
   zego_plugin_adapter:
     dependency: transitive
     description:
       name: zego_plugin_adapter
-      sha256: "3e5ab8c98966fa8c238a907d6073bb759e5ece65eabd4958b6be475b714b6c69"
+      sha256: ebeb9c1b737e5df3d62b251d14e2e764f822ebe6e322c0a25d49c0b714e54bc9
       url: "https://pub.dev"
     source: hosted
-    version: "2.13.12"
+    version: "2.14.2"
   zego_uikit:
     dependency: "direct main"
     description:
       name: zego_uikit
-      sha256: "0ee2777bf8cab52dfe5f5407f849c37b09315a1279a965cc572e86af2e6ea962"
+      sha256: "714207da210dd70cc84fb260de460e91eb57738c291122851502c9cca45b95d8"
       url: "https://pub.dev"
     source: hosted
-    version: "2.28.28"
+    version: "2.28.44"
   zego_uikit_prebuilt_live_audio_room:
     dependency: "direct main"
     description:
       name: zego_uikit_prebuilt_live_audio_room
-      sha256: "638340da7949ed9af6a31b9fe47c7a2bb975ed9d4212c7468a3ca1e54a7fe990"
+      sha256: "0fbec05da3f716e0dfb5d137eb2aca93fd4f49e6db15cc7dfdfbecc1b660a07b"
       url: "https://pub.dev"
     source: hosted
-    version: "3.16.6"
+    version: "3.16.10"
   zego_uikit_signaling_plugin:
     dependency: transitive
     description:
       name: zego_uikit_signaling_plugin
-      sha256: "3e2af8040daf52dc74cd94fee02453397260b6284171a8a03d8eb3217cd519ca"
+      sha256: "57b0e22308c7a795a3ff951453a57afa6b3b6fe77b9f85ef007b28f092b690d9"
       url: "https://pub.dev"
     source: hosted
-    version: "2.8.18"
+    version: "2.8.20"
   zego_zim:
     dependency: transitive
     description:

@@ -7,7 +7,7 @@ import 'package:cute_live/ui/inbox/chat_page.dart';
 import 'package:cute_live/ui/inbox/inbox_page.dart';
 import 'package:cute_live/ui/status/status_page.dart';
 import 'package:cute_live/ui/streaming/audio_room_page.dart';
-import 'package:cute_live/ui/top_up/top_up_page.dart';
+import 'package:cute_live/data/remote/rest/models/room_response_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -37,10 +37,37 @@ import '../ui/profile/repository/user_repository.dart';
 import '../ui/profile_visitors/profile_visitors_page.dart';
 import '../ui/ranks/ranks_page.dart';
 import '../ui/settings/password_settings_page.dart';
+import '../ui/settings/account_security_page.dart';
+import '../ui/settings/binding_pages.dart';
+import '../ui/settings/blacklist_page.dart';
+import '../ui/settings/language_setting_page.dart';
+import '../ui/settings/new_messages_notification_page.dart';
+import '../ui/settings/privacy_page.dart';
+import '../ui/settings/about_poppo_page.dart';
+import '../ui/settings/privilege_settings_page.dart';
 import '../ui/settings/settings_page.dart';
 import '../ui/store-bag/mybag_page.dart';
 import '../ui/store-bag/store_page.dart';
+import '../ui/streamer_center/streamer_center_page.dart';
+import '../ui/guardian/guardian_page.dart';
+import '../ui/medal_wall/medal_wall_page.dart';
+import '../ui/profile/profile_card_page.dart';
+import '../ui/backpack/backpack_page.dart';
+import '../ui/top_up/top_up_page.dart';
+import '../ui/auth/auth_page.dart';
+import '../ui/follow_us/follow_us_page.dart';
+import '../ui/help/help_page.dart';
+import '../ui/help/my_feedback_page.dart';
+import '../ui/level/level_page.dart';
+import '../ui/store/mall_ranking_page.dart';
+import '../ui/store/store_page.dart';
+import '../ui/fan_club/fan_club_page.dart';
+import '../ui/my_agency/my_agency_page.dart';
+import '../ui/qr_scanner/qr_scanner_page.dart';
+import '../ui/reward/reward_page.dart';
 import '../ui/vip_page/vip_page.dart';
+import '../ui/host_page/live_application_page.dart';
+import '../ui/streaming/party_room_page.dart';
 
 class MyRouter {
   static final publicRoutes = {
@@ -185,6 +212,16 @@ class MyRouter {
               ),
             ),
             GoRoute(
+              path: Routes.accountSecurity.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: AccountSecurityPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
               path: Routes.applyHosting.path,
               pageBuilder: (context, state) => CustomTransitionPage<void>(
                 key: state.pageKey,
@@ -202,6 +239,106 @@ class MyRouter {
                 transitionsBuilder: customPopTransition,
                 transitionDuration: const Duration(milliseconds: 200),
                 reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.bindSelection.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const BindingSelectionPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.bindPhone.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const BindPhonePage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.bindEmail.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const BindEmailPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.languageSetting.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const LanguageSettingPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.blacklist.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const BlacklistPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.privilegeSettings.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const PrivilegeSettingsPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.newMessagesNotification.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const NewMessagesNotificationPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.privacy.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const PrivacyPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.aboutPoppo.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const AboutPoppoPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 200),
+                reverseTransitionDuration: const Duration(milliseconds: 100),
+              ),
+            ),
+            GoRoute(
+              path: Routes.liveApplication.path,
+              pageBuilder: (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const LiveApplicationPage(),
+                transitionsBuilder: customPopTransition,
+                transitionDuration: const Duration(milliseconds: 250),
+                reverseTransitionDuration: const Duration(milliseconds: 200),
               ),
             ),
           ],
@@ -230,18 +367,20 @@ class MyRouter {
           pageBuilder: (context, state) {
             String roomId = '';
             bool isHost = false;
+            ZegoConfig? initialZegoConfig;
 
             if (state.extra != null && state.extra is Map<String, dynamic>) {
               final data = state.extra as Map<String, dynamic>;
               roomId = data['roomId'] as String;
               isHost = data['isHost'] as bool;
+              initialZegoConfig = data['initialZegoConfig'] as ZegoConfig? ?? data['zegoConfig'] as ZegoConfig?;
             } else {
               roomId = state.uri.queryParameters['roomId'] ?? '';
             }
 
             return CustomTransitionPage<void>(
               key: state.pageKey,
-              child: AudioRoomPage(roomID: roomId, isHost: isHost),
+              child: AudioRoomPage(roomID: roomId, isHost: isHost, initialZegoConfig: initialZegoConfig),
               transitionsBuilder: customSlideTransition,
               transitionDuration: const Duration(milliseconds: 250),
               reverseTransitionDuration: const Duration(milliseconds: 200),
@@ -481,6 +620,197 @@ class MyRouter {
             transitionDuration: const Duration(milliseconds: 250),
             reverseTransitionDuration: const Duration(milliseconds: 200),
           ),
+        ),
+        GoRoute(
+          path: Routes.reward.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const RewardPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.streamerCenter.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const StreamerCenterPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.guardian.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const GuardianPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.medalWall.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const MedalWallPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.profileCard.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const ProfileCardPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.auth.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const AuthPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.followUs.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const FollowUsPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.myAgency.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const MyAgencyPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.qrScanner.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const QrScannerPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 200),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.help.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const HelpPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.fanClub.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const FanClubPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.backpack.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const BackpackPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.level.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const LevelPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.myFeedback.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const MyFeedbackPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.mall.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const MallPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.mallRanking.path,
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const MallRankingPage(),
+            transitionsBuilder: customSlideTransition,
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+        GoRoute(
+          path: Routes.partyRoom.path,
+          pageBuilder: (context, state) {
+            String roomId = '';
+            bool isHost = false;
+            int slotCount = 18;
+            String mode = 'voice';
+            ZegoConfig? zegoConfig;
+            if (state.extra != null && state.extra is Map<String, dynamic>) {
+              final data = state.extra as Map<String, dynamic>;
+              roomId = (data['roomId'] as String?) ?? '';
+              isHost = (data['isHost'] as bool?) ?? false;
+              slotCount = (data['slotCount'] as int?) ?? 6;
+              mode = (data['mode'] as String?) ?? 'voice';
+              zegoConfig = data['zegoConfig'] as ZegoConfig?;
+            }
+            return CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: PartyRoomPage(
+                roomId: roomId,
+                isHost: isHost,
+                slotCount: slotCount,
+                mode: mode,
+                zegoConfig: zegoConfig,
+              ),
+              transitionsBuilder: customSlideTransition,
+              transitionDuration: const Duration(milliseconds: 250),
+              reverseTransitionDuration: const Duration(milliseconds: 200),
+            );
+          },
         ),
       ],
       errorPageBuilder: (context, state) => MaterialPage<void>(

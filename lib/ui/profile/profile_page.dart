@@ -1,15 +1,8 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'dart:ui';
-
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-// Firebase Imports
-import '../../core/widgets/auto_scroll_text.dart';
 import '../../navigation/routes.dart';
-import '../../theme/app_theme.dart';
 import 'bloc/profile_bloc.dart';
 import 'bloc/profile_state.dart';
 
@@ -26,526 +19,468 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header Section
-              Padding(
-                padding: EdgeInsets.only(left: 0, right: 20, top: 0, bottom: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: Icon(CupertinoIcons.back, size: 28, color: AppColors.pink),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    Text(
-                      'Profile',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [Shadow(color: Colors.pink.withOpacity(0.3), blurRadius: 10, offset: Offset(0, 2))],
-                      ),
-                    ),
-                    Spacer(),
-                    IconButton(
-                      icon: Icon(CupertinoIcons.pencil, size: 28, color: AppColors.pink),
-                      onPressed: () {
-                        context.push(Routes.editProfile.path);
-                      },
-                    ),
-                    IconButton(
-                      icon: Icon(CupertinoIcons.settings, size: 28, color: AppColors.pink),
-                      onPressed: () {
-                        context.push(Routes.settingsPage.path);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: BlocBuilder<ProfileBloc, ProfileState>(
-                  builder: (context, state) {
-                    if (state is ProfileLoading) {
-                      return Center(
-                        child: CircularProgressIndicator(color: AppColors.pink),
-                      );
-                    }
-
-                    if (state is ProfileError) {
-                      return Center(
-                        child: Text(
-                          state.message,
-                          style: TextStyle(color: Colors.red.shade300),
-                        ),
-                      );
-                    }
-
-                    if (state is ProfileLoaded) {
-                      final user = state.user;
-
-                      final userProfile = UserProfile(
-                        name: user.name,
-                        id: user.id,
-                        displayId: user.host?.displayId ?? '',
-                        country: user.host?.country ?? '',
-                        countryFlagEmoji: user.host?.countryFlagEmoji ?? '',
-                        bio: user.host?.bio ?? '',
-                        profileImage: user.photoUrl ?? '',
-                        followers: user.host?.followerCount ?? 0,
-                        following: user.host?.followingCount ?? 0,
-                        diamonds: user.host?.diamonds ?? 0,
-                        beans: user.host?.balance ?? 0,
-                      );
-
-
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 10),
-                            _buildProfileSection(userProfile),
-                            const SizedBox(height: 30),
-
-                            // If you still want Firebase friends count
-                            _buildStatistics(userProfile, userProfile.followers),
-
-                            const SizedBox(height: 20),
-                            _buildAchievementChips(userProfile),
-                            const SizedBox(height: 30),
-                            _buildButtonsGrid(),
-                            const SizedBox(height: 30),
-                          ],
-                        ),
-                      );
-                    }
-
-                    return const SizedBox();
-                  },
-                ),
-              ),
-
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileSection(UserProfile userProfile) {
-    final profileImageUrl = userProfile.profileImage;
-
-    Widget countryIndicator;
-    if (userProfile.countryFlagEmoji != null && userProfile.countryFlagEmoji!.isNotEmpty) {
-      countryIndicator = Text(userProfile.countryFlagEmoji!, style: const TextStyle(fontSize: 16));
-    } else {
-      countryIndicator = Icon(Icons.location_on_rounded, color: Colors.blue.shade300, size: 14);
-    }
-
-    return Column(
-      children: [
-        Container(
-          width: 140,
-          height: 140,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.pinkLight, AppColors.pinkDark, Colors.pink.shade400, AppColors.pink600],
-            ),
-            boxShadow: [
-              BoxShadow(color: Colors.pink.withOpacity(0.4), blurRadius: 30, offset: const Offset(0, 10)),
-              BoxShadow(color: Colors.pink.withOpacity(0.2), blurRadius: 40, offset: const Offset(0, 0)),
-            ],
-          ),
-          padding: const EdgeInsets.all(4),
-          child: ClipOval(
-            child: (profileImageUrl.isNotEmpty)
-                ? Image.network(
-                    profileImageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
-                        ),
-                        child: const Icon(Icons.person, color: Colors.white, size: 70),
-                      );
-                    },
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800]),
-                    ),
-                    child: const Icon(Icons.person, color: Colors.white, size: 70),
-                  ),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        // Name
-        ShaderMask(
-          shaderCallback: (bounds) =>
-              LinearGradient(colors: [AppColors.pinkLight, AppColors.pinkDark]).createShader(bounds),
-          child: AutoScrollText(
-            text: userProfile.name,
-            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // ID and Country
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: const Color(0xFFF5F7FF),
+      body: SafeArea(
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                color: Colors.black.withOpacity(0.3),
-                border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-              ),
-              child: Text(
-                'ID: ${userProfile.displayId}',
-                style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                color: Colors.black.withOpacity(0.3),
-                border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
-              ),
+            // Header Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  countryIndicator, // <-- MODIFIED
-
-                  const SizedBox(width: 4),
-                  Text(
-                    userProfile.country, // Updated
-                    style: TextStyle(color: Colors.blue.shade300, fontSize: 12, fontWeight: FontWeight.w500),
+                  const Text(
+                    'Me',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 26, color: Color(0xFF333333)),
+                    onPressed: () => context.push(Routes.qrScanner.path),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, size: 26, color: Color(0xFF333333)),
+                    onPressed: () {
+                      context.push(Routes.settingsPage.path);
+                    },
                   ),
                 ],
               ),
             ),
+            Expanded(
+              child: BlocBuilder<ProfileBloc, ProfileState>(
+                builder: (context, state) {
+                  if (state is ProfileLoading) {
+                    return const Center(child: CircularProgressIndicator(color: Colors.pink));
+                  }
+
+                  if (state is ProfileError) {
+                    return Center(child: Text(state.message, style: TextStyle(color: Colors.red.shade300)));
+                  }
+
+                  if (state is ProfileLoaded) {
+                    final user = state.user;
+                    final userProfile = UserProfile(
+                      name: user.name ?? '',
+                      id: user.id,
+                      displayId: user.host?.displayId ?? '',
+                      country: user.host?.country ?? '',
+                      countryFlagEmoji: user.host?.countryFlagEmoji ?? '',
+                      bio: user.host?.bio ?? '',
+                      profileImage: user.photoUrl ?? '',
+                      followers: user.host?.followerCount ?? 0,
+                      following: user.host?.followingCount ?? 0,
+                      diamonds: user.host?.diamonds ?? 0,
+                      beans: user.host?.balance ?? 0,
+                    );
+
+                    return SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        children: [
+                          _buildProfileHeader(userProfile),
+                          _buildCompletionBanner(),
+                          _buildStatisticsRow(userProfile),
+                          _buildWalletSection(userProfile),
+                          _buildVIPGridCard(userProfile),
+                          _buildPromotionalBanner(),
+                          _buildStreamerCenterTile(),
+                          _buildSettingsList(),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox();
+                },
+              ),
+            ),
           ],
         ),
-
-        // ## NEW: BIO SECTION ##
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Text(
-            userProfile.bio,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14, fontStyle: FontStyle.italic),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        // ## END NEW SECTION ##
-      ],
+      ),
     );
   }
 
-  // ## MODIFICATION: Added friendsCount and check for loading ##
-  Widget _buildStatistics(UserProfile userProfile, int? friendsCount) {
+  Widget _buildProfileHeader(UserProfile userProfile) {
+    return GestureDetector(
+      onTap: () => context.push(Routes.profileCard.path),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Avatar
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: userProfile.profileImage.isNotEmpty
+                    ? Image.network(userProfile.profileImage, fit: BoxFit.cover)
+                    : Container(
+                        color: const Color(0xFFD9D9D9),
+                        child: const Icon(Icons.person, size: 40, color: Colors.white),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // User Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        userProfile.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // VIP Badge placeholder
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFFB8C1D1), Color(0xFF8E99AF)]),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'VIP',
+                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _buildLevelTag('Lvl 1', const Color(0xFF8BC34A)),
+                      const SizedBox(width: 6),
+                      _buildLevelTag('S 1', const Color(0xFFCDDC39)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'ID: ${userProfile.displayId}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.copy_rounded, size: 14, color: Color(0xFFBBBBBB)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFFBBBBBB)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLevelTag(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.black.withOpacity(0.3),
-        border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-        boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))],
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // Show a dash while friends count is loading
-              _buildStatItem('Friends', friendsCount, Colors.cyan),
-              _buildVerticalDivider(),
-              _buildStatItem('Followers', userProfile.followers, Colors.pink),
-              _buildVerticalDivider(),
-              _buildStatItem('Following', userProfile.following, Colors.pink),
-            ],
-          ),
-        ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  // ## MODIFICATION: Handle null count for loading state ##
-  Widget _buildStatItem(String label, int? count, Color color) {
-    String displayCount = count == null ? '-' : _formatNumber(count);
+  Widget _buildCompletionBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE5EC),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_rounded, color: Color(0xFFFF4D6D), size: 20),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Your profile currently is 60% completed, polish up and making friends easier.',
+              style: TextStyle(color: Color(0xFFFF4D6D), fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatisticsRow(UserProfile userProfile) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildStat('0', 'Friends'),
+          _buildStat(userProfile.following.toString(), 'Following'),
+          _buildStat(userProfile.followers.toString(), 'Followers'),
+          _buildStat('0', 'Visitors'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStat(String value, String label) {
     return Column(
       children: [
-        ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(colors: [color, color]).createShader(bounds),
-          child: Text(
-            displayCount, // Use formatted count
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
         ),
       ],
+    );
+  }
+
+  Widget _buildWalletSection(UserProfile userProfile) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          // Coins
+          Expanded(
+            child: GestureDetector(
+              onTap: () => context.push(Routes.topUp.path),
+              child: Container(
+                height: 80,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFF9E6), Color(0xFFFFECB3)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Coins', style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+                          Text(userProfile.beans.toString(),
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.stars_rounded, color: Color(0xFFFFD54F), size: 40),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Points
+          Expanded(
+            child: GestureDetector(
+              onTap: () => context.push(Routes.topUp.path),
+              child: Container(
+                height: 80,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFEF0F7), Color(0xFFFFD1E1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Points', style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+                          Text(userProfile.diamonds.toString(),
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.circle, color: Color(0xFFFF85B0), size: 40),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVIPGridCard(UserProfile userProfile) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const Icon(Icons.workspace_premium_rounded, color: Color(0xFF333333), size: 24),
+                const SizedBox(width: 8),
+                const Text('VIP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(width: 8),
+                const Text('Get VIP & Enjoy Privileges', style: TextStyle(fontSize: 12, color: Color(0xFF999999))),
+                const Spacer(),
+                const Text('View', style: TextStyle(fontSize: 12, color: Color(0xFF999999))),
+                const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFBBBBBB)),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF0F0F0)),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 4,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            children: [
+              _buildVIPItem(Icons.card_giftcard_rounded, 'Reward', const Color(0xFFFF7043), onTap: () => context.push(Routes.reward.path)),
+              _buildVIPItem(Icons.emoji_events_rounded, 'Rank', const Color(0xFFFFA726), onTap: () => context.push(Routes.ranks.path)),
+              _buildVIPItem(Icons.local_mall_rounded, 'Store', const Color(0xFF26C6DA), onTap: () => context.push(Routes.mall.path)),
+              _buildVIPItem(Icons.account_balance_wallet_rounded, 'Invite', const Color(0xFFFF5252), onTap: () => context.push(Routes.myInvites.path)),
+              _buildVIPItem(Icons.security_rounded, 'Guardian', const Color(0xFF26A69A), onTap: () => context.push(Routes.guardian.path)),
+              _buildVIPItem(Icons.favorite_rounded, 'Fan Club', const Color(0xFFEC407A), onTap: () => context.push(Routes.fanClub.path)),
+              _buildVIPItem(Icons.stars_rounded, 'Medal Wall', const Color(0xFFFF7043), onTap: () => context.push(Routes.medalWall.path)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVIPItem(IconData icon, String label, Color color, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 30),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF666666))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromotionalBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 100,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7B1FA2), Color(0xFFCE93D8)],
+          begin: Alignment.bottomLeft,
+          end: Alignment.topRight,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'STOP',
+        style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900),
+      ),
     );
   }
 
   // ## END MODIFICATIONS ##
 
-  Widget _buildVerticalDivider() {
+  Widget _buildStreamerCenterTile() {
     return Container(
-      height: 40,
-      width: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.white.withOpacity(0.3), Colors.transparent],
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: ListTile(
+        onTap: () => context.push(Routes.streamerCenter.path),
+        leading: const Icon(Icons.live_tv_rounded, color: Color(0xFF666666)),
+        title: const Text('Streamer Center', style: TextStyle(fontWeight: FontWeight.w500)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFBBBBBB)),
       ),
     );
   }
 
-  Widget _buildAchievementChips(UserProfile userProfile) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildAchievementChip(
-          assetIcon: 'assets/icons/beans.svg',
-          count: userProfile.beans,
-          // Updated
-          color: Colors.amber,
-          label: 'Beans',
-          onTap: () {
-            context.push(Routes.topUp.path);
-          },
-        ),
-        const SizedBox(width: 16),
-        _buildAchievementChip(
-          icon: Icons.diamond_outlined,
-          count: userProfile.diamonds, // Updated
-          color: Colors.cyan,
-          label: 'Diamonds',
-        ),
-      ],
+  Widget _buildSettingsList() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildListTile(Icons.headset_mic_rounded, 'Help', trailing: '24', onTap: () => context.push(Routes.help.path)),
+          _buildListTile(Icons.person_outline_rounded, 'My Agency', onTap: () => context.push(Routes.myAgency.path)),
+          _buildListTile(Icons.storefront_rounded, 'Store', onTap: () => context.push(Routes.mall.path)),
+          _buildListTile(Icons.workspace_premium_outlined, 'Level', onTap: () => context.push(Routes.level.path)),
+          _buildListTile(Icons.military_tech_outlined, 'Medal Wall', onTap: () => context.push(Routes.medalWall.path)),
+          _buildListTile(Icons.backpack_outlined, 'Backpack', onTap: () => context.push(Routes.backpack.path)),
+          _buildListTile(Icons.shield_outlined, 'Guardian', onTap: () => context.push(Routes.guardian.path)),
+          _buildListTile(Icons.verified_user_outlined, 'Auth', onTap: () => context.push(Routes.auth.path)),
+          _buildListTile(Icons.favorite_outline_rounded, 'Follow Us', onTap: () => context.push(Routes.followUs.path)),
+        ],
+      ),
     );
   }
 
-  Widget _buildAchievementChip({
-    IconData? icon,
-    String? assetIcon,
-    required int count,
-    required Color color,
-    required String label,
-    void Function()? onTap,
-  }) {
-    return GestureDetector(
+  Widget _buildListTile(IconData icon, String title, {String? trailing, VoidCallback? onTap}) {
+    return ListTile(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25),
-          color: Colors.black.withOpacity(0.3),
-          border: Border.all(color: color.withOpacity(0.4), width: 1),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6))],
-        ),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) Icon(icon, color: color, size: 24),
-                if (assetIcon != null) SvgPicture.asset(assetIcon, color: color, width: 24),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _formatNumber(count),
-                      style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      label,
-                      style: TextStyle(color: color.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildButtonsGrid() {
-    final buttons = [
-      ProfileButton(
-        title: 'Top Up',
-        icon: Icons.account_balance_wallet_rounded,
-        onTap: () {
-          context.push(Routes.topUp.path);
-        },
-      ),
-      ProfileButton(
-        title: 'Earnings',
-        icon: Icons.trending_up_rounded,
-        onTap: () {
-          context.push(Routes.earnings.path);
-        },
-      ),
-      ProfileButton(
-        title: 'VIP',
-        icon: Icons.diamond_outlined,
-        onTap: () {
-          context.push(Routes.vip.path);
-        },
-      ),
-      ProfileButton(
-        title: 'Store',
-        icon: Icons.shopping_bag_rounded,
-        onTap: () {
-          context.push(Routes.store.path);
-        },
-      ),
-      ProfileButton(
-        title: 'My Bag',
-        icon: Icons.shopping_basket_rounded,
-        onTap: () {
-          context.push(Routes.myBag.path);
-        },
-      ),
-      ProfileButton(
-        title: 'My Level',
-        icon: Icons.military_tech_rounded,
-        onTap: () {
-          context.push(Routes.myLevel.path);
-        },
-      ),
-      ProfileButton(
-        title: 'Support',
-        icon: Icons.support_agent_rounded,
-        onTap: () {
-          context.push(Routes.feedback.path);
-        },
-      ),
-      ProfileButton(title: 'Blocked', icon: Icons.block_rounded),
-      ProfileButton(
-        title: 'My Invites',
-        icon: Icons.group_add_rounded,
-        onTap: () {
-          context.push(Routes.myInvites.path);
-        },
-      ),
-      ProfileButton(
-        title: 'Profile Visitors',
-        icon: Icons.visibility_rounded,
-        onTap: () {
-          context.push(Routes.visitors.path);
-        },
-      ),
-      ProfileButton(
-        title: 'Apply Hosting',
-        icon: Icons.live_tv_rounded,
-        onTap: () {
-          context.push(Routes.applyHosting.path);
-        },
-      ),
-      ProfileButton(
-        title: 'Apply Agency',
-        icon: Icons.business_rounded,
-        onTap: () {
-          context.push(Routes.applyAgency.path);
-        },
-      ),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      itemCount: buttons.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 2.3,
-      ),
-      itemBuilder: (context, index) {
-        final button = buttons[index];
-        return button;
-      },
-    );
-  }
-
-  String _formatNumber(int number) {
-    if (number >= 1000000) {
-      return '${(number / 1000000).toStringAsFixed(1)}M';
-    } else if (number >= 1000) {
-      return '${(number / 1000).toStringAsFixed(1)}K';
-    } else {
-      return number.toString();
-    }
-  }
-}
-
-class ProfileButton extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  const ProfileButton({Key? key, required this.title, required this.icon, this.onTap}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap:
-          onTap ??
-          () {
-            debugPrint('$title tapped');
-          },
-      child: Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          color: Colors.transparent,
-          border: Border.all(color: const Color(0xFF5E4710), width: 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Icon(icon, color: const Color(0xFFCA9B34), size: 24),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+      leading: Icon(icon, color: const Color(0xFF666666)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (trailing != null)
+            Text(trailing, style: const TextStyle(color: Color(0xFF999999), fontSize: 13)),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFFBBBBBB)),
+        ],
       ),
     );
   }

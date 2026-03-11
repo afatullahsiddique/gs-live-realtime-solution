@@ -106,8 +106,51 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
             child: Scaffold(
               appBar: _buildNewAppBar(),
+              floatingActionButton: Container(
+                margin: const EdgeInsets.only(bottom: 80),
+                child: GestureDetector(
+                  onTap: () {
+                    context.push(Routes.liveApplication.path);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF456E), Color(0xFFFF869A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF456E).withValues(alpha: 0.4),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.video_call_outlined, color: Colors.white, size: 22),
+                        SizedBox(width: 6),
+                        Text(
+                          'Party',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               body: Container(
-                decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
+                color: Colors.white,
                 child: SafeArea(
                   top: false,
                   child: Column(
@@ -117,10 +160,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           controller: _tabController,
                           children: [
                             _buildPopularTab(cubit),
-                            SingleChildScrollView(child: _buildFresherGrid(cubit)),
+                            _buildFresherGrid(cubit),
                             _buildPartyTab(cubit),
-                            PKTab(streamers: _streamers),
-                            _buildGamesTab(),
+                            RefreshIndicator(
+                              onRefresh: () => cubit.refreshData(),
+                              color: Colors.pink,
+                              child: PKTab(streamers: _streamers),
+                            ),
+                            RefreshIndicator(
+                              onRefresh: () => cubit.refreshData(),
+                              color: Colors.pink,
+                              child: _buildGamesTab(cubit),
+                            ),
                           ],
                         ),
                       ),
@@ -154,7 +205,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           indicatorSize: TabBarIndicatorSize.label,
           dividerColor: Colors.transparent,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withOpacity(0.6),
+          unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
           tabs: const [
@@ -203,8 +254,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
         // 1. Check for Empty State (UPDATED LOGIC)
         if (allRooms.isEmpty) {
-          return SingleChildScrollView(
-            child: Column(
+          return RefreshIndicator(
+            onRefresh: () => cubit.refreshData(),
+            color: Colors.pink,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
               children: [
                 // Show Banner First
                 CarouselBanner(
@@ -227,7 +282,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
               ],
             ),
-          );
+          ));
         }
 
         // 2. Split logic: Top 2 vs The Rest
@@ -235,9 +290,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final topTwoRooms = allRooms.take(2).toList();
         final restOfRooms = allRooms.skip(2).toList();
 
-        return SingleChildScrollView(
-          child: Column(
-            children: [
+        return RefreshIndicator(
+          onRefresh: () => cubit.refreshData(),
+          color: Colors.pink,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
               // --- SECTION A: Top 2 Rooms ---
               if (topTwoRooms.isNotEmpty)
                 Container(
@@ -303,10 +362,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               const SizedBox(height: 80), // Bottom padding for navigation bar
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildFresherGrid(HomeCubit cubit) {
     return StreamBuilder<List<StreamerModel>>(
@@ -348,53 +408,52 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
         final freshers = snapshot.data ?? [];
 
-        if (freshers.isEmpty) {
-          return Column(
-            children: [
-              CarouselBanner(
-                imageUrls: BannerUrls.liveStreamingBanners,
-                autoPlayDuration: const Duration(seconds: 4),
-                onBannerTap: (index) {
-                  print('Banner $index tapped');
-                },
-              ),
-              SizedBox(height: MediaQuery.of(context).size.height * 0.15),
-              Icon(Icons.videocam_off, size: 60, color: Colors.white.withOpacity(0.5)),
-              const SizedBox(height: 16),
-              Text("No room is currently active", style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16)),
-            ],
-          );
-        }
-
-        return Column(
-          children: [
-            CarouselBanner(
-              imageUrls: BannerUrls.liveStreamingBanners,
-              autoPlayDuration: const Duration(seconds: 4),
-              onBannerTap: (index) {
-                print('Banner $index tapped');
-              },
-            ),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 16, bottom: 16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: .9,
+        return RefreshIndicator(
+          onRefresh: () => cubit.refreshData(),
+          color: Colors.pink,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                CarouselBanner(
+                  imageUrls: BannerUrls.liveStreamingBanners,
+                  autoPlayDuration: const Duration(seconds: 4),
+                  onBannerTap: (index) {
+                    print('Banner $index tapped');
+                  },
                 ),
-                itemCount: freshers.length,
-                itemBuilder: (context, index) {
-                  return AnimatedStreamerCard(streamer: freshers[index]);
-                },
-              ),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  child: freshers.isEmpty
+                      ? Column(
+                          children: [
+                            SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                            Icon(Icons.videocam_off, size: 60, color: Colors.white.withOpacity(0.5)),
+                            const SizedBox(height: 16),
+                            Text("No room is currently active",
+                                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16)),
+                          ],
+                        )
+                      : GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: const EdgeInsets.only(top: 16, bottom: 16),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: .9,
+                          ),
+                          itemCount: freshers.length,
+                          itemBuilder: (context, index) {
+                            return AnimatedStreamerCard(streamer: freshers[index]);
+                          },
+                        ),
+                ),
+                const SizedBox(height: 80),
+              ],
             ),
-            const SizedBox(height: 80),
-          ],
+          ),
         );
       },
     );
@@ -417,8 +476,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final audioRooms = snapshot.data ?? [];
 
         if (audioRooms.isEmpty) {
-          return SingleChildScrollView(
-            child: Column(
+          return RefreshIndicator(
+            onRefresh: () => cubit.refreshData(),
+            color: Colors.pink,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
               children: [
                 CarouselBanner(
                   imageUrls: BannerUrls.liveStreamingBanners,
@@ -437,13 +500,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
               ],
             ),
-          );
+          ));
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 80),
-          itemCount: audioRooms.length + 1,
-          itemBuilder: (context, index) {
+        return RefreshIndicator(
+          onRefresh: () => cubit.refreshData(),
+          color: Colors.pink,
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 80),
+            itemCount: audioRooms.length + 1,
+            itemBuilder: (context, index) {
             if (index == 0) {
               // First item = Banner
               return CarouselBanner(
@@ -462,14 +529,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               borderRadius: BorderRadius.circular(16),
               child: GestureDetector(
                 onTap: () {
-                  // Use the same navigation logic as AnimatedStreamerCard
-                  if (streamer.isLiveStream) {
-                    context.push(Routes.liveStream.path, extra: {"roomId": streamer.id, "isHost": false});
-                  } else if (!streamer.isVideo) {
-                    context.push(Routes.audioRoom.path, extra: {"roomId": streamer.id, "isHost": false});
-                  } else {
-                    context.push(Routes.videoRoom.path, extra: {"roomId": streamer.id, "isHost": false});
-                  }
+                  context.push(Routes.partyRoom.path, extra: {"roomId": streamer.id, "isHost": false});
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -516,7 +576,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
+                                      color: Colors.white.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
                                     ),
@@ -539,7 +599,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       streamer.bio,
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Colors.white.withOpacity(0.9),
+                                        color: Colors.white.withValues(alpha: 0.9),
                                         fontWeight: FontWeight.w400,
                                         height: 1.3,
                                         shadows: const [
@@ -632,12 +692,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ),
             );
           },
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
-  Widget _buildGamesTab() {
+  Widget _buildGamesTab(HomeCubit cubit) {
     final List<Map<String, String>> games = [
       {'name': 'Greedy', 'image': 'assets/greedy/greedy.jpeg', 'path': Routes.greedy.path},
       {'name': 'Fruits King', 'image': 'assets/spinner/fruits.jpeg', 'path': Routes.spinner.path},
@@ -645,6 +706,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     ];
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       child: Column(
         children: [
           CarouselBanner(

@@ -1,16 +1,18 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:cute_live/ui/profile/repository/user_repository.dart';
+import 'package:cute_live/ui/profile/edit_field_page.dart';
+import 'package:cute_live/ui/profile/interest_tags_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-
-// New Import
 import 'package:country_picker/country_picker.dart';
 import '../../theme/app_theme.dart';
+import 'model/user_profile_model.dart';
+// FIX 1: Removed duplicate import of 'edit_field_page.dart'
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -20,6 +22,7 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
+  // FIX 2: _formKey is now actually used inside a Form widget in build()
   final _formKey = GlobalKey<FormState>();
   String? _userId;
   bool _isLoading = false;
@@ -27,18 +30,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   // Controllers
   final _nameController = TextEditingController();
-
-  // final _countryController = TextEditingController(); // Removed
   final _bioController = TextEditingController();
 
   // State variables
   String? _selectedGender;
   DateTime? _selectedDob;
-  String? _profileImageUrl;
-  File? _selectedImageFile;
+  List<String?> _photoUrls = List.filled(6, null);
+  List<File?> _photoFiles = List.filled(6, null);
+  List<Tag> _myTags = [];
   int _bioCharCount = 0;
 
-  // New state variables for country
+  // Country state
   String? _selectedCountryName;
   String? _selectedCountryFlagEmoji;
 
@@ -61,7 +63,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void dispose() {
     _nameController.dispose();
-    // _countryController.dispose(); // Removed
     _bioController.removeListener(_updateBioCount);
     _bioController.dispose();
     super.dispose();
@@ -71,12 +72,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isFetching = true);
     try {
       final user = await UserRepository().getUserProfile();
-      _nameController.text = user.name;
+      _nameController.text = user.host?.displayName ?? user.name ?? '';
       _bioController.text = user.host?.bio ?? '';
       _selectedGender = user.gender;
       _selectedCountryName = user.host?.country;
       _selectedCountryFlagEmoji = user.host?.countryFlagEmoji;
-      _profileImageUrl = user.photoUrl;
+
+      if (user.photoUrls != null) {
+        for (int i = 0; i < user.photoUrls!.length && i < 6; i++) {
+          _photoUrls[i] = user.photoUrls![i];
+        }
+      }
+
+      if (user.host?.myTags != null) {
+        _myTags = user.host!.myTags!;
+      }
 
       setState(() {
         _bioCharCount = _bioController.text.length;
@@ -84,146 +94,152 @@ class _EditProfilePageState extends State<EditProfilePage> {
       });
     } catch (e) {
       setState(() => _isFetching = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading profile: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(int index) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
       setState(() {
-        _selectedImageFile = File(pickedFile.path);
-        _profileImageUrl = null; // Clear network image to show file image
+        _photoFiles[index] = File(pickedFile.path);
+        _isLoading = true;
       });
+
+      try {
+        await UserRepository().updateUserProfile(
+          photoIndex: index,
+          imageFile: _photoFiles[index],
+        );
+
+        await _loadCurrentProfileQuietly();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Image updated successfully!')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error uploading image: $e')),
+          );
+        }
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadCurrentProfileQuietly() async {
+    try {
+      final user = await UserRepository().getUserProfile();
+      if (user.photoUrls != null) {
+        setState(() {
+          for (int i = 0; i < 6; i++) {
+            _photoUrls[i] = i < user.photoUrls!.length ? user.photoUrls![i] : null;
+            _photoFiles[i] = null;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Quiet load failed: $e");
     }
   }
 
   Future<void> _saveProfile() async {
+    // FIX 3: _formKey.currentState is only called when Form widget exists (see build)
     if (!_formKey.currentState!.validate() || _isLoading) return;
 
     setState(() => _isLoading = true);
 
     try {
       await UserRepository().updateUserProfile(
-        name: _nameController.text,
+        displayName: _nameController.text,
         gender: _selectedGender,
         bio: _bioController.text,
         country: _selectedCountryName,
-        location: _selectedCountryName, // or separate location field
-        imageFile: _selectedImageFile,
+        location: _selectedCountryName,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully!')),
-      );
-
-      if (mounted) context.pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully!')),
+        );
+        context.pop();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating profile: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating profile: $e')),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
-        child: SafeArea(
+      backgroundColor: const Color(0xFFF8F8F8),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: Colors.black, size: 24),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Column(
+          children: const [
+            Text(
+              'Edit data',
+              style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Profile Completeness 60%',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        ),
+        centerTitle: true,
+        // FIX 4: Added Save action button so _saveProfile() is reachable
+        actions: [
+          _isLoading
+              ? const Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: CupertinoActivityIndicator(),
+          )
+              : TextButton(
+            onPressed: _saveProfile,
+            child: const Text(
+              'Save',
+              style: TextStyle(color: Colors.pink, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+      // FIX 5: Wrapped body in Form so _formKey.currentState!.validate() works
+      body: _isFetching
+          ? const Center(child: CircularProgressIndicator(color: Colors.pink))
+          : Form(
+        key: _formKey,
+        child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Section
-              Padding(
-                padding: EdgeInsets.only(left: 0, right: 20, top: 0, bottom: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: Icon(CupertinoIcons.back, size: 28, color: AppColors.pink),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    Text(
-                      'Edit Profile',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [Shadow(color: Colors.pink.withOpacity(0.3), blurRadius: 10, offset: Offset(0, 2))],
-                      ),
-                    ),
-                    Spacer(),
-                    _isLoading
-                        ? Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(color: AppColors.pink, strokeWidth: 2),
-                            ),
-                          )
-                        : TextButton(
-                            onPressed: _saveProfile,
-                            child: Text(
-                              'Save',
-                              style: TextStyle(color: AppColors.pink, fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: _isFetching
-                    ? Center(child: CircularProgressIndicator(color: AppColors.pink))
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              const SizedBox(height: 20),
-                              _buildProfilePictureEditor(),
-                              const SizedBox(height: 30),
-                              _buildGlassyTextField(
-                                controller: _nameController,
-                                label: 'Name',
-                                icon: CupertinoIcons.person_fill,
-                                validator: (value) => (value == null || value.isEmpty) ? 'Name cannot be empty' : null,
-                                maxLines: 1,
-                              ),
-                              const SizedBox(height: 20),
-                              _buildGenderPicker(),
-                              const SizedBox(height: 20),
-                              _buildDobPicker(),
-                              const SizedBox(height: 20),
-
-                              // Replaced TextField with Country Picker
-                              _buildCountryPicker(),
-
-                              const SizedBox(height: 20),
-                              _buildGlassyTextField(
-                                controller: _bioController,
-                                label: 'Bio',
-                                icon: CupertinoIcons.book_fill,
-                                minLines: 2,
-                                maxLines: 4,
-                                maxLength: 80,
-                                currentCharCount: _bioCharCount,
-                                displayMaxLength: 80,
-                              ),
-                              const SizedBox(height: 30),
-                            ],
-                          ),
-                        ),
-                      ),
-              ),
+              _buildPhotoWallSection(),
+              const SizedBox(height: 12),
+              _buildMyProfileSection(),
+              const SizedBox(height: 12),
+              _buildInterestTagsSection(),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -231,340 +247,422 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildProfilePictureEditor() {
-    Widget imageContent;
-    if (_selectedImageFile != null) {
-      imageContent = Image.file(_selectedImageFile!, fit: BoxFit.cover);
-    } else if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty) {
-      imageContent = Image.network(
-        _profileImageUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _placeholderIcon(),
-      );
-    } else {
-      imageContent = _placeholderIcon();
-    }
-
-    return Stack(
-      children: [
-        Container(
-          width: 140,
-          height: 140,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(colors: [AppColors.pinkLight, AppColors.pinkDark]),
+  Widget _buildPhotoWallSection() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Photo Wall(1/6)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
           ),
-          padding: const EdgeInsets.all(4),
-          child: ClipOval(child: imageContent),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              double totalWidth = constraints.maxWidth;
+              double spacing = 4.0;
+              double smallItemSize = (totalWidth - (spacing * 2)) / 3;
+              double largeItemSize = (smallItemSize * 2) + spacing;
+
+              return Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPhotoBox(width: largeItemSize, height: largeItemSize, index: 0, isMain: true),
+                      SizedBox(width: spacing),
+                      Column(
+                        children: [
+                          _buildPhotoBox(width: smallItemSize, height: smallItemSize, index: 1),
+                          SizedBox(height: spacing),
+                          _buildPhotoBox(width: smallItemSize, height: smallItemSize, index: 2),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: spacing),
+                  Row(
+                    children: [
+                      _buildPhotoBox(width: smallItemSize, height: smallItemSize, index: 3),
+                      SizedBox(width: spacing),
+                      _buildPhotoBox(width: smallItemSize, height: smallItemSize, index: 4),
+                      SizedBox(width: spacing),
+                      _buildPhotoBox(width: smallItemSize, height: smallItemSize, index: 5),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoBox({required double width, required double height, required int index, bool isMain = false}) {
+    bool hasImage = (_photoFiles[index] != null) || (_photoUrls[index] != null && _photoUrls[index]!.isNotEmpty);
+
+    return GestureDetector(
+      onTap: () => _pickImage(index),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(8),
         ),
-        Positioned(
-          bottom: 0,
-          right: 0,
-          child: GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.pink,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black.withOpacity(0.5), width: 2),
+        child: Stack(
+          children: [
+            if (hasImage)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _photoFiles[index] != null
+                    ? Image.file(_photoFiles[index]!, width: width, height: height, fit: BoxFit.cover)
+                    : Image.network(_photoUrls[index]!, width: width, height: height, fit: BoxFit.cover),
+              )
+            else
+              const Center(child: Icon(CupertinoIcons.add, color: Color(0xFFE0E0E0), size: 30)),
+            if (isMain)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Profile',
+                    style: TextStyle(color: Colors.white, fontSize: 10),
+                  ),
+                ),
               ),
-              child: Icon(CupertinoIcons.pencil, color: Colors.white, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyProfileSection() {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'My Profile',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+            ),
+          ),
+          _buildProfileTile(
+            label: 'Nickname',
+            value: _nameController.text.isEmpty ? 'Tap to set' : _nameController.text,
+            onTap: () => _navigateToEditField('Nickname', _nameController.text, (val) => setState(() => _nameController.text = val)),
+          ),
+          _buildProfileTile(
+            label: 'Homepage Link',
+            value: 'Go settings',
+            showInfo: true,
+            onTap: () {},
+          ),
+          _buildProfileTile(
+            label: 'Gender',
+            value: _selectedGender ?? 'Tap to set',
+            showInfo: true,
+            onTap: _showGenderPicker,
+          ),
+          _buildProfileTile(
+            label: 'Date of Birth',
+            value: _selectedDob != null ? DateFormat('yyyy-MM-dd').format(_selectedDob!) : 'Tap to set',
+            onTap: _showDobPicker,
+          ),
+          _buildProfileTile(
+            label: 'Country',
+            value: _selectedCountryFlagEmoji != null
+                ? '$_selectedCountryFlagEmoji  ${_selectedCountryName ?? ''}'
+                : _selectedCountryName ?? 'Tap to set',
+            showInfo: true,
+            onTap: _showCountryPicker,
+          ),
+          _buildProfileTile(
+            label: 'Self-introduction',
+            value: _bioController.text.isEmpty ? 'Click to enter' : _bioController.text,
+            onTap: () => _navigateToEditField(
+              'Self-introduction',
+              _bioController.text,
+                  (val) => setState(() => _bioController.text = val),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileTile({
+    required String label,
+    required String value,
+    bool showInfo = false,
+    required VoidCallback onTap,
+  }) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left: label + optional info icon — fixed width, won't shrink
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.black,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    if (showInfo) ...[
+                      const SizedBox(width: 4),
+                      const Icon(CupertinoIcons.info_circle, size: 15, color: Colors.grey),
+                    ],
+                  ],
+                ),
+                const SizedBox(width: 12),
+                // Right: value text + chevron — fills remaining space, right-aligned
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          value,
+                          style: const TextStyle(fontSize: 15, color: Colors.grey),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(CupertinoIcons.chevron_right, size: 15, color: Color(0xFFBBBBBB)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+        const Divider(height: 1, indent: 16, endIndent: 0),
       ],
     );
   }
 
-  Widget _placeholderIcon() {
-    return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800])),
-      child: const Icon(Icons.person, color: Colors.white, size: 70),
-    );
-  }
-
-  Widget _buildGlassyTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    int minLines = 1,
-    int maxLines = 1,
-    int? maxLength,
-    String? Function(String?)? validator,
-    int? currentCharCount,
-    int? displayMaxLength,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-          ),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 20, top: 18),
-                    child: Icon(icon, color: AppColors.pinkLight, size: 20),
-                  ),
-                  Expanded(
-                    child: TextFormField(
-                      controller: controller,
-                      validator: validator,
-                      style: TextStyle(color: Colors.white),
-                      minLines: minLines,
-                      maxLines: maxLines,
-                      maxLength: maxLength,
-                      decoration: InputDecoration(
-                        hintText: label,
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.only(left: 15, right: 20, top: 16, bottom: 16),
-                        counterText: "",
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Visibility(
-                visible: displayMaxLength != null && currentCharCount != null,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        '$currentCharCount/$displayMaxLength',
-                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // New Widget: Country Picker
-  Widget _buildCountryPicker() {
-    String countryText = _selectedCountryName ?? 'Select Location (Country)';
-
-    // Use the flag emoji if it exists, otherwise use the location icon
-    Widget prefixWidget = _selectedCountryFlagEmoji != null
-        ? Text(_selectedCountryFlagEmoji!, style: const TextStyle(fontSize: 26))
-        : Icon(CupertinoIcons.location_solid, color: AppColors.pinkLight, size: 20);
-
-    return GestureDetector(
-      onTap: () {
-        showCountryPicker(
-          context: context,
-          showPhoneCode: false, // Don't show phone code
-          onSelect: (Country country) {
-            setState(() {
-              _selectedCountryName = country.name;
-              _selectedCountryFlagEmoji = country.flagEmoji;
-            });
-          },
-          // Style the picker to match your app's theme
-          countryListTheme: CountryListThemeData(
-            backgroundColor: Colors.grey[900],
-            textStyle: const TextStyle(color: Colors.white),
-            bottomSheetHeight: 500,
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20.0), topRight: Radius.circular(20.0)),
-            // Style the search field
-            inputDecoration: InputDecoration(
-              labelText: 'Search',
-              hintText: 'Start typing to search',
-              labelStyle: TextStyle(color: AppColors.pinkLight),
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-              prefixIcon: Icon(Icons.search, color: AppColors.pinkLight),
-              border: OutlineInputBorder(
-                borderSide: BorderSide(color: AppColors.pinkLight.withOpacity(0.5)),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: AppColors.pinkLight.withOpacity(0.5)),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: AppColors.pink),
-                borderRadius: BorderRadius.circular(15),
-              ),
-            ),
-          ),
-        );
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-            ),
-            child: Row(
-              children: [
-                prefixWidget, // Your new flag/icon widget
-                const SizedBox(width: 15),
-                // Expanded ensures text truncates nicely
-                Expanded(
-                  child: Text(
-                    countryText,
-                    style: TextStyle(
-                      color: _selectedCountryName != null ? Colors.white : Colors.white.withOpacity(0.7),
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Icon(CupertinoIcons.chevron_down, color: AppColors.pinkLight, size: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGenderPicker() {
-    final genders = ['Male', 'Female', 'Other', 'Prefer not to say'];
-
-    // 2. Define the icon and color mapping
-    final Map<String, (IconData, Color)> genderDetails = {
-      'Male': (Icons.male, Colors.blue.shade400),
-      'Female': (Icons.female, Colors.pink.shade400),
-      'Other': (Icons.transgender, AppColors.pinkLight),
-      'Prefer not to say': (CupertinoIcons.question_circle, Colors.grey.shade400),
-    };
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedGender,
-              isExpanded: true,
-              hint: Row(
-                children: [
-                  Icon(CupertinoIcons.heart_fill, color: AppColors.pinkLight, size: 20),
-                  SizedBox(width: 15),
-                  Text('Select Gender', style: TextStyle(color: Colors.white.withOpacity(0.7))),
-                ],
-              ),
-              dropdownColor: Colors.grey[900],
-              icon: Icon(CupertinoIcons.chevron_down, color: AppColors.pinkLight),
-              style: TextStyle(color: Colors.white, fontSize: 16),
-
-              // 3. This builds the CLOSED button view when an item is selected
-              selectedItemBuilder: (BuildContext context) {
-                return genders.map<Widget>((String value) {
-                  final details = genderDetails[value]!;
-                  return Row(
-                    children: [
-                      Icon(details.$1, color: details.$2, size: 20),
-                      SizedBox(width: 15),
-                      Text(value),
-                    ],
-                  );
-                }).toList();
-              },
-
-              // 4. This builds the OPEN dropdown list
-              items: genders.map((String value) {
-                final details = genderDetails[value]!;
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Row(
-                    children: [
-                      Icon(details.$1, color: details.$2, size: 20),
-                      SizedBox(width: 15),
-                      Text(value),
-                    ],
-                  ),
-                );
-              }).toList(),
-
-              onChanged: (newValue) {
-                setState(() {
-                  _selectedGender = newValue;
-                });
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDobPicker() {
-    String dobText = _selectedDob != null ? DateFormat('MMMM d, yyyy').format(_selectedDob!) : 'Select Date of Birth';
-
-    return GestureDetector(
+  // FIX 6: _buildInterestTagsSection was missing closing ')' for InkWell
+  Widget _buildInterestTagsSection() {
+    return InkWell(
       onTap: () async {
-        final pickedDate = await showDatePicker(
-          context: context,
-          initialDate: _selectedDob ?? DateTime(2000, 1, 1),
-          firstDate: DateTime(1920),
-          lastDate: DateTime.now(),
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InterestTagsPage(initialTags: _myTags),
+          ),
         );
-        if (pickedDate != null) {
-          setState(() {
-            _selectedDob = pickedDate;
-          });
+        if (result == true) {
+          _loadCurrentProfileQuietly();
         }
       },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-            ),
-            child: Row(
-              children: [
-                Icon(CupertinoIcons.gift_fill, color: AppColors.pinkLight, size: 20),
-                SizedBox(width: 15),
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
                 Text(
-                  dobText,
-                  style: TextStyle(
-                    color: _selectedDob != null ? Colors.white : Colors.white.withOpacity(0.7),
-                    fontSize: 16,
-                  ),
+                  'Interest Tags',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
                 ),
                 Spacer(),
-                Icon(CupertinoIcons.calendar, color: AppColors.pinkLight, size: 20),
+                Icon(CupertinoIcons.chevron_right, size: 16, color: Colors.grey),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
+            if (_myTags.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _myTags.map((tag) => _buildTag(tag.name)).toList(),
+              )
+            else
+              DashedContainer(
+                child: Column(
+                  children: const [
+                    Icon(CupertinoIcons.add, color: Colors.grey),
+                    SizedBox(height: 8),
+                    Text('Add tags', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                    SizedBox(height: 4),
+                    Text('Add tags to find people who resonate', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ), // FIX 6: This closing ')' was missing in the original
+    );
+  }
+
+  Widget _buildTag(String name) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        name,
+        style: const TextStyle(color: Colors.black, fontSize: 14),
+      ),
+    );
+  }
+
+  void _navigateToEditField(String title, String initialValue, Function(String) onSave) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EditFieldPage(
+          title: title,
+          initialValue: initialValue,
+          reminderText: title == 'Nickname'
+              ? 'Reminder: You have one free nickname modification opportunity per month. After exceeding this limit, each modification will require a deduction of 10,000 coins.'
+              : null,
+          onSave: (val) async {
+            onSave(val);
+            try {
+              await UserRepository().updateUserProfile(
+                displayName: title == 'Nickname' ? val : _nameController.text,
+                bio: title == 'Self-introduction' ? val : _bioController.text,
+                gender: _selectedGender,
+                country: _selectedCountryName,
+              );
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error saving $title: $e')),
+                );
+              }
+            }
+          },
         ),
       ),
     );
   }
+
+  void _showGenderPicker() {
+    final genders = ['Male', 'Female', 'Other', 'Prefer not to say'];
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          color: Colors.white,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: genders.length,
+            itemBuilder: (context, index) {
+              return ListTile(
+                title: Text(genders[index]),
+                trailing: _selectedGender == genders[index]
+                    ? const Icon(CupertinoIcons.checkmark, color: Colors.pink)
+                    : null,
+                onTap: () {
+                  setState(() => _selectedGender = genders[index]);
+                  Navigator.pop(context);
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDobPicker() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDob ?? DateTime(2000, 1, 1),
+      firstDate: DateTime(1920),
+      lastDate: DateTime.now(),
+    );
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDob = pickedDate;
+      });
+    }
+  }
+
+  void _showCountryPicker() {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: false,
+      onSelect: (Country country) {
+        setState(() {
+          _selectedCountryName = country.name;
+          _selectedCountryFlagEmoji = country.flagEmoji;
+        });
+      },
+    );
+  }
+}
+
+class DashedContainer extends StatelessWidget {
+  final Widget child;
+
+  const DashedContainer({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: DashedRectPainter(),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: child,
+      ),
+    );
+  }
+}
+
+class DashedRectPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    double dashWidth = 5, dashSpace = 3;
+    final paint = Paint()
+      ..color = const Color(0xFFE0E0E0)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    RRect rrect = RRect.fromLTRBR(0, 0, size.width, size.height, const Radius.circular(12));
+    Path path = Path()..addRRect(rrect);
+
+    for (PathMetric pathMetric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < pathMetric.length) {
+        canvas.drawPath(
+          pathMetric.extractPath(distance, distance + dashWidth),
+          paint,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 
 class MyBottomNavBar extends StatefulWidget {
   final int selectedPosition;
@@ -16,11 +15,11 @@ class _MyBottomNavBarState extends State<MyBottomNavBar> with TickerProviderStat
   late List<Animation<double>> _scaleAnimations;
 
   final List<NavBarItem> _navItems = [
-    NavBarItem(icon: Icons.home_rounded, activeIcon: Icons.home_rounded, label: 'Home'),
-    NavBarItem(icon: Icons.play_circle_outline, activeIcon: Icons.play_circle_filled, label: 'Social'),
-    NavBarItem(icon: Icons.videocam, activeIcon: Icons.videocam, label: 'Create', isCenter: true),
-    NavBarItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Inbox'),
-    NavBarItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Me'),
+    NavBarItem(icon: Icons.home_outlined, activeIcon: Icons.home_outlined, label: 'Home'),
+    NavBarItem(icon: Icons.social_distance_outlined, activeIcon: Icons.social_distance_outlined, label: 'Social'),
+    NavBarItem(icon: Icons.shopping_cart_checkout_outlined, activeIcon: Icons.shopping_cart_checkout_outlined, label: 'Marketplace'),
+    NavBarItem(icon: Icons.message_outlined, activeIcon: Icons.message_outlined, label: 'Inbox', badge: '26'),
+    NavBarItem(icon: Icons.person, activeIcon: Icons.person, label: 'Me'),
   ];
 
   @override
@@ -66,178 +65,81 @@ class _MyBottomNavBarState extends State<MyBottomNavBar> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.bottomCenter,
-      children: [
-        // Bottom Navigation Bar
-        Container(
-          height: 70,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.black.withOpacity(0.8),
-                Colors.pink.shade900.withOpacity(0.3),
-                Colors.black.withOpacity(0.9)
-              ],
-            ),
-            border: Border(top: BorderSide(color: Colors.pink.withOpacity(0.2), width: 1)),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20, offset: const Offset(0, -5)),
-              BoxShadow(color: Colors.pink.withOpacity(0.1), blurRadius: 30, offset: const Offset(0, 0)),
-            ],
+    return Container(
+      height: 70,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
           ),
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(_navItems.length, (index) {
-                    return _buildNavItem(index, _navItems[index]);
-                  }),
-                ),
-              ),
-            ),
-          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(_navItems.length, (index) {
+            return _buildNavItem(index, _navItems[index]);
+          }),
         ),
-
-        // Elevated Center Button
-        Positioned(
-          bottom: 20,
-          child: _buildCenterButton(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCenterButton() {
-    final isSelected = widget.selectedPosition == 2;
-    final gradientColors = [
-      Colors.pink.shade400,
-      Colors.pink.shade600,
-      Colors.pink.shade800
-    ];
-
-    return GestureDetector(
-      onTap: () {
-        widget.onItemTapped(2);
-      },
-      child: AnimatedBuilder(
-        animation: _scaleAnimations[2],
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _scaleAnimations[2].value,
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: gradientColors,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.pink.withOpacity(0.6),
-                    blurRadius: 20,
-                    spreadRadius: 3,
-                    offset: Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: Colors.pink.shade800.withOpacity(0.4),
-                    blurRadius: 15,
-                    spreadRadius: 0,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(
-                isSelected ? Icons.videocam : Icons.videocam,
-                color: Colors.white,
-                size: 30,
-              ),
-            ),
-          );
-        },
       ),
     );
   }
 
   Widget _buildNavItem(int index, NavBarItem item) {
     final isSelected = widget.selectedPosition == index;
-    final isCenter = item.isCenter;
-
-    if (isCenter) {
-      return Expanded(child: SizedBox());
-    }
 
     return Expanded(
-      child: AnimatedBuilder(
-        animation: _scaleAnimations[index],
-        builder: (context, child) {
-          return GestureDetector(
-            onTap: () {
-              widget.onItemTapped(index);
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              color: Colors.transparent,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Transform.scale(
-                    scale: _scaleAnimations[index].value,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: isSelected
-                            ? LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.pink.shade300.withOpacity(0.3),
-                            Colors.pink.shade500.withOpacity(0.2)
-                          ],
-                        )
-                            : null,
-                        boxShadow: isSelected
-                            ? [
-                          BoxShadow(
-                            color: Colors.pink.withOpacity(0.4),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                            : null,
-                      ),
-                      child: Icon(
-                        isSelected ? item.activeIcon : item.icon,
-                        color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
-                        size: 26,
-                      ),
+      child: GestureDetector(
+        onTap: () => widget.onItemTapped(index),
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedBuilder(
+                animation: _scaleAnimations[index],
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: isSelected ? _scaleAnimations[index].value : 1.0,
+                    child: Icon(
+                      isSelected ? item.activeIcon : item.icon,
+                      color: isSelected ? const Color(0xFFC0A4FF) : const Color(0xFFC4C4D1),
+                      size: index == 0 ? 32 : 30, // Drum icon slightly larger
                     ),
-                  ),
-
-                  const SizedBox(height: 4),
-                  Text(
-                    item.label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                      color: isSelected ? Colors.pink.shade300 : Colors.white.withOpacity(0.6),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
-            ),
-          );
-        },
+              if (item.badge != null)
+                Positioned(
+                  right: -8,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF456E),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    child: Text(
+                      item.badge!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -248,6 +150,13 @@ class NavBarItem {
   final IconData activeIcon;
   final String label;
   final bool isCenter;
+  final String? badge;
 
-  NavBarItem({required this.icon, required this.activeIcon, required this.label, this.isCenter = false});
+  NavBarItem({
+    required this.icon, 
+    required this.activeIcon, 
+    required this.label, 
+    this.isCenter = false,
+    this.badge,
+  });
 }

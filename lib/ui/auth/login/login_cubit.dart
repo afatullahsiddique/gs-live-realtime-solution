@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -9,6 +10,7 @@ import '../../../data/remote/firebase/profile_services.dart';
 import 'login_state.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class LoginCubit extends Cubit<LoginState> {
@@ -52,28 +54,72 @@ class LoginCubit extends Cubit<LoginState> {
         idToken: googleUser.authentication.idToken,
       );
 
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      print("id token====================================== ${googleUser.authentication.idToken}");
+
+      String? fcmToken;
+
       try {
-        await ProfileService.syncUserProfile();
-      } catch (profileError) {
-        print("Error syncing user profile: $profileError");
+        final prefs = await SharedPreferences.getInstance();
+        fcmToken = prefs.getString('fcm_token');
+
+        if (fcmToken == null) {
+          debugPrint("FCM token not found in prefs, fetching from Firebase...");
+          fcmToken = await FirebaseMessaging.instance.getToken();
+          if (fcmToken != null) {
+            await prefs.setString('fcm_token', fcmToken);
+          }
+        }
+
+        debugPrint("FCM Token: $fcmToken");
+      } catch (e) {
+        debugPrint("FCM token error (ignored): $e");
       }
+      print("================================ $fcmToken");
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).get();
-
-      final userData = userDoc.data();
-
-      final User? user = User(
-        id: userCredential.user!.uid,
-        // Try to get the displayId from Firestore, fallback to empty if something failed
-        displayId: userData?['displayId'] ?? "",
-        name: userData?['displayName'] ?? userCredential.user!.displayName ?? "Unknown",
-        email: userCredential.user!.email!,
-        avatar: userData?['photoUrl'] ?? userCredential.user!.photoURL,
+      // 1. Send idToken to the backend
+      final response = await http.post(
+        Uri.parse('https://gs-live-backend.vercel.app/api/v1/googleAuth'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "idToken": googleUser.authentication.idToken,
+          if (fcmToken != null) "fcmToken": fcmToken,
+        }),
       );
 
-      secureStorage.setUser(user!);
-      emit(state.copyWith(status: LoginStatus.success, user: user));
+      final data = jsonDecode(response.body);
+
+      debugPrint("Google Auth Status: ${response.statusCode}");
+      debugPrint("Google Auth Body: ${response.body}");
+
+      if (response.statusCode == 200 && data['status'] == true) {
+        final userData = data['user'];
+        final String token = data['token'];
+
+        // Handle photoUrl list
+        String? avatarUrl;
+        if (userData['photoUrl'] is List && (userData['photoUrl'] as List).isNotEmpty) {
+          avatarUrl = userData['photoUrl'][0];
+        }
+
+        final User user = User(
+          id: userData['id'],
+          displayId: userData['displayId'] ?? "",
+          name: userData['name'] ?? googleUser.displayName ?? "Unknown",
+          email: userData['email'] ?? googleUser.email,
+          avatar: avatarUrl ?? googleUser.photoUrl,
+          token: token,
+        );
+
+        await secureStorage.setUser(user);
+        emit(state.copyWith(status: LoginStatus.success, user: user));
+      } else {
+        emit(
+          state.copyWith(
+            status: LoginStatus.failure,
+            error: data['message'] ?? 'Backend authentication failed.',
+          ),
+        );
+      }
     } catch (e) {
       print(e.toString());
       emit(state.copyWith(status: LoginStatus.failure, error: 'Google sign-in failed. Please try again.'));
@@ -133,7 +179,7 @@ class LoginCubit extends Cubit<LoginState> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://gf-live-backend.onrender.com/api/v1/auth/login'),
+        Uri.parse('https://gs-live-backend.vercel.app/api/v1/auth/login'),
         headers: {
           'Content-Type': 'application/json',
         },

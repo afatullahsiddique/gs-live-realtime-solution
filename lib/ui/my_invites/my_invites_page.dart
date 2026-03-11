@@ -1,5 +1,3 @@
-import 'dart:ui';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class MyInvitesPage extends StatefulWidget {
@@ -28,200 +26,338 @@ class _MyInvitesPageState extends State<MyInvitesPage> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF000000), Color(0xFF1a0a0a), Color(0xFF2d1b2b), Color(0xFF4a2c4a), Color(0xFFff6b9d)],
-            stops: [0.0, 0.3, 0.6, 0.8, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.only(left: 0, right: 20, top: 0, bottom: 10),
-                child: Row(
+      backgroundColor: const Color(0xFFFDECD2),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Top Gradient Section with Header and Banner
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFFF5722), Color(0xFFFFAB40)],
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Column(
                   children: [
-                    IconButton(
-                      icon: const Icon(CupertinoIcons.back, size: 28, color: Colors.pink),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    const Spacer(),
-                    Text(
-                      "My Invites",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(color: Colors.pink.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 2)),
+                    // Custom Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                            onPressed: () => Navigator.maybePop(context),
+                          ),
+                          const Expanded(
+                            child: Center(
+                              child: Text(
+                                'Invitation Bonus',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.help_outline_rounded, color: Colors.white, size: 24),
+                            onPressed: () {},
+                          ),
                         ],
                       ),
                     ),
-                    const Spacer(),
+                    // Moving Text Banner
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Congratulations! Vai🦋🦋Claimed \$ 0.1 , earned \$ 702.4',
+                              style: TextStyle(color: Colors.white, fontSize: 11),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Illustration Area (Placeholder for coins/gifts)
+                    const SizedBox(height: 100, child: Center(child: Icon(Icons.stars_rounded, color: Colors.white70, size: 80))),
                   ],
                 ),
               ),
+            ),
 
-              // Tab Bar
-              Container(
+            // Main Invitation Card
+            Transform.translate(
+              offset: const Offset(0, -40),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.pink.withOpacity(0.3)),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                  border: Border.all(color: const Color(0xFFFF8A65), width: 4),
                 ),
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: false,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  indicator: BoxDecoration(
-                    borderRadius: BorderRadius.circular(30),
-                    gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.purple.shade400]),
-                  ),
-                  indicatorColor: Colors.transparent,
-                  dividerColor: Colors.transparent,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white70,
-                  tabs: const [
-                    Tab(text: "Invite a Friend"),
-                    Tab(text: "My Invites"),
+                child: Column(
+                  children: [
+                    const Text('Invite someone', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
+                    const SizedBox(height: 16),
+                    const Text('Can earn up to', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF8D6E63))),
+                    const SizedBox(height: 4),
+                    const Text('\$25.6', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFFFF5252))),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'The more you invite, the more rewards you will get',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Color(0xFF999999)),
+                    ),
+                    const SizedBox(height: 24),
+                    // Invite Now Button
+                    Container(
+                      width: double.infinity,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF7043), Color(0xFFFFAB40)],
+                        ),
+                        borderRadius: BorderRadius.circular(27),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF7043).withValues(alpha: 0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Invite Now',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('My ID: $referralCode', style: const TextStyle(fontSize: 13, color: Color(0xFFFF8A65))),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.copy_rounded, size: 14, color: Color(0xFFFF8A65)),
+                      ],
+                    ),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 20),
-
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [_buildInviteFriendTab(), _buildMyInvitesTab()],
-                ),
+            // Tab Controls and Summary
+            Transform.translate(
+              offset: const Offset(0, -20),
+              child: Column(
+                children: [
+                  _buildCustomTabBar(),
+                  _buildRewardsSummary(),
+                  _buildInviteFriendsBanner(),
+                  _buildInvitationsList(),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInviteFriendTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.card_giftcard, size: 80, color: Colors.pinkAccent),
+            ),
             const SizedBox(height: 20),
-            Text(
-              "Invite friends and earn rewards!",
-              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 30),
-
-            // Referral Code Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.black.withOpacity(0.3),
-                border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-                boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Column(
-                    children: [
-                      const Text("Your Referral Code", style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      const SizedBox(height: 8),
-                      Text(
-                        referralCode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          debugPrint("Share referral code tapped");
-                        },
-                        icon: const Icon(Icons.share, color: Colors.white),
-                        label: const Text("Share", style: TextStyle(color: Colors.white)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.pinkAccent,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMyInvitesTab() {
-    return ListView.builder(
+  Widget _buildCustomTabBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 44,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFCC80).withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        labelColor: const Color(0xFFFF7043),
+        unselectedLabelColor: Colors.white,
+        dividerColor: Colors.transparent,
+        tabs: const [
+          Tab(text: 'My rewards'),
+          Tab(text: 'Income Rank'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRewardsSummary() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
-      itemCount: invitedFriends.length,
-      itemBuilder: (context, index) {
-        final friend = invitedFriends[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Colors.black.withOpacity(0.3),
-            border: Border.all(color: Colors.purple.withOpacity(0.3)),
-            boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, 6))],
-          ),
-          child: Row(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Row(
             children: [
-              CircleAvatar(
-                backgroundColor: Colors.pinkAccent.withOpacity(0.3),
-                child: Text(friend["name"][0], style: const TextStyle(color: Colors.white)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  friend["name"],
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ),
+              _buildSummaryItem('0', 'Claimed Rewards', Icons.monetization_on_rounded, const Color(0xFFFF80AB)),
+              Container(width: 1, height: 40, color: const Color(0xFFEEEEEE)),
+              _buildSummaryItem('0', 'Number of invitees', null, const Color(0xFF666666)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: Color(0xFFF5F5F5)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text('Available for today', style: TextStyle(fontSize: 13, color: Color(0xFF999999))),
+              const SizedBox(width: 4),
+              const Icon(Icons.monetization_on_rounded, size: 16, color: Color(0xFFFF80AB)),
+              const SizedBox(width: 4),
+              const Text('0', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
+              const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: friend["status"] == "Joined" ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+                  color: const Color(0xFFDDDDDD),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Text(
-                  friend["status"],
-                  style: TextStyle(
-                    color: friend["status"] == "Joined" ? Colors.greenAccent : Colors.orangeAccent,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
+                child: const Text('Receive', style: TextStyle(color: Colors.white, fontSize: 13)),
               ),
             ],
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(String value, String label, IconData? icon, Color iconColor) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 12, color: iconColor),
+                const SizedBox(width: 4),
+              ],
+              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF999999))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInviteFriendsBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 110,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF4081), Color(0xFFFF80AB)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'Invite Friends',
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Icon(Icons.shopping_bag_rounded, size: 90, color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.qr_code_2_rounded, size: 14, color: Color(0xFF333333)),
+                  SizedBox(width: 4),
+                  Text('My Code', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvitationsList() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          const Row(
+            children: [
+              Text('Invitations from last 7 days (0)', style: TextStyle(fontSize: 14, color: Color(0xFF666666))),
+              Spacer(),
+              Text('More', style: TextStyle(fontSize: 12, color: Color(0xFF999999))),
+              Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFBBBBBB)),
+            ],
+          ),
+          const SizedBox(height: 40),
+          // Empty State Illustration
+          const Icon(Icons.rocket_launch_rounded, size: 80, color: Color(0xFFF5F5F5)),
+          const SizedBox(height: 12),
+          const Text('No more data', style: TextStyle(fontSize: 13, color: Color(0xFFBBBBBB))),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 }

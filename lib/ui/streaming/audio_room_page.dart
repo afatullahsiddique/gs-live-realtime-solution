@@ -7,6 +7,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cute_live/core/utils/view_count.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -19,6 +20,9 @@ import '../../core/widgets/gift_image_widget.dart';
 import '../../data/remote/firebase/app_services.dart';
 import '../../data/remote/firebase/room_services.dart';
 import '../../data/remote/firebase/profile_services.dart';
+import '../../data/local/secure_storage/secure_storage.dart';
+import '../../data/remote/rest/models/room_response_model.dart';
+import '../../data/remote/rest/room_api_service.dart';
 import '../../navigation/routes.dart';
 import '../video_streaming/bottomsheets/profile_info_bottomsheet.dart';
 import 'bottomsheets/emoji_bottomsheet.dart';
@@ -44,6 +48,15 @@ class CoHostRequest {
       userPicture: data['userPicture'],
     );
   }
+
+  factory CoHostRequest.fromResponse(CohostRequestData data) {
+    return CoHostRequest(
+      requestId: data.requestId,
+      userId: data.userId,
+      userName: data.userName,
+      userPicture: data.userPicture,
+    );
+  }
 }
 
 class SpeakerRequest {
@@ -57,6 +70,15 @@ class SpeakerRequest {
   factory SpeakerRequest.fromRTDB(String key, Map<dynamic, dynamic> data) {
     return SpeakerRequest(
       requestId: key,
+      userId: data['userId'] ?? '',
+      userName: data['userName'] ?? 'Unknown',
+      userPicture: data['userPicture'],
+    );
+  }
+
+  factory SpeakerRequest.fromResponse(Map<String, dynamic> data) {
+    return SpeakerRequest(
+      requestId: data['requestId'] ?? '',
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? 'Unknown',
       userPicture: data['userPicture'],
@@ -148,8 +170,14 @@ class GiftOverlay {
 class AudioRoomPage extends StatefulWidget {
   final String roomID;
   final bool isHost;
+  final ZegoConfig? initialZegoConfig;
 
-  const AudioRoomPage({super.key, required this.roomID, required this.isHost});
+  const AudioRoomPage({
+    super.key,
+    required this.roomID,
+    required this.isHost,
+    this.initialZegoConfig,
+  });
 
   @override
   State<AudioRoomPage> createState() => _AudioRoomPageState();
@@ -160,15 +188,20 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+  final roomApiService = GetIt.instance<RoomApiService>();
+  final _secureStorage = GetIt.I<SecureStorage>();
+  String _currentUserId = '';
 
   StreamSubscription? _roomSubscription;
   StreamSubscription? _messageSubscription;
   StreamSubscription? _participantsSubscription;
   StreamSubscription? _speakerRequestsSubscription;
   StreamSubscription? _coHostRequestsSubscription;
+  Timer? _refreshTimer;
   StreamSubscription? _emojiSubscription;
 
-  late Map<String, dynamic> roomData;
+  RoomModel? _roomModel;
+  Map<String, dynamic> roomData = {};
   List<RoomParticipant> _participants = [];
   List<ChatMessage> _messages = [];
   List<SpeakerRequest> _speakerRequests = [];
@@ -234,6 +267,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
     _participantsSubscription?.cancel();
     _speakerRequestsSubscription?.cancel();
     _coHostRequestsSubscription?.cancel();
+    _refreshTimer?.cancel();
     _emojiSubscription?.cancel();
     _emojiTimer?.cancel();
     _giftOverlayTimer?.cancel();
@@ -248,9 +282,9 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
     if (_isInitialized) {
       if (widget.isHost) {
-        RoomService.deleteRoom(widget.roomID);
+        roomApiService.deleteRoom(widget.roomID);
       } else {
-        RoomService.leaveRoom(widget.roomID);
+        roomApiService.leaveRoom(widget.roomID);
       }
       ZegoUIKit().leaveRoom();
       ZegoUIKit().logout();
@@ -261,8 +295,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
   Future<void> _initialize() async {
     try {
-      final roomDoc = await RoomService.getRoomInfo(widget.roomID);
-      if (!roomDoc.exists) {
+      print('🚀 [AUDIO_ROOM_PAGE] Initialization started for room ${widget.roomID}');
+      final response = await roomApiService.getRoomInfo(widget.roomID);
+      
+      if (response == null || !response.status) {
+        print('❌ [AUDIO_ROOM_PAGE] Room info NOT found or API error.');
         if (mounted) {
           setState(() {
             _roomDoesNotExist = true;
@@ -270,9 +307,25 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         }
         return;
       }
-      roomData = Map<String, dynamic>.from(roomDoc.value as Map);
 
-      final bool isLocked = roomData['isLocked'] ?? false;
+      _roomModel = response.data.room;
+      // Convert to Map for compatibility with existing code
+      final room = _roomModel!;
+      roomData = {
+        'roomId': room.roomId,
+        'hostId': room.hostId,
+        'hostName': room.hostName,
+        'hostPicture': room.hostPicture,
+        'hostDisplayId': room.hostDisplayId,
+        'isLocked': room.isLocked,
+        'password': room.password,
+        'participantCount': room.participantCount,
+        'isMoveAllowed': room.isMoveAllowed,
+        'isSeatApprovalRequired': room.isSeatApprovalRequired,
+        'notice': room.notice,
+      };
+
+      final bool isLocked = room.isLocked;
 
       if (isLocked && !widget.isHost) {
         final bool? passwordCorrect = await _showPasswordDialog();
@@ -286,7 +339,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       debugPrint('Error initializing audio room: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-        context.pop();
+        if (Navigator.of(context).canPop()) {
+          context.pop();
+        } else {
+          context.go(Routes.home.path);
+        }
       }
     }
   }
@@ -297,48 +354,152 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       return;
     }
 
-    final currentUser = _auth.currentUser!;
+    final user = await _secureStorage.getUser();
+    if (user == null) {
+      print('❌ [AUDIO_ROOM_PAGE] User not found in SecureStorage');
+      if (mounted) context.go(Routes.login.path);
+      return;
+    }
+
+    _currentUserId = user.id;
+    _currentUserName = user.name;
+
     try {
-      final userDoc = await ProfileService.getUserProfile(currentUser.uid);
+      final userDoc = await ProfileService.getUserProfile(_currentUserId);
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
         setState(() {
-          _currentUserName = data['displayName'] ?? "Unknown";
-        });
-      } else {
-        setState(() {
-          _currentUserName = currentUser.displayName ?? "Unknown";
+          _currentUserName = data['displayName'] ?? user.name;
         });
       }
     } catch (e) {
-      debugPrint("Error fetching user name: $e");
-      setState(() {
-        _currentUserName = currentUser.displayName ?? "Unknown";
-      });
+      debugPrint("Error fetching user name from profile service: $e");
     }
 
+    final ZegoConfig? zegoConfigToUse = widget.initialZegoConfig ?? _roomModel?.zegoConfig;
+
     await ZegoUIKit().init(
-      appID: await AppServices.getZegoAppId(),
-      appSign: await AppServices.getZegoAppSign(),
+      appID: zegoConfigToUse != null 
+          ? (int.tryParse(zegoConfigToUse.appId.toString()) ?? await AppServices.getZegoAppId())
+          : await AppServices.getZegoAppId(),
+      appSign: zegoConfigToUse?.signId ?? await AppServices.getZegoAppSign(),
       scenario: ZegoScenario.Default,
     );
 
-    ZegoUIKit().login(currentUser.uid, _currentUserName);
-    await ZegoUIKit().joinRoom(widget.roomID);
+    ZegoUIKit().login(_currentUserId, _currentUserName);
+
+    if (!widget.isHost) {
+      print('🚀 [AUDIO_ROOM_PAGE] Calling joinRoom REST API...');
+      final joinResponse = await roomApiService.joinRoom(widget.roomID);
+      
+      if (joinResponse != null && joinResponse.status) {
+        print('✅ [AUDIO_ROOM_PAGE] REST Join Success');
+        final zego = joinResponse.data.zegoConfig;
+        
+        // Populate participants from join response
+        setState(() {
+          _participants = joinResponse.data.participants.map((p) => RoomParticipant(
+            userId: p.userId,
+            userName: p.userName,
+            userPicture: p.userPicture,
+            seatNo: p.seatNo,
+            isCoHost: p.isCoHost,
+            isMuted: p.isMuted,
+          )).toList();
+          _participantCount = joinResponse.data.room.participantCount;
+          _isMoveAllowed = joinResponse.data.room.isMoveAllowed;
+          _isSeatApprovalRequired = joinResponse.data.room.isSeatApprovalRequired;
+          _roomNotice = joinResponse.data.room.notice;
+        });
+
+        // Join Zego with token if available
+        final int targetAppId = int.tryParse(zego.appId.toString()) ?? (await AppServices.getZegoAppId());
+        
+        // Re-init if appId is different? For now just ensure we have correct sign or token
+        // If zego has signId, we might need it for re-init, but let's stick to token if present.
+        
+        await ZegoUIKit().joinRoom(zego.roomId ?? widget.roomID, token: zego.token ?? '');
+        
+        _sendJoinMessage();
+        _showJoinAnimation(_currentUserName);
+      } else {
+        print('❌ [AUDIO_ROOM_PAGE] REST Join Failed: ${joinResponse?.message}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to join room: ${joinResponse?.message ?? "Unauthorized"}'))
+          );
+          context.pop();
+          return;
+        }
+      }
+    } else {
+      await ZegoUIKit().joinRoom(
+        widget.roomID, 
+        token: zegoConfigToUse?.token ?? '',
+      );
+    }
 
     ZegoUIKit().turnMicrophoneOn(widget.isHost);
     ZegoUIKit().setAudioOutputToSpeaker(true);
     ZegoUIKit().startPlayAllAudioVideo();
 
-    if (!widget.isHost) {
-      await RoomService.joinRoom(widget.roomID);
-      _sendJoinMessage();
-      _showJoinAnimation(_currentUserName);
-    }
-
     _setupListeners();
     _musicPlayerManager.initialize();
     setState(() => _isInitialized = true);
+
+    // Start polling for updates
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        _refreshRoomData();
+      }
+    });
+  }
+
+  Future<void> _refreshRoomData() async {
+    try {
+      // 1. Refresh Room Info (Participants, Seats, etc.)
+      final response = await roomApiService.getRoomInfo(widget.roomID);
+      if (response != null && response.status) {
+        final room = response.data.room;
+        if (mounted) {
+          setState(() {
+            _participants = room.participants.map((p) => RoomParticipant(
+              userId: p.userId,
+              userName: p.userName,
+              userPicture: p.userPicture,
+              seatNo: p.seatNo,
+              isCoHost: p.isCoHost,
+              isMuted: p.isMuted,
+            )).toList();
+            _participantCount = room.participantCount;
+            _roomNotice = room.notice;
+            _isMoveAllowed = room.isMoveAllowed;
+            _isSeatApprovalRequired = room.isSeatApprovalRequired;
+          });
+        }
+      }
+
+      // 2. If Host, Refresh Co-Host Requests
+      if (widget.isHost) {
+        final requestsResponse = await roomApiService.getCohostRequests(widget.roomID);
+        if (requestsResponse != null && requestsResponse.status) {
+          if (mounted) {
+            setState(() {
+              _coHostRequests = requestsResponse.data.requests
+                  .map((r) => CoHostRequest.fromResponse(r))
+                  .toList();
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error refreshing room data: $e");
+    }
   }
 
   Future<bool?> _showPasswordDialog() async {
@@ -414,19 +575,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   }
 
   void _setupListeners() {
-    _roomSubscription = RoomService.getRoomStream(widget.roomID).listen((event) {
-      if (event.snapshot.exists && mounted) {
-        setState(() {
-          roomData = Map<String, dynamic>.from(event.snapshot.value as Map);
-          _participantCount = roomData['participantCount'] ?? 0;
-          _isMoveAllowed = roomData['isMoveAllowed'] ?? true;
-          _isSeatApprovalRequired = roomData['isSeatApprovalRequired'] ?? true;
-          _roomNotice = roomData['notice'] ?? "";
-        });
-      } else {
-        if (mounted) context.pop();
-      }
-    });
+    // Note: Firebase listeners are temporarily disabled to avoid permission errors during REST transition.
+    // Future real-time updates should be implemented via REST polling or WebSockets.
 
     _messageSubscription = ZegoUIKit().getInRoomMessageStream().listen((message) {
       if (mounted) {
@@ -443,141 +593,6 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         });
       }
     });
-
-    _participantsSubscription = RoomService.getRoomParticipants(widget.roomID).listen((event) {
-      if (!event.snapshot.exists) {
-        if (mounted) setState(() => _participants = []);
-        return;
-      }
-
-      final zegoUsers = ZegoUIKit().getAllUsers();
-      final participantsMap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
-
-      final updatedParticipants = participantsMap.entries.map((entry) {
-        final participant = RoomParticipant.fromRTDB(entry.key, entry.value);
-        try {
-          final zegoUser = zegoUsers.firstWhere((user) => user.id == participant.userId);
-          return participant.copyWith(zegoUser: zegoUser);
-        } catch (e) {
-          return participant;
-        }
-      }).toList();
-
-      if (_participants.isNotEmpty && _newJoinerName == null) {
-        final oldParticipantIds = _participants.map((p) => p.userId).toSet();
-        final String hostId = roomData['hostId'] ?? '';
-
-        final newGuest = updatedParticipants.firstWhere(
-          (p) => !oldParticipantIds.contains(p.userId) && p.userId != hostId,
-          orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
-        );
-
-        if (newGuest.userId.isNotEmpty) {
-          _showJoinAnimation(newGuest.userName);
-        }
-      }
-
-      if (mounted) {
-        final currentUserId = _auth.currentUser!.uid;
-        final oldCurrentUser = _participants.firstWhere(
-          (p) => p.userId == currentUserId,
-          orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
-        );
-        final newCurrentUser = updatedParticipants.firstWhere(
-          (p) => p.userId == currentUserId,
-          orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
-        );
-
-        final bool wasListener = oldCurrentUser.seatNo == -1 && !oldCurrentUser.isCoHost;
-        final bool isNowSpeaker = newCurrentUser.seatNo > 0 || newCurrentUser.isCoHost;
-
-        if (wasListener && isNowSpeaker && !newCurrentUser.isMuted) {
-          ZegoUIKit().turnMicrophoneOn(true);
-        }
-      }
-
-      if (mounted) setState(() => _participants = updatedParticipants);
-    });
-
-    _emojiSubscription = RoomService.getEmojiStream(widget.roomID).listen((event) {
-      if (!mounted || !event.snapshot.exists) return;
-
-      final data = event.snapshot.value as Map<dynamic, dynamic>;
-      final timestamp = data['timestamp'] as int? ?? 0;
-      final now = DateTime.now().millisecondsSinceEpoch;
-
-      if (now - timestamp < 5000) {
-        _showEmoji(
-          senderId: data['senderId'] ?? '',
-          senderName: data['senderName'] ?? 'Unknown',
-          emojiUrl: getFullUrl(data['emojiUrl'] ?? ''),
-          emojiName: data['emojiName'] ?? '',
-        );
-
-        _addChatMessage(
-          userId: data['senderId'] ?? '',
-          username: data['senderName'] ?? 'Unknown',
-          message: '',
-          type: MessageType.emoji,
-          iconUrl: getFullUrl(data['emojiUrl']),
-        );
-      }
-    });
-
-    // Gift subscription
-    RoomService.getGiftStream(widget.roomID).listen((event) {
-      if (!mounted || !event.snapshot.exists) return;
-
-      final data = event.snapshot.value as Map<dynamic, dynamic>;
-      final timestamp = (data['timestamp'] as int?) ?? 0;
-      final now = DateTime.now().millisecondsSinceEpoch;
-
-      if (now - timestamp < 5000) {
-        final String? giftCategory = data['category'] as String?;
-        final bool isLuckyGift = giftCategory == 'Lucky';
-
-        final String senderId = data['senderId'] ?? '';
-        final String currentUserId = _auth.currentUser!.uid;
-        final int? hitCount = data['hitCount'] as int?;
-
-        if (!(isLuckyGift && senderId == currentUserId)) {
-          _showGiftOverlay(
-            senderName: data['senderName'] ?? 'Unknown',
-            senderPicture: data['senderPicture'],
-            giftAnimationUrl: data['giftAnimationUrl'] ?? '',
-            giftImageUrl: data['giftImageUrl'] ?? '',
-            isLuckyGift: isLuckyGift,
-            hitCount: hitCount,
-          );
-        }
-      }
-    });
-
-    if (widget.isHost) {
-      _speakerRequestsSubscription = RoomService.getSpeakerRequestsStream(widget.roomID).listen((event) {
-        if (!event.snapshot.exists) {
-          if (mounted) setState(() => _speakerRequests = []);
-          return;
-        }
-
-        final requestsMap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
-        final requests = requestsMap.entries.map((entry) => SpeakerRequest.fromRTDB(entry.key, entry.value)).toList();
-
-        if (mounted) setState(() => _speakerRequests = requests);
-      });
-
-      _coHostRequestsSubscription = RoomService.getCoHostRequestsStream(widget.roomID).listen((event) {
-        if (!event.snapshot.exists) {
-          if (mounted) setState(() => _coHostRequests = []);
-          return;
-        }
-
-        final requestsMap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
-        final requests = requestsMap.entries.map((entry) => CoHostRequest.fromRTDB(entry.key, entry.value)).toList();
-
-        if (mounted) setState(() => _coHostRequests = requests);
-      });
-    }
   }
 
   void _showEmoji({
@@ -674,9 +689,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
                 Navigator.of(dialogContext).pop();
                 try {
-                  await RoomService.setOrChangeRoomPassword(widget.roomID, password);
+                  // TODO: Implement REST API for setting password
+                  // await RoomService.setOrChangeRoomPassword(widget.roomID, password);
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Password has been set.'), backgroundColor: Colors.green),
+                    const SnackBar(content: Text('Password management via REST is still under implementation.'), backgroundColor: Colors.orange),
                   );
                 } catch (e) {
                   scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error setting password: $e')));
@@ -707,9 +723,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 try {
-                  await RoomService.removeRoomPassword(widget.roomID);
+                  // TODO: Implement REST API for removing password
+                  // await RoomService.removeRoomPassword(widget.roomID);
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Room is now public.'), backgroundColor: Colors.green),
+                    const SnackBar(content: Text('Room password removal via REST is still under implementation.'), backgroundColor: Colors.orange),
                   );
                 } catch (e) {
                   scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error removing password: $e')));
@@ -1015,14 +1032,9 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       },
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        body: StreamBuilder<DatabaseEvent>(
-          stream: RoomService.getRoomStream(widget.roomID),
-          builder: (context, snapshot) {
-            String? backgroundUrl;
-            if (snapshot.hasData && snapshot.data!.snapshot.exists) {
-              final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-              backgroundUrl = data['backgroundUrl'] as String?;
-            }
+        body: Builder(
+          builder: (context) {
+            String? backgroundUrl = _isInitialized ? roomData['backgroundUrl'] : null;
 
             return Stack(
               children: [
@@ -1122,7 +1134,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
   Widget _buildAppBar() {
     final String hostId = roomData['hostId'] ?? '';
-    final String currentUserId = _auth.currentUser?.uid ?? '';
+    final String currentUserId = _currentUserId;
     final bool isGuest = !widget.isHost && hostId != currentUserId;
 
     final guestParticipants = _participants.where((p) => p.userId != hostId).toList();
@@ -1213,7 +1225,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               showParticipantsBottomSheet(
                 context,
                 participants: _participants,
-                currentUserId: _auth.currentUser!.uid,
+                currentUserId: _currentUserId,
                 hostId: roomData['hostId'],
                 roomId: widget.roomID,
               );
@@ -1367,16 +1379,16 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
     RoomParticipant? coHost;
     try {
-      coHost = _participants.firstWhere((p) => p.isCoHost && p.userId != roomData['hostId'] && p.seatNo <= 0);
+      coHost = _participants.firstWhere((p) => p.isCoHost && p.userId != roomData['hostId'] && (p.seatNo <= 1));
     } catch (e) {
       coHost = null;
     }
 
     Widget buildStreamerSeat({
       required String? imageUrl,
-      required String name,
+      required String? name,
       required bool isMuted,
-      required String userId,
+      required String? userId,
       bool isHost = true,
     }) {
       final double size = 65.0;
@@ -1419,14 +1431,14 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                     child: const Icon(CupertinoIcons.mic_off, color: Colors.white, size: 16),
                   ),
                 ),
-              _buildEmojiOnAvatar(userId, size),
+              _buildEmojiOnAvatar(userId ?? '', size),
             ],
           ),
           const SizedBox(height: 8),
           SizedBox(
             width: 80,
             child: AutoScrollText(
-              text: name,
+              text: name ?? "Unknown",
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isHost ? Colors.pink : Colors.white,
@@ -1446,7 +1458,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: roomData['hostId'] == _auth.currentUser!.uid
+            onTap: roomData['hostId'] == _currentUserId
                 ? null
                 : () {
                     showProfileInfoBottomSheet(
@@ -1467,7 +1479,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
           const SizedBox(width: 30),
           if (coHost != null)
             GestureDetector(
-              onTap: coHost.userId != _auth.currentUser!.uid
+              onTap: coHost.userId != _currentUserId
                   ? () {
                       showProfileInfoBottomSheet(
                         context,
@@ -1476,9 +1488,13 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                         roomId: widget.roomID,
                       );
                     }
-                  : () async {
+                    : () async {
                       try {
-                        await RoomService.stepDownFromCoHost(widget.roomID);
+                        // TODO: Implement REST API for stepping down
+                        // await RoomService.stepDownFromCoHost(widget.roomID);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Stepping down via REST is still under implementation.'))
+                        );
                         ZegoUIKit().turnMicrophoneOn(false);
                       } catch (e) {
                         debugPrint("Error stepping down from co-host: $e");
@@ -1496,7 +1512,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             Builder(
               builder: (context) {
                 final currentUserParticipant = _participants.firstWhere(
-                  (p) => p.userId == _auth.currentUser!.uid,
+                  (p) => p.userId == _currentUserId,
                   orElse: () => RoomParticipant(userId: '', userName: '', seatNo: -1, isCoHost: false, isMuted: true),
                 );
                 final bool canRequestCoHost = !widget.isHost && !currentUserParticipant.isCoHost;
@@ -1504,25 +1520,26 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                   onTap: !canRequestCoHost
                       ? null
                       : () async {
-                          try {
-                            await RoomService.requestToBeCoHost(widget.roomID);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Co-host request sent. Please wait for host approval.'),
-                                  backgroundColor: Colors.pink,
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            debugPrint("Error requesting to be co-host: $e");
-                            if (mounted) {
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-                            }
+                        try {
+                          // TODO: Implement REST API for request
+                          // await RoomService.requestToBeCoHost(widget.roomID);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Co-host request via REST is still under implementation.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
                           }
-                        },
+                        } catch (e) {
+                          debugPrint("Error requesting to be co-host: $e");
+                          if (mounted) {
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+                          }
+                        }
+                      },
                   child: Column(
                     children: [
                       Container(
@@ -1557,7 +1574,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
 
   Widget _buildSeatsGrid() {
     const int seatCount = 12;
-    final String currentUserId = _auth.currentUser!.uid;
+    final String currentUserId = _currentUserId;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -1571,7 +1588,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       ),
       itemCount: seatCount,
       itemBuilder: (context, index) {
-        final seatNo = index + 1;
+        final seatNo = index + 2;
         RoomParticipant? participantOnSeat;
         try {
           participantOnSeat = _participants.firstWhere((p) => p.seatNo == seatNo);
@@ -1589,10 +1606,10 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   }
 
   Widget _buildEmptySeat(int seatNo) {
-    final currentUser = _auth.currentUser!;
+    final currentUserId = _currentUserId;
     RoomParticipant? currentUserParticipant;
     try {
-      currentUserParticipant = _participants.firstWhere((p) => p.userId == currentUser.uid);
+      currentUserParticipant = _participants.firstWhere((p) => p.userId == currentUserId);
     } catch (e) {
       currentUserParticipant = null;
     }
@@ -1621,12 +1638,34 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
                 ),
               );
             } else {
-              await RoomService.takeSeat(widget.roomID, seatNo);
-              ZegoUIKit().turnMicrophoneOn(true);
+              print('🚀 [AUDIO_ROOM_PAGE] Calling takeSeat REST API for seat $seatNo...');
+              final takeSeatResponse = await roomApiService.takeSeat(widget.roomID, seatNo);
+              if (takeSeatResponse != null && takeSeatResponse.status) {
+                print('✅ [AUDIO_ROOM_PAGE] REST Take Seat Success');
+                ZegoUIKit().turnMicrophoneOn(true);
+              } else {
+                print('❌ [AUDIO_ROOM_PAGE] REST Take Seat Failed: ${takeSeatResponse?.message}');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to take seat: ${takeSeatResponse?.message ?? "Error"}'))
+                  );
+                }
+              }
             }
           } else if (isSpeakerOrCoHost) {
             if (_isMoveAllowed) {
-              await RoomService.moveSeat(widget.roomID, seatNo);
+              print('🚀 [AUDIO_ROOM_PAGE] Calling move (takeSeat) REST API for seat $seatNo...');
+              final moveResponse = await roomApiService.takeSeat(widget.roomID, seatNo);
+              if (moveResponse != null && moveResponse.status) {
+                print('✅ [AUDIO_ROOM_PAGE] REST Move Success');
+              } else {
+                print('❌ [AUDIO_ROOM_PAGE] REST Move Failed: ${moveResponse?.message}');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to move: ${moveResponse?.message ?? "Error"}'))
+                  );
+                }
+              }
             } else {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1699,7 +1738,11 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
             }
           : () async {
               try {
-                await RoomService.leaveSeat(widget.roomID);
+                // TODO: Implement REST API for leaving seat
+                // await RoomService.leaveSeat(widget.roomID);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Leaving seat via REST is still under implementation.'))
+                );
                 ZegoUIKit().turnMicrophoneOn(false);
               } catch (e) {
                 debugPrint("Error leaving seat: $e");
@@ -1795,7 +1838,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   }
 
   Widget _buildJoinCallOverlay() {
-    final String currentUserId = _auth.currentUser!.uid;
+    final String currentUserId = _currentUserId;
     RoomParticipant? currentUserParticipant;
     try {
       currentUserParticipant = _participants.firstWhere((p) => p.userId == currentUserId);
@@ -1814,14 +1857,17 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         child: GestureDetector(
           onTap: () async {
             try {
-              await RoomService.requestToBeSpeaker(widget.roomID);
+              final response = await roomApiService.requestCohost(widget.roomID);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Request sent. Please wait for host approval.'),
-                    backgroundColor: Colors.pink,
-                  ),
-                );
+                if (response != null && response.status) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Request to co-host sent!')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to send request: ${response?.message ?? "Error"}')),
+                  );
+                }
               }
             } catch (e) {
               debugPrint("Error requesting to be speaker: $e");
@@ -2027,7 +2073,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
   }
 
   Widget _buildChatInput() {
-    final String currentUserId = _auth.currentUser!.uid;
+    final String currentUserId = _currentUserId;
     RoomParticipant? currentUserParticipant;
     try {
       currentUserParticipant = _participants.firstWhere((p) => p.userId == currentUserId);
@@ -2110,7 +2156,8 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
               child: GestureDetector(
                 onTap: () {
                   final newMuteState = !isCurrentlyMuted;
-                  RoomService.toggleMuteState(widget.roomID, newMuteState);
+                  // TODO: Implement REST API for toggle mute
+                  // RoomService.toggleMuteState(widget.roomID, newMuteState);
                   ZegoUIKit().turnMicrophoneOn(!newMuteState);
                 },
                 child: Container(
@@ -2228,7 +2275,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
       setState(() {
         _messages.add(
           ChatMessage(
-            userId: _auth.currentUser!.uid,
+            userId: _currentUserId,
             username: _currentUserName,
             message: messageText,
             timestamp: DateTime.now(),
@@ -2250,7 +2297,7 @@ class _AudioRoomPageState extends State<AudioRoomPage> with SingleTickerProvider
         setState(() {
           _messages.add(
             ChatMessage(
-              userId: _auth.currentUser!.uid,
+              userId: _currentUserId,
               username: _currentUserName,
               message: messageText,
               timestamp: DateTime.now(),

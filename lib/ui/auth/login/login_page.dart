@@ -108,7 +108,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         gradient: AppColors.logoGradient,
         boxShadow: AppColors.logoShadow,
       ),
-      child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/images/gf_live.png')),
+      child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/images/gs_live.jpeg')),
     );
   }
 
@@ -118,7 +118,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         ShaderMask(
           shaderCallback: (bounds) => AppColors.textGradientShader(bounds),
           child: const Text(
-            'Welcome to GF LIVE',
+            'Welcome to GS LIVE',
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ),

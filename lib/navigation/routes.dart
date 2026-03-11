@@ -34,6 +34,34 @@ enum Routes {
   settingsPage,
   passwordSettings,
   ranks,
+  reward,
+  streamerCenter,
+  guardian,
+  medalWall,
+  profileCard,
+  auth,
+  followUs,
+  myAgency,
+  qrScanner,
+  help,
+  fanClub,
+  backpack,
+  level,
+  myFeedback,
+  mall,
+  mallRanking,
+  accountSecurity,
+  bindSelection,
+  bindPhone,
+  bindEmail,
+  languageSetting,
+  blacklist,
+  privilegeSettings,
+  newMessagesNotification,
+  privacy,
+  aboutPoppo,
+  liveApplication,
+  partyRoom,
 }
 
 extension RoutesExtension on Routes {
@@ -83,8 +111,6 @@ extension RoutesExtension on Routes {
         return '/myInvites';
       case Routes.visitors:
         return '/visitors';
-      case Routes.visitors:
-        return '/visitors';
       case Routes.hostPage:
         return '/hostPage';
       case Routes.videoRoom:
@@ -111,6 +137,62 @@ extension RoutesExtension on Routes {
         return '/passwordSettings';
       case Routes.ranks:
         return '/ranks';
+      case Routes.reward:
+        return '/reward';
+      case Routes.streamerCenter:
+        return '/streamer-center';
+      case Routes.guardian:
+        return '/guardian';
+      case Routes.medalWall:
+        return '/medal-wall';
+      case Routes.profileCard:
+        return '/profile-card';
+      case Routes.auth:
+        return '/auth';
+      case Routes.followUs:
+        return '/follow-us';
+      case Routes.myAgency:
+        return '/my-agency';
+      case Routes.qrScanner:
+        return '/qr-scanner';
+      case Routes.help:
+        return '/help';
+      case Routes.fanClub:
+        return '/fan-club';
+      case Routes.backpack:
+        return '/backpack';
+      case Routes.level:
+        return '/level';
+      case Routes.myFeedback:
+        return '/my-feedback';
+      case Routes.mall:
+        return '/mall';
+      case Routes.mallRanking:
+        return '/mall-ranking';
+      case Routes.accountSecurity:
+        return '/accountSecurity';
+      case Routes.bindSelection:
+        return '/bindSelection';
+      case Routes.bindPhone:
+        return '/bindPhone';
+      case Routes.bindEmail:
+        return '/bindEmail';
+      case Routes.languageSetting:
+        return '/languageSetting';
+      case Routes.blacklist:
+        return '/blacklist';
+      case Routes.privilegeSettings:
+        return '/privilegeSettings';
+      case Routes.newMessagesNotification:
+        return '/newMessagesNotification';
+      case Routes.privacy:
+        return '/privacy';
+      case Routes.aboutPoppo:
+        return '/aboutPoppo';
+      case Routes.liveApplication:
+        return '/liveApplication';
+      case Routes.partyRoom:
+        return '/partyRoom';
     }
   }
 }

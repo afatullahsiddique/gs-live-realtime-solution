@@ -15,15 +15,13 @@ class AppServices {
       final doc = await _appSettingsCollection.doc(_zegoDocId).get();
 
       if (doc.exists && doc.data() != null) {
-        // Firestore stores numbers as 'num', so we safe cast to int
         return (doc.data()!['appId'] as num).toInt();
       } else {
-        throw Exception("Zego config document not found!");
+        return 423730354; // Default from user
       }
     } catch (e) {
       print("Error fetching Zego App ID: $e");
-      // Return a default value or rethrow based on your needs
-      rethrow;
+      return 423730354;
     }
   }
 
@@ -35,11 +33,11 @@ class AppServices {
       if (doc.exists && doc.data() != null) {
         return doc.data()!['appSign'] as String;
       } else {
-        throw Exception("Zego config document not found!");
+        return "cec0bbcfd59fcadabe5511c354ffe19d6fe71a470ad75f177d2712bf25b3734b"; // Default from user
       }
     } catch (e) {
       print("Error fetching Zego App Sign: $e");
-      rethrow;
+      return "cec0bbcfd59fcadabe5511c354ffe19d6fe71a470ad75f177d2712bf25b3734b";
     }
   }
 

@@ -27,56 +27,63 @@ class UserData {
   UserData({required this.user});
 
   factory UserData.fromJson(Map<String, dynamic> json) {
-    return UserData(
-      user: User.fromJson(json['user']),
-    );
+    if (json.containsKey('user')) {
+      return UserData(user: User.fromJson(json['user']));
+    }
+    return UserData(user: User.fromJson(json));
   }
 }
 
 class User {
   final String id;
-  final String name;
-  final String email;
-  final String? photoUrl;
+  final String? name;
+  final String? email;
+  final List<String>? photoUrls;
   final String? phone;
   final String? gender;
-  final String role;
+  final String? role;
   final DateTime? createdAt;
   final Host? host;
   final LevelInfo? levelInfo;
-  final String? token; // ✅ add this
+  final String? token;
 
   User({
     required this.id,
-    required this.name,
-    required this.email,
-    this.photoUrl,
+    this.name,
+    this.email,
+    this.photoUrls,
     this.phone,
     this.gender,
-    required this.role,
+    this.role,
     this.createdAt,
     this.host,
     this.levelInfo,
-    this.token, // ✅ add this
+    this.token,
   });
+
+  String? get photoUrl => (photoUrls != null && photoUrls!.isNotEmpty) ? photoUrls![0] : null;
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
+      id: json['id'] ?? '',
       name: json['name'],
       email: json['email'],
-      photoUrl: json['photoUrl'],
+      photoUrls: json['photoUrl'] is List
+          ? List<String>.from(json['photoUrl'])
+          : json['photoUrl'] is String
+              ? [json['photoUrl']]
+              : [],
       phone: json['phone'],
       gender: json['gender'],
       role: json['role'],
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : null,
-      host: json['host'] != null ? Host.fromJson(json['host']) : null,
+      host: (json['Host'] != null) ? Host.fromJson(json['Host']) : (json['host'] != null ? Host.fromJson(json['host']) : null),
       levelInfo: json['levelInfo'] != null
           ? LevelInfo.fromJson(json['levelInfo'])
           : null,
-      token: json['token'], // ✅ add this
+      token: json['token'],
     );
   }
 
@@ -85,7 +92,7 @@ class User {
       'id': id,
       'name': name,
       'email': email,
-      'photoUrl': photoUrl,
+      'photoUrl': photoUrls,
       'phone': phone,
       'gender': gender,
       'role': role,
@@ -98,7 +105,7 @@ class User {
 }
 
 class Host {
-  final String displayId;
+  final String? displayId;
   final String? displayName;
   final String? bio;
   final String? hostStatus;
@@ -112,8 +119,10 @@ class Host {
   final int visitorCount;
   final int totalEarned;
 
+  final List<Tag>? myTags;
+
   Host({
-    required this.displayId,
+    this.displayId,
     this.displayName,
     this.bio,
     this.hostStatus,
@@ -126,6 +135,7 @@ class Host {
     required this.diamonds,
     required this.visitorCount,
     required this.totalEarned,
+    this.myTags,
   });
 
   factory Host.fromJson(Map<String, dynamic> json) {
@@ -143,6 +153,9 @@ class Host {
       diamonds: json['diamonds'] ?? 0,
       visitorCount: json['visitorCount'] ?? 0,
       totalEarned: json['totalEarned'] ?? 0,
+      myTags: json['myTags'] != null
+          ? (json['myTags'] as List).map((i) => Tag.fromJson(i)).toList()
+          : null,
     );
   }
 
@@ -205,6 +218,30 @@ class LevelInfo {
       'highestLevel': highestLevel,
       'nextLevel': nextLevel,
       'warning': warning,
+    };
+  }
+}
+
+class Tag {
+  final String id;
+  final String name;
+  final String? category;
+
+  Tag({required this.id, required this.name, this.category});
+
+  factory Tag.fromJson(Map<String, dynamic> json) {
+    return Tag(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      category: json['category'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      if (category != null) 'category': category,
     };
   }
 }

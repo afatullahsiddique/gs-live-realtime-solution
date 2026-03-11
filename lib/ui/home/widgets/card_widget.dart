@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svga/flutter_svga.dart';
 import 'package:go_router/go_router.dart';
@@ -7,16 +8,14 @@ import '../../../core/utils/view_count.dart';
 import '../../../core/widgets/auto_scroll_text.dart';
 import '../../../navigation/routes.dart';
 import '../home_page.dart';
-import 'live_animation.dart';
-
 class AnimatedStreamerCard extends StatefulWidget {
   final StreamerModel streamer;
   final String? animationFilePath;
 
-  const AnimatedStreamerCard({Key? key, required this.streamer, this.animationFilePath}) : super(key: key);
+  const AnimatedStreamerCard({super.key, required this.streamer, this.animationFilePath});
 
   @override
-  _AnimatedStreamerCardState createState() => _AnimatedStreamerCardState();
+  State<AnimatedStreamerCard> createState() => _AnimatedStreamerCardState();
 }
 
 class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
@@ -24,13 +23,7 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        if (widget.streamer.isLiveStream) {
-          context.push(Routes.liveStream.path, extra: {"roomId": widget.streamer.id, "isHost": false});
-        } else if (!widget.streamer.isVideo) {
-          context.push(Routes.audioRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
-        } else {
-          context.push(Routes.videoRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
-        }
+        context.push(Routes.partyRoom.path, extra: {"roomId": widget.streamer.id, "isHost": false});
       },
       child: Stack(
         children: [
@@ -77,6 +70,41 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                           Positioned.fill(child: Image.asset(widget.animationFilePath!, fit: BoxFit.cover)),
                       // --- END OF CHANGE ---
 
+                      // Branded Floating LIVE Icons
+                      if (widget.streamer.isVideo || widget.streamer.isLiveStream)
+                        Positioned(
+                          right: 4,
+                          top: MediaQuery.of(context).size.height * 0.1,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Subtle blur shadow for the "floating" feel
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.2),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Image.asset(
+                                widget.streamer.id.length % 2 == 0 
+                                  ? 'assets/images/gf_live.png' 
+                                  : 'assets/images/gs_live.jpeg',
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.contain,
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // Content
                       Padding(
                         padding: const EdgeInsets.all(12),
@@ -93,8 +121,8 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
+                                        color: Colors.black.withValues(alpha: 0.6),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 0.5),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -104,8 +132,6 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                             color: Colors.pink.shade300,
                                             size: widget.streamer.isVideo ? 14 : 16,
                                           ),
-                                          // const SizedBox(width: 4),
-                                          // Icon(Icons.visibility_rounded, color: Colors.grey, size: 14),
                                           const SizedBox(width: 4),
                                           Text(
                                             formatViewCount(widget.streamer.viewCount),
@@ -120,26 +146,16 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
                                 if (widget.streamer.isLocked)
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.6),
+                                      color: Colors.black.withValues(alpha: 0.6),
                                       shape: BoxShape.circle,
                                     ),
                                     padding: const EdgeInsets.all(4),
                                     child: const Icon(Icons.lock, color: Colors.white, size: 18),
                                   ),
-
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    gradient: LinearGradient(colors: [Colors.pink.shade400, Colors.purple.shade400]),
-                                  ),
-                                  child: const LiveWaveWidget(), // Replace Text with your custom widget
-                                ),
                               ],
                             ),
                             const Spacer(),
@@ -150,8 +166,8 @@ class _AnimatedStreamerCardState extends State<AnimatedStreamerCard> {
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.3),
-                                  border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 0.5),
                                 ),
                                 child: AutoScrollText(
                                   text: widget.streamer.name,

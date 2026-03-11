@@ -1,12 +1,9 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/cubits/app_cubit.dart';
-import '../../data/remote/firebase/profile_services.dart';
 import '../../navigation/routes.dart';
-import '../../theme/app_theme.dart';
 
 // Import your AppCubit
 // import '../../cubits/app_cubit.dart';
@@ -17,277 +14,175 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header Section
-              Padding(
-                padding: const EdgeInsets.only(left: 0, right: 20, top: 0, bottom: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: Icon(CupertinoIcons.back, size: 28, color: AppColors.pink),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    Text(
-                      'Settings',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(color: Colors.pink.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 2)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 48), // Balance the back button
-                  ],
-                ),
-              ),
-
-              // Settings List
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.sun_max,
-                        title: 'Change Theme',
-                        onTap: () {
-                          debugPrint('Change Theme tapped');
-                          // Add your theme change logic
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      FutureBuilder<bool>(
-                        future: ProfileService.hasPassword(),
-                        builder: (context, snapshot) {
-                          final hasPassword = snapshot.data ?? false;
-                          final title = hasPassword ? 'Change Password' : 'Create Password';
-
-                          return _buildSettingsItem(
-                            context,
-                            icon: CupertinoIcons.lock_shield,
-                            title: title,
-                            onTap: () {
-                              context.push(Routes.passwordSettings.path);
-                            },
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.link,
-                        title: 'Linked Accounts',
-                        onTap: () {
-                          debugPrint('Linked Accounts tapped');
-                          // Navigate to linked accounts page
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.tray,
-                        title: 'Inbox',
-                        onTap: () {
-                          debugPrint('Inbox tapped');
-                          // Navigate to inbox
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.globe,
-                        title: 'Language',
-                        onTap: () {
-                          debugPrint('Language tapped');
-                          // Navigate to language selection
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.star,
-                        title: 'Review Us',
-                        onTap: () {
-                          debugPrint('Review Us tapped');
-                          // Open app store review
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.chat_bubble_text,
-                        title: 'Feedback',
-                        onTap: () {
-                          debugPrint('Feedback tapped');
-                          context.push(Routes.feedback.path);
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.refresh_circled,
-                        title: 'Check for Update',
-                        onTap: () {
-                          debugPrint('Check for Update tapped');
-                          // Check for app updates
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildSettingsItem(
-                        context,
-                        icon: CupertinoIcons.info_circle,
-                        title: 'About',
-                        onTap: () {
-                          debugPrint('About tapped');
-                          // Show about dialog or navigate to about page
-                        },
-                      ),
-
-                      const SizedBox(height: 30),
-
-                      // Logout Button
-                      _buildLogoutButton(context),
-
-                      const SizedBox(height: 30),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+      backgroundColor: const Color(0xFFF5F5F9),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.black, size: 30),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: const Text(
+          'Settings',
+          style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_note_rounded, color: Colors.black, size: 28),
+            onPressed: () {},
           ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            _buildGroup([
+              _buildItem(
+                title: 'Account And Security',
+                subtitle: 'Security Level: Low',
+                subtitleColor: Colors.red,
+                onTap: () => context.push(Routes.accountSecurity.path),
+              ),
+              _buildItem(title: 'Security Password', onTap: () => context.push(Routes.passwordSettings.path)),
+              _buildItem(title: 'Language Setting', onTap: () => context.push(Routes.languageSetting.path)),
+            ]),
+            _buildGroup([
+              _buildItem(title: 'Blacklist', onTap: () => context.push(Routes.blacklist.path)),
+            ]),
+            _buildGroup([
+              _buildItem(title: 'Privilege Settings', onTap: () => context.push(Routes.privilegeSettings.path)),
+              _buildItem(title: 'New Messages Notification', onTap: () => context.push(Routes.newMessagesNotification.path)),
+              _buildItem(title: 'Privacy', onTap: () => context.push(Routes.privacy.path)),
+            ]),
+            _buildGroup([
+              _buildItem(title: 'Version', trailingText: '5.4.526.0212', onTap: () {}),
+              _buildItem(title: 'About GS', onTap: () => context.push(Routes.aboutPoppo.path)),
+              _buildItem(title: 'Network Diagnostics', onTap: () {}),
+              _buildItem(title: 'Clear Cache', onTap: () {}),
+            ]),
+            const SizedBox(height: 12),
+            _buildFooterButton(
+              text: 'Switch Account',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildFooterButton(
+              text: 'Log Out',
+              textColor: Colors.black, // The screenshot shows black text for Log Out, but usually it's red. Looking at image 0, it's black. Image 1 is also black. Wait, actually it's a separate card.
+              onTap: () => _handleLogout(context),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSettingsItem(
-    BuildContext context, {
-    required IconData icon,
+  Widget _buildGroup(List<Widget> items) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: items.asMap().entries.map((entry) {
+          final isLast = entry.key == items.length - 1;
+          return Column(
+            children: [
+              entry.value,
+              if (!isLast)
+                const Divider(height: 1, indent: 16, endIndent: 0, color: Color(0xFFF0F0F0)),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildItem({
     required String title,
+    String? subtitle,
+    Color? subtitleColor,
+    String? trailingText,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return ListTile(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Colors.black.withOpacity(0.3),
-          border: Border.all(color: Colors.pink.withOpacity(0.3), width: 1),
-          boxShadow: [BoxShadow(color: Colors.pink.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.pink.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: AppColors.pink, size: 24),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.normal, color: Colors.black87),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 12, color: subtitleColor ?? Colors.grey),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-            Icon(CupertinoIcons.chevron_right, color: Colors.white.withOpacity(0.5), size: 20),
           ],
-        ),
+        ],
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (trailingText != null)
+            Text(
+              trailingText,
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right, color: Color(0xFFBBBBBB), size: 20),
+        ],
       ),
     );
   }
 
-  Widget _buildLogoutButton(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        // Show confirmation dialog
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1A1A2E),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: Colors.pink.withOpacity(0.3)),
-            ),
-            title: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            content: const Text('Are you sure you want to logout?', style: TextStyle(color: Colors.white70)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.7))),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(
-                  'Logout',
-                  style: TextStyle(color: AppColors.pink, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-        );
-
-        if (confirmed == true) {
-          final appCubit = GetIt.I<AppCubit>();
-          await appCubit.logout();
-          if (context.mounted) {
-            context.go(Routes.login.path);
-          }
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(colors: [Colors.pink.withOpacity(0.3), Colors.red.withOpacity(0.3)]),
-          border: Border.all(color: Colors.red.withOpacity(0.5), width: 1),
-          boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 8))],
+  Widget _buildFooterButton({required String text, required VoidCallback onTap, Color? textColor}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: textColor ?? Colors.black,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(CupertinoIcons.square_arrow_right, color: Colors.red, size: 24),
-            ),
-            const SizedBox(width: 16),
-            const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+        child: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal)),
       ),
     );
+  }
+
+  void _handleLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final appCubit = GetIt.I<AppCubit>();
+      await appCubit.logout();
+      if (context.mounted) {
+        context.go(Routes.login.path);
+      }
+    }
   }
 }
